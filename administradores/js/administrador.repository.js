@@ -48,11 +48,9 @@
   function listarPeriodos() {
     return firebaseService.listarDocumentos(config.collections.periodos)
       .then(function (periodos) {
-        return periodos
-          .map(normalizarPeriodo)
-          .sort(function (a, b) {
-            return String(b.id).localeCompare(String(a.id));
-          });
+        return periodos.map(normalizarPeriodo).sort(function (a, b) {
+          return String(b.id).localeCompare(String(a.id));
+        });
       });
   }
 
@@ -68,12 +66,8 @@
     periodo.actualizadoPorModulo = 'administradores';
 
     return firebaseService.guardarDocumento(config.collections.periodos, docId, periodo, { merge: true })
-      .then(function () {
-        return registrarLog('PERIODO_GUARDADO', periodo);
-      })
-      .then(function () {
-        return periodo;
-      });
+      .then(function () { return registrarLog('PERIODO_GUARDADO', periodo); })
+      .then(function () { return periodo; });
   }
 
   function activarPeriodo(periodoId) {
@@ -104,21 +98,15 @@
 
         return Promise.all(tareas);
       })
-      .then(function () {
-        return cargarConfigApp();
-      })
+      .then(function () { return cargarConfigApp(); })
       .then(function (appConfig) {
         return guardarConfigApp(Object.assign({}, appConfig, {
           periodoActivo: docId,
           procesoActivo: true
         }));
       })
-      .then(function () {
-        return registrarLog('PERIODO_ACTIVADO', { periodoId: docId });
-      })
-      .then(function () {
-        return docId;
-      });
+      .then(function () { return registrarLog('PERIODO_ACTIVADO', { periodoId: docId }); })
+      .then(function () { return docId; });
   }
 
   function cerrarPeriodo(periodoId) {
@@ -130,9 +118,7 @@
       estado: 'CERRADO',
       actualizadoPorModulo: 'administradores'
     }, { merge: true })
-      .then(function () {
-        return cargarConfigApp();
-      })
+      .then(function () { return cargarConfigApp(); })
       .then(function (appConfig) {
         if (appConfig.periodoActivo !== docId) return appConfig;
         return guardarConfigApp(Object.assign({}, appConfig, {
@@ -140,12 +126,8 @@
           procesoActivo: false
         }));
       })
-      .then(function () {
-        return registrarLog('PERIODO_CERRADO', { periodoId: docId });
-      })
-      .then(function () {
-        return docId;
-      });
+      .then(function () { return registrarLog('PERIODO_CERRADO', { periodoId: docId }); })
+      .then(function () { return docId; });
   }
 
   function eliminarPeriodo(periodoId) {
@@ -153,9 +135,7 @@
     if (!docId) return Promise.reject(new Error('Selecciona un período para eliminar.'));
 
     return firebaseService.eliminarDocumento(config.collections.periodos, docId)
-      .then(function () {
-        return cargarConfigApp();
-      })
+      .then(function () { return cargarConfigApp(); })
       .then(function (appConfig) {
         if (appConfig.periodoActivo !== docId) return appConfig;
         return guardarConfigApp(Object.assign({}, appConfig, {
@@ -163,12 +143,8 @@
           procesoActivo: false
         }));
       })
-      .then(function () {
-        return registrarLog('PERIODO_ELIMINADO', { periodoId: docId });
-      })
-      .then(function () {
-        return docId;
-      });
+      .then(function () { return registrarLog('PERIODO_ELIMINADO', { periodoId: docId }); })
+      .then(function () { return docId; });
   }
 
   function listarEstudiantesPorPeriodo(periodoId) {
@@ -179,11 +155,9 @@
       where: ['periodoId', '==', periodo],
       limit: 2000
     }).then(function (estudiantes) {
-      return estudiantes
-        .map(normalizarEstudiante)
-        .sort(function (a, b) {
-          return String(a.nombres || '').localeCompare(String(b.nombres || ''));
-        });
+      return estudiantes.map(normalizarEstudiante).sort(function (a, b) {
+        return String(a.nombres || '').localeCompare(String(b.nombres || ''));
+      });
     });
   }
 
@@ -204,12 +178,8 @@
 
     return firebaseService.guardarLote(config.collections.estudiantes, documentos, { merge: true })
       .then(function (respuesta) {
-        return registrarLog('ESTUDIANTES_CARGADOS', {
-          periodoId: periodo,
-          total: respuesta.total
-        }).then(function () {
-          return respuesta;
-        });
+        return registrarLog('ESTUDIANTES_CARGADOS', { periodoId: periodo, total: respuesta.total })
+          .then(function () { return respuesta; });
       });
   }
 
@@ -224,16 +194,53 @@
         }).filter(Boolean);
 
         if (!ids.length) return { total: 0 };
-
         return firebaseService.eliminarLote(config.collections.estudiantes, ids);
       })
       .then(function (respuesta) {
-        return registrarLog('ESTUDIANTES_LIMPIADOS', {
-          periodoId: periodo,
-          total: respuesta.total
-        }).then(function () {
-          return respuesta;
+        return registrarLog('ESTUDIANTES_LIMPIADOS', { periodoId: periodo, total: respuesta.total })
+          .then(function () { return respuesta; });
+      });
+  }
+
+  function listarCoordinadores() {
+    return firebaseService.listarDocumentos(config.collections.coordinadores)
+      .then(function (coordinadores) {
+        return coordinadores.map(normalizarCoordinador).sort(function (a, b) {
+          return String(a.nombres || '').localeCompare(String(b.nombres || ''));
         });
+      });
+  }
+
+  function guardarCoordinador(data) {
+    var coordinador = normalizarCoordinador(data);
+    if (!coordinador.email) return Promise.reject(new Error('El correo del coordinador es obligatorio.'));
+    if (!coordinador.nombres) return Promise.reject(new Error('Los nombres del coordinador son obligatorios.'));
+    if (!coordinador.carreras.length) return Promise.reject(new Error('Asigna al menos una carrera al coordinador.'));
+
+    return firebaseService.guardarDocumento(config.collections.coordinadores, coordinador.id, coordinador, { merge: true })
+      .then(function () {
+        return registrarLog('COORDINADOR_GUARDADO', {
+          id: coordinador.id,
+          email: coordinador.email,
+          carreras: coordinador.carreras,
+          activo: coordinador.activo
+        });
+      })
+      .then(function () {
+        return coordinador;
+      });
+  }
+
+  function eliminarCoordinador(id) {
+    var docId = normalizarCoordinadorId(id);
+    if (!docId) return Promise.reject(new Error('Selecciona un coordinador para eliminar.'));
+
+    return firebaseService.eliminarDocumento(config.collections.coordinadores, docId)
+      .then(function () {
+        return registrarLog('COORDINADOR_ELIMINADO', { id: docId });
+      })
+      .then(function () {
+        return docId;
       });
   }
 
@@ -260,9 +267,7 @@
           model: modeloDefault(documentId),
           temperature: 0.35,
           maxOutputTokens: 900
-        }, doc, {
-          origen: 'firebase'
-        });
+        }, doc, { origen: 'firebase' });
       });
   }
 
@@ -278,12 +283,8 @@
     };
 
     return firebaseService.guardarDocumento(config.collections.ia, documentId, payload, { merge: true })
-      .then(function () {
-        return registrarLog('CONFIG_IA_GUARDADA', Object.assign({ proveedor: documentId }, payload));
-      })
-      .then(function () {
-        return Object.assign({ id: documentId }, payload, { origen: 'firebase' });
-      });
+      .then(function () { return registrarLog('CONFIG_IA_GUARDADA', Object.assign({ proveedor: documentId }, payload)); })
+      .then(function () { return Object.assign({ id: documentId }, payload, { origen: 'firebase' }); });
   }
 
   function ejecutarDiagnostico() {
@@ -292,6 +293,7 @@
       diagnosticarDocumento('IA Gemini', config.collections.ia, 'gemini'),
       diagnosticarColeccion('Períodos', config.collections.periodos),
       diagnosticarColeccion('Estudiantes', config.collections.estudiantes),
+      diagnosticarColeccion('Coordinadores', config.collections.coordinadores),
       diagnosticarColeccion('Títulos', config.collections.titulos),
       diagnosticarColeccion('Logs', config.collections.logs)
     ];
@@ -309,29 +311,17 @@
         };
       })
       .catch(function (error) {
-        return {
-          titulo: titulo,
-          estado: 'error',
-          descripcion: obtenerMensajeError(error)
-        };
+        return { titulo: titulo, estado: 'error', descripcion: obtenerMensajeError(error) };
       });
   }
 
   function diagnosticarColeccion(titulo, collectionName) {
     return firebaseService.contarColeccion(collectionName, 5)
       .then(function (cantidad) {
-        return {
-          titulo: titulo,
-          estado: 'ok',
-          descripcion: 'Colección accesible. Muestra encontrada: ' + cantidad + '.'
-        };
+        return { titulo: titulo, estado: 'ok', descripcion: 'Colección accesible. Muestra encontrada: ' + cantidad + '.' };
       })
       .catch(function (error) {
-        return {
-          titulo: titulo,
-          estado: 'error',
-          descripcion: obtenerMensajeError(error)
-        };
+        return { titulo: titulo, estado: 'error', descripcion: obtenerMensajeError(error) };
       });
   }
 
@@ -340,9 +330,7 @@
       accion: accion,
       modulo: 'administradores',
       data: limpiarDataParaLog(data)
-    }).catch(function () {
-      return null;
-    });
+    }).catch(function () { return null; });
   }
 
   function normalizarPeriodo(data) {
@@ -380,11 +368,40 @@
     };
   }
 
+  function normalizarCoordinador(data) {
+    var original = data || {};
+    var email = limpiarTexto(original.email || original.correo || original.id || '').toLowerCase();
+    var id = normalizarCoordinadorId(email);
+    return {
+      id: id,
+      email: email,
+      correo: email,
+      nombres: limpiarTexto(original.nombres || original.nombre || original.nombreCompleto || ''),
+      carreras: normalizarCarreras(original.carreras || original.carrerasAsignadas || original.carrera || ''),
+      activo: parseBoolean(original.activo) || original.activo === undefined,
+      rol: 'coordinador',
+      observacion: limpiarTexto(original.observacion || ''),
+      actualizadoPorModulo: 'administradores'
+    };
+  }
+
+  function normalizarCarreras(value) {
+    if (Array.isArray(value)) {
+      return value.map(limpiarTexto).filter(Boolean);
+    }
+
+    return String(value || '')
+      .split(',')
+      .map(limpiarTexto)
+      .filter(Boolean);
+  }
+
   function normalizarPeriodoId(periodoId) {
-    return String(periodoId || '')
-      .trim()
-      .replace(/\s+/g, '_')
-      .replace(/[^A-Za-z0-9_\-.]/g, '');
+    return String(periodoId || '').trim().replace(/\s+/g, '_').replace(/[^A-Za-z0-9_\-.]/g, '');
+  }
+
+  function normalizarCoordinadorId(value) {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9@._-]/g, '_');
   }
 
   function limpiarDataParaLog(data) {
@@ -433,6 +450,9 @@
     listarEstudiantesPorPeriodo: listarEstudiantesPorPeriodo,
     guardarEstudiantes: guardarEstudiantes,
     limpiarEstudiantesPorPeriodo: limpiarEstudiantesPorPeriodo,
+    listarCoordinadores: listarCoordinadores,
+    guardarCoordinador: guardarCoordinador,
+    eliminarCoordinador: eliminarCoordinador,
     cargarConfigIA: cargarConfigIA,
     guardarConfigIA: guardarConfigIA,
     ejecutarDiagnostico: ejecutarDiagnostico
