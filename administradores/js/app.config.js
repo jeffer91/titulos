@@ -4,8 +4,8 @@
 
   window.TA_ADMINISTRADORES_CONFIG = Object.freeze({
     modulo: 'administradores',
-    version: '0.2.0-bloque-10',
-    modo: 'firebase-base',
+    version: '0.3.0-bloque-11',
+    modo: 'firebase-periodos',
     firebaseActivo: true,
     electronActivo: false,
 
@@ -46,6 +46,7 @@
       googleSheetsUrl: ''
     }),
 
+    estadosPeriodo: Object.freeze(['INACTIVO', 'ACTIVO', 'CERRADO']),
     proveedoresIA: Object.freeze(['gemini', 'groq', 'openrouter', 'mistral']),
 
     rutas: Object.freeze({
