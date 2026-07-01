@@ -5,26 +5,38 @@ Este módulo es independiente del módulo de estudiantes y del módulo de coordi
 ## Formas de uso
 
 - Doble click en `administrador.html`.
-- Live Server abriendo directamente `administradores/administrador.html`.
+- Doble click en `coordinadores.html` para gestión directa de coordinadores.
+- Live Server abriendo directamente archivos dentro de `administradores/`.
 - Instalador Electron propio del módulo administradores.
 
-## Archivos base del Bloque 9
+## Archivos principales
 
 ```text
 administradores/
 ├─ administrador.html
+├─ coordinadores.html
 ├─ css/
 │  └─ administrador.css
 ├─ js/
 │  ├─ app.config.js
-│  └─ administrador.app.js
+│  ├─ firebase.service.js
+│  ├─ administrador.repository.js
+│  ├─ administrador.app.js
+│  ├─ estudiantes.import.service.js
+│  ├─ estudiantes.admin.js
+│  └─ coordinadores.admin.js
 ├─ assets/
 └─ electron/
 ```
 
-## Alcance futuro
+## Funciones construidas
 
-Permitirá configurar períodos, estudiantes, coordinadores, carreras, claves de IA, Google Sheets, diagnósticos y limpieza controlada.
+- Configuración general del proceso.
+- Gestión de períodos.
+- Carga, listado y limpieza de estudiantes.
+- Gestión de coordinadores.
+- Configuración de IA.
+- Diagnóstico básico.
 
 ## Regla técnica
 
