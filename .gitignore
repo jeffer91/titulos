@@ -1,0 +1,30 @@
+# Dependencias
+node_modules/
+
+# Builds Electron
+dist/
+release/
+out/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporales
+*.tmp
+*.bak
+*.old
+*_tmp.js
+*_test.js
+test_*.js
+prueba_*.html
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
