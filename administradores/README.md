@@ -6,6 +6,7 @@ Este módulo es independiente del módulo de estudiantes y del módulo de coordi
 
 - Doble click en `administrador.html`.
 - Doble click en `coordinadores.html` para gestión directa de coordinadores.
+- Doble click en `reportes.html` para reportes y exportación.
 - Live Server abriendo directamente archivos dentro de `administradores/`.
 - Instalador Electron propio del módulo administradores.
 
@@ -15,6 +16,7 @@ Este módulo es independiente del módulo de estudiantes y del módulo de coordi
 administradores/
 ├─ administrador.html
 ├─ coordinadores.html
+├─ reportes.html
 ├─ css/
 │  └─ administrador.css
 ├─ js/
@@ -24,7 +26,8 @@ administradores/
 │  ├─ administrador.app.js
 │  ├─ estudiantes.import.service.js
 │  ├─ estudiantes.admin.js
-│  └─ coordinadores.admin.js
+│  ├─ coordinadores.admin.js
+│  └─ reportes.admin.js
 ├─ assets/
 └─ electron/
 ```
@@ -37,6 +40,8 @@ administradores/
 - Gestión de coordinadores.
 - Configuración de IA.
 - Diagnóstico básico.
+- Reportes de títulos y estudiantes.
+- Exportación CSV.
 
 ## Regla técnica
 
