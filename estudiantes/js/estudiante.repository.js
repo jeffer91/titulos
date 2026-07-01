@@ -138,6 +138,31 @@
       });
   }
 
+  function actualizarRespaldoSheets(periodoId, cedula, resultadoSheets) {
+    var docId = construirTituloId(periodoId, cedula);
+    var respaldo = Object.assign({}, resultadoSheets || {}, {
+      actualizadoEnLocal: new Date().toISOString()
+    });
+
+    return firebaseService.actualizarDocumento(config.collections.titulos, docId, {
+      respaldoSheets: respaldo
+    }).then(function () {
+      return registrarLogEnvio(docId, {
+        cedula: cedula,
+        nombres: '',
+        carrera: '',
+        periodoId: periodoId,
+        estado: respaldo.ok ? 'RESPALDO_SHEETS_OK' : 'RESPALDO_SHEETS_PENDIENTE',
+        intentosUsados: 0,
+        maxIntentos: 0,
+        tituloPreferidoNumero: 0,
+        origenCaptura: 'google-sheets'
+      }, respaldo.ok ? 'RESPALDO_SHEETS_OK' : 'RESPALDO_SHEETS_PENDIENTE');
+    }).then(function () {
+      return respaldo;
+    });
+  }
+
   function registrarLogEnvio(tituloId, payload, accion) {
     var log = {
       tituloId: tituloId,
@@ -197,6 +222,7 @@
     consultarEnvio: consultarEnvio,
     consultarEstudianteCompleto: consultarEstudianteCompleto,
     guardarEnvioFinal: guardarEnvioFinal,
+    actualizarRespaldoSheets: actualizarRespaldoSheets,
     registrarLogEnvio: registrarLogEnvio,
     construirTituloId: construirTituloId,
     normalizarEstudiante: normalizarEstudiante
