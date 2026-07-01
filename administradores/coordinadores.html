@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Administradores | Coordinadores</title>
+  <link rel="stylesheet" href="css/administrador.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header__content">
+      <div>
+        <span class="app-badge">Módulo administradores</span>
+        <h1>Gestión de coordinadores</h1>
+        <p>Crea, edita, lista y elimina coordinadores asignados por carrera.</p>
+      </div>
+      <div class="app-status-pill" id="estadoGeneral">Conectando</div>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <section class="notice notice--info">
+      <strong>Bloque 13 activo.</strong> Esta pantalla gestiona coordinadores en Firebase usando la colección <strong>coordinadores</strong>.
+    </section>
+
+    <section class="card hero-card">
+      <div>
+        <p class="section-kicker">Firebase</p>
+        <h2>Estado de conexión</h2>
+        <p class="muted" id="firebaseMensaje">Inicializando conexión...</p>
+      </div>
+      <div class="mode-grid">
+        <div class="mode-item"><span>1</span><strong>Modo</strong><p id="modoEjecucionTexto">—</p></div>
+        <div class="mode-item"><span>2</span><strong>Proyecto</strong><p id="projectIdTexto">—</p></div>
+        <div class="mode-item"><span>3</span><strong>Configuración</strong><p id="configOrigenTexto">Pendiente</p></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="section-kicker">Coordinadores</p>
+          <h2>Registro de coordinadores</h2>
+          <p class="muted">Cada coordinador se guarda por correo. Las carreras se separan con coma.</p>
+        </div>
+        <button class="btn btn--secondary" type="button" id="btnCargarCoordinadores">Cargar coordinadores</button>
+      </div>
+
+      <form id="formCoordinador" class="form-grid admin-form" autocomplete="off">
+        <div class="field">
+          <label for="coordEmailInput">Correo</label>
+          <input id="coordEmailInput" name="email" type="email" placeholder="correo@dominio.edu" />
+        </div>
+        <div class="field">
+          <label for="coordNombresInput">Nombres</label>
+          <input id="coordNombresInput" name="nombres" type="text" placeholder="Nombres del coordinador" />
+        </div>
+        <div class="field field--full">
+          <label for="coordCarrerasInput">Carreras asignadas</label>
+          <input id="coordCarrerasInput" name="carreras" type="text" placeholder="MECÁNICA AUTOMOTRIZ, ENFERMERÍA" />
+          <small>Separa varias carreras con coma.</small>
+        </div>
+        <div class="field">
+          <label for="coordActivoInput">Activo</label>
+          <select id="coordActivoInput" name="activo">
+            <option value="true">Sí</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="field field--full">
+          <label for="coordObservacionInput">Observación</label>
+          <textarea id="coordObservacionInput" name="observacion" rows="3" placeholder="Notas internas del coordinador"></textarea>
+        </div>
+        <div class="form-actions field--full">
+          <button class="btn btn--secondary" type="button" id="btnLimpiarCoordinador">Limpiar</button>
+          <button class="btn btn--primary" type="submit" id="btnGuardarCoordinador">Guardar coordinador</button>
+        </div>
+      </form>
+
+      <div class="status-message" id="coordinadoresMensaje" role="status" aria-live="polite"></div>
+      <div class="student-preview" id="coordinadoresLista"></div>
+    </section>
+  </main>
+
+  <script src="js/app.config.js"></script>
+  <script src="js/firebase.service.js"></script>
+  <script src="js/administrador.repository.js"></script>
+  <script src="js/coordinadores.admin.js"></script>
+  <script src="js/administrador.app.js"></script>
+</body>
+</html>
