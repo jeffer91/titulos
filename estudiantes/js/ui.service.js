@@ -43,7 +43,7 @@
     if (!button) return;
 
     if (isLoading) {
-      button.dataset.originalText = button.textContent;
+      if (!button.dataset.originalText) button.dataset.originalText = button.textContent;
       button.textContent = loadingText || 'Cargando...';
       button.disabled = true;
       return;
@@ -63,6 +63,17 @@
     });
   }
 
+  function setFormDisabled(formSelector, disabled) {
+    var form = qs(formSelector);
+    if (!form) return;
+
+    qsa('input, textarea, button, select', form).forEach(function (element) {
+      element.disabled = Boolean(disabled);
+    });
+
+    form.classList.toggle('is-locked', Boolean(disabled));
+  }
+
   function renderStudent(student) {
     setText('#datoCedula', student.cedula);
     setText('#datoNombres', student.nombres);
@@ -70,6 +81,7 @@
     setText('#datoPeriodo', student.periodoId);
     show('#seccionEstudiante');
     show('#formPropuestas');
+    hide('#comprobanteFinal');
   }
 
   function readProposal(numero) {
@@ -176,6 +188,10 @@
     if (!container) return;
 
     var html = '';
+    html += '<div class="summary-alert">';
+    html += '<strong>Revisa antes de confirmar.</strong> Al confirmar se registrará tu envío oficialmente.';
+    html += '</div>';
+
     html += '<div class="summary-block">';
     html += '<h3>Estudiante</h3>';
     html += '<p><strong>Cédula:</strong> ' + escapeHtml(estudiante.cedula) + '</p>';
@@ -200,6 +216,53 @@
     });
 
     container.innerHTML = html;
+  }
+
+  function renderComprobante(resultadoFinal) {
+    var section = qs('#comprobanteFinal');
+    var container = qs('#comprobanteContenido');
+    var code = qs('#codigoRegistroTexto');
+    if (!section || !container || !resultadoFinal) return;
+
+    var id = resultadoFinal.id || '—';
+    var firebaseData = resultadoFinal.firebase && resultadoFinal.firebase.data ? resultadoFinal.firebase.data : {};
+    var sheets = resultadoFinal.sheets || {};
+
+    if (code) code.textContent = id;
+
+    var sheetsText = sheets.ok
+      ? 'Respaldado en Google Sheets'
+      : sheets.omitido
+        ? 'Respaldo Sheets no configurado'
+        : 'Respaldo Sheets pendiente';
+
+    container.innerHTML = '';
+    container.appendChild(receiptItem('Código de registro', id));
+    container.appendChild(receiptItem('Estudiante', firebaseData.nombres || '—'));
+    container.appendChild(receiptItem('Cédula', firebaseData.cedula || '—'));
+    container.appendChild(receiptItem('Carrera', firebaseData.carrera || firebaseData.nombreCarrera || '—'));
+    container.appendChild(receiptItem('Período', firebaseData.periodoId || '—'));
+    container.appendChild(receiptItem('Estado', firebaseData.estado || 'ENVIADO'));
+    container.appendChild(receiptItem('Título preferido', 'Propuesta ' + (firebaseData.tituloPreferidoNumero || '—')));
+    container.appendChild(receiptItem('Google Sheets', sheetsText));
+
+    show(section);
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function receiptItem(label, valueToShow) {
+    var item = document.createElement('div');
+    item.className = 'receipt-item';
+
+    var span = document.createElement('span');
+    span.textContent = label;
+
+    var strong = document.createElement('strong');
+    strong.textContent = valueToShow || '—';
+
+    item.appendChild(span);
+    item.appendChild(strong);
+    return item;
   }
 
   function openModal() {
@@ -248,6 +311,7 @@
     showStatus: showStatus,
     setLoading: setLoading,
     setButtonsDisabled: setButtonsDisabled,
+    setFormDisabled: setFormDisabled,
     renderStudent: renderStudent,
     readFormData: readFormData,
     fillFormData: fillFormData,
@@ -255,6 +319,7 @@
     renderSuggestions: renderSuggestions,
     clearSuggestions: clearSuggestions,
     renderSummary: renderSummary,
+    renderComprobante: renderComprobante,
     openModal: openModal,
     closeModal: closeModal,
     clearFieldErrors: clearFieldErrors,
