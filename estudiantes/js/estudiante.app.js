@@ -8,6 +8,7 @@
   var firebaseService = window.TAFirebaseService;
   var repository = window.TAEstudianteRepository;
   var formularioService = window.TAEstudianteFormulario;
+  var iaService = window.TAEstudianteIA;
 
   var estado = {
     estudiante: null,
@@ -30,7 +31,7 @@
   }
 
   function iniciarFirebase() {
-    if (!firebaseService || !repository || !formularioService) {
+    if (!firebaseService || !repository || !formularioService || !iaService) {
       estado.firebaseListo = false;
       ui.setText('#estadoGeneral', 'Archivos incompletos');
       ui.showStatus('#consultaMensaje', 'No se cargaron todos los archivos del módulo estudiantes. Revisa los scripts del HTML.', 'error');
@@ -72,9 +73,7 @@
     var btnGuardarBorrador = ui.qs('#btnGuardarBorrador');
     var btnLimpiarBorrador = ui.qs('#btnLimpiarBorrador');
 
-    if (formConsulta) {
-      formConsulta.addEventListener('submit', manejarConsulta);
-    }
+    if (formConsulta) formConsulta.addEventListener('submit', manejarConsulta);
 
     if (formPropuestas) {
       formPropuestas.addEventListener('submit', manejarEnvio);
@@ -82,33 +81,16 @@
       formPropuestas.addEventListener('change', programarAutoGuardado);
     }
 
-    if (btnVistaPrevia) {
-      btnVistaPrevia.addEventListener('click', mostrarVistaPrevia);
-    }
-
-    if (btnGuardarBorrador) {
-      btnGuardarBorrador.addEventListener('click', guardarBorradorManual);
-    }
-
-    if (btnLimpiarBorrador) {
-      btnLimpiarBorrador.addEventListener('click', limpiarBorradorManual);
-    }
-
-    if (btnCerrarModal) {
-      btnCerrarModal.addEventListener('click', ui.closeModal);
-    }
-
-    if (btnCancelarResumen) {
-      btnCancelarResumen.addEventListener('click', ui.closeModal);
-    }
-
-    if (btnConfirmarEnvio) {
-      btnConfirmarEnvio.addEventListener('click', confirmarEnvioVisual);
-    }
+    if (btnVistaPrevia) btnVistaPrevia.addEventListener('click', mostrarVistaPrevia);
+    if (btnGuardarBorrador) btnGuardarBorrador.addEventListener('click', guardarBorradorManual);
+    if (btnLimpiarBorrador) btnLimpiarBorrador.addEventListener('click', limpiarBorradorManual);
+    if (btnCerrarModal) btnCerrarModal.addEventListener('click', ui.closeModal);
+    if (btnCancelarResumen) btnCancelarResumen.addEventListener('click', ui.closeModal);
+    if (btnConfirmarEnvio) btnConfirmarEnvio.addEventListener('click', confirmarEnvioVisual);
 
     ui.qsa('.js-generar-sugerencias').forEach(function (button) {
       button.addEventListener('click', function () {
-        manejarSugerencias(Number(button.dataset.propuesta));
+        manejarSugerencias(Number(button.dataset.propuesta), button);
       });
     });
   }
@@ -235,14 +217,12 @@
   function mostrarEstadoIntentos(data) {
     var mensaje = 'Formulario habilitado. Intentos disponibles: ' + data.intentosDisponibles + ' de ' + data.maxIntentos + '.';
 
-    if (data.envioExistente) {
-      mensaje += ' Ya existe un envío anterior registrado.';
-    }
+    if (data.envioExistente) mensaje += ' Ya existe un envío anterior registrado.';
 
     ui.showStatus('#consultaMensaje', mensaje, 'success');
   }
 
-  function manejarSugerencias(numero) {
+  function manejarSugerencias(numero, button) {
     var propuesta = ui.readFormData(config.propuestasObligatorias).propuestas[numero - 1];
     var resultado = validarBaseParaSugerencias(propuesta);
 
@@ -254,9 +234,34 @@
       return;
     }
 
-    var sugerencias = generarSugerenciasVisuales(propuesta);
-    ui.renderSuggestions(numero, sugerencias);
-    ui.showStatus('#envioMensaje', config.textos.iaPendiente + ' Por ahora se muestran sugerencias visuales de prueba.', 'info');
+    if (!estado.estudiante) {
+      ui.showStatus('#envioMensaje', 'Primero consulta la cédula del estudiante.', 'error');
+      return;
+    }
+
+    if (estado.appConfig && estado.appConfig.iaActiva === false) {
+      ui.showStatus('#envioMensaje', config.textos.iaPendiente, 'warning');
+      return;
+    }
+
+    ui.setLoading(button, true, 'Generando...');
+    ui.showStatus('#envioMensaje', config.textos.iaGenerando || 'Generando sugerencias con IA...', 'info');
+
+    iaService.generarSugerencias({
+      estudiante: estado.estudiante,
+      appConfig: estado.appConfig,
+      propuesta: propuesta
+    })
+      .then(function (respuesta) {
+        ui.renderSuggestions(numero, respuesta.sugerencias);
+        ui.showStatus('#envioMensaje', (config.textos.iaLista || 'Sugerencias generadas correctamente.') + ' Proveedor: ' + respuesta.proveedor + '.', 'success');
+      })
+      .catch(function (error) {
+        ui.showStatus('#envioMensaje', 'No se pudieron generar sugerencias con IA: ' + obtenerMensajeError(error), 'error');
+      })
+      .finally(function () {
+        ui.setLoading(button, false);
+      });
   }
 
   function validarBaseParaSugerencias(propuesta) {
@@ -273,26 +278,6 @@
     }
 
     return { ok: true, mensaje: '', selector: '' };
-  }
-
-  function generarSugerenciasVisuales(propuesta) {
-    var tema = limpiarFrase(propuesta.temaGeneral);
-    var contexto = limpiarFrase(propuesta.lugarContexto || 'un contexto académico definido');
-    var grupo = limpiarFrase(propuesta.grupoEstudio || 'la población de estudio');
-    var periodo = limpiarFrase(propuesta.anioPeriodo || 'el período seleccionado');
-
-    return [
-      'Análisis de ' + tema + ' en ' + contexto + ' durante ' + periodo,
-      'Evaluación de ' + tema + ' en ' + grupo + ' dentro de ' + contexto,
-      'Propuesta de mejora para ' + tema + ' aplicada a ' + contexto + ' en ' + periodo
-    ];
-  }
-
-  function limpiarFrase(valor) {
-    return String(valor || '')
-      .trim()
-      .replace(/\s+/g, ' ')
-      .replace(/[.]+$/g, '');
   }
 
   function guardarBorradorManual() {
@@ -320,9 +305,7 @@
     estado.autoGuardadoTimer = window.setTimeout(function () {
       var formData = ui.readFormData(config.propuestasObligatorias);
       var resultado = validaciones.validarFormularioParaBorrador(formData);
-      if (resultado.ok) {
-        formularioService.guardarBorrador(estado.estudiante, estado.appConfig, formData);
-      }
+      if (resultado.ok) formularioService.guardarBorrador(estado.estudiante, estado.appConfig, formData);
     }, 800);
   }
 
@@ -367,9 +350,7 @@
     ui.renderSummary(estado.estudiante, formData, estado.ultimoPayload);
     ui.openModal();
 
-    if (!abrirComoEnvio) {
-      ui.showStatus('#envioMensaje', 'Vista previa generada correctamente.', 'success');
-    }
+    if (!abrirComoEnvio) ui.showStatus('#envioMensaje', 'Vista previa generada correctamente.', 'success');
   }
 
   function confirmarEnvioVisual() {
@@ -387,7 +368,7 @@
       ui.closeModal();
       ui.setLoading(btnConfirmar, false);
       formularioService.guardarBorrador(estado.estudiante, estado.appConfig, estado.ultimoFormulario);
-      ui.showStatus('#envioMensaje', 'Bloque 3 completado: formulario validado y payload preparado. ' + config.textos.envioPendiente, 'success');
+      ui.showStatus('#envioMensaje', 'Bloque 4 completado: IA conectada para sugerencias. ' + config.textos.envioPendiente, 'success');
       console.log('Payload preparado para Bloque 5:', estado.ultimoPayload);
     }, 450);
   }
