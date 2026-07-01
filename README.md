@@ -31,6 +31,7 @@ titulos/
 │  ├─ PRUEBAS_FINALES.md
 │  ├─ LIMPIEZA_PROYECTO.md
 │  ├─ REVISION_VISUAL.md
+│  ├─ REVISION_FUNCIONALIDAD.md
 │  └─ ESTADO_FINAL.md
 ├─ shared/
 │  ├─ css/
@@ -102,6 +103,7 @@ docs/PRUEBAS_FINALES.md
 docs/LIMPIEZA_PROYECTO.md
 docs/ESTADO_FINAL.md
 docs/REVISION_VISUAL.md
+docs/REVISION_FUNCIONALIDAD.md
 ```
 
 ## Orden de desarrollo completado
@@ -118,3 +120,4 @@ docs/REVISION_VISUAL.md
 10. Preparación Cloudflare Pages.
 11. Pruebas finales y limpieza del proyecto.
 12. Revisión visual y corrección de visibilidad.
+13. Revisión de bloques de funcionalidad.
