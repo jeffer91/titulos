@@ -171,6 +171,72 @@
       });
   }
 
+  function listarEstudiantesPorPeriodo(periodoId) {
+    var periodo = normalizarPeriodoId(periodoId);
+    if (!periodo) return Promise.reject(new Error('Ingresa el período para consultar estudiantes.'));
+
+    return firebaseService.listarDocumentos(config.collections.estudiantes, {
+      where: ['periodoId', '==', periodo],
+      limit: 2000
+    }).then(function (estudiantes) {
+      return estudiantes
+        .map(normalizarEstudiante)
+        .sort(function (a, b) {
+          return String(a.nombres || '').localeCompare(String(b.nombres || ''));
+        });
+    });
+  }
+
+  function guardarEstudiantes(estudiantes, periodoId) {
+    var periodo = normalizarPeriodoId(periodoId);
+    var lista = Array.isArray(estudiantes) ? estudiantes : [];
+
+    if (!periodo) return Promise.reject(new Error('Ingresa el período antes de guardar estudiantes.'));
+    if (!lista.length) return Promise.reject(new Error('No hay estudiantes para guardar.'));
+
+    var documentos = lista.map(function (estudiante) {
+      var normalizado = normalizarEstudiante(Object.assign({}, estudiante, { periodoId: periodo }));
+      return {
+        id: normalizado.numeroIdentificacion,
+        data: normalizado
+      };
+    });
+
+    return firebaseService.guardarLote(config.collections.estudiantes, documentos, { merge: true })
+      .then(function (respuesta) {
+        return registrarLog('ESTUDIANTES_CARGADOS', {
+          periodoId: periodo,
+          total: respuesta.total
+        }).then(function () {
+          return respuesta;
+        });
+      });
+  }
+
+  function limpiarEstudiantesPorPeriodo(periodoId) {
+    var periodo = normalizarPeriodoId(periodoId);
+    if (!periodo) return Promise.reject(new Error('Ingresa el período que deseas limpiar.'));
+
+    return listarEstudiantesPorPeriodo(periodo)
+      .then(function (estudiantes) {
+        var ids = estudiantes.map(function (estudiante) {
+          return estudiante.numeroIdentificacion || estudiante.id;
+        }).filter(Boolean);
+
+        if (!ids.length) return { total: 0 };
+
+        return firebaseService.eliminarLote(config.collections.estudiantes, ids);
+      })
+      .then(function (respuesta) {
+        return registrarLog('ESTUDIANTES_LIMPIADOS', {
+          periodoId: periodo,
+          total: respuesta.total
+        }).then(function () {
+          return respuesta;
+        });
+      });
+  }
+
   function cargarConfigIA(proveedor) {
     var documentId = normalizarProveedor(proveedor);
     return firebaseService.leerDocumento(config.collections.ia, documentId)
@@ -293,6 +359,27 @@
     };
   }
 
+  function normalizarEstudiante(data) {
+    var original = data || {};
+    var cedula = soloNumeros(original.numeroIdentificacion || original.cedula || original.id || '');
+    return {
+      id: cedula,
+      numeroIdentificacion: cedula,
+      cedula: cedula,
+      nombres: limpiarTexto(original.nombres || original.nombreCompleto || original.estudiante || ''),
+      nombreCompleto: limpiarTexto(original.nombreCompleto || original.nombres || original.estudiante || ''),
+      codigoCarrera: limpiarTexto(original.codigoCarrera || original.codigo_carrera || ''),
+      carrera: limpiarTexto(original.carrera || original.nombreCarrera || original.nombre_carrera || ''),
+      nombreCarrera: limpiarTexto(original.nombreCarrera || original.carrera || original.nombre_carrera || ''),
+      periodoId: normalizarPeriodoId(original.periodoId || original.periodo || ''),
+      estadoMatricula: limpiarTexto(original.estadoMatricula || original.matricula || original.estado || 'ACTIVO').toUpperCase(),
+      puedeEnviarTitulo: original.puedeEnviarTitulo !== false,
+      correoPersonal: limpiarTexto(original.correoPersonal || original.correo || ''),
+      celular: soloNumeros(original.celular || original.telefono || ''),
+      actualizadoPorModulo: 'administradores'
+    };
+  }
+
   function normalizarPeriodoId(periodoId) {
     return String(periodoId || '')
       .trim()
@@ -323,6 +410,14 @@
     return false;
   }
 
+  function limpiarTexto(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function soloNumeros(value) {
+    return String(value || '').replace(/\D/g, '').trim();
+  }
+
   function obtenerMensajeError(error) {
     return error && error.message ? error.message : String(error || 'Error desconocido');
   }
@@ -335,6 +430,9 @@
     activarPeriodo: activarPeriodo,
     cerrarPeriodo: cerrarPeriodo,
     eliminarPeriodo: eliminarPeriodo,
+    listarEstudiantesPorPeriodo: listarEstudiantesPorPeriodo,
+    guardarEstudiantes: guardarEstudiantes,
+    limpiarEstudiantesPorPeriodo: limpiarEstudiantesPorPeriodo,
     cargarConfigIA: cargarConfigIA,
     guardarConfigIA: guardarConfigIA,
     ejecutarDiagnostico: ejecutarDiagnostico
