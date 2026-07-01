@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Administradores | Gestión del sistema</title>
+  <link rel="stylesheet" href="css/administrador.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header__content">
+      <div>
+        <span class="app-badge">Módulo administradores</span>
+        <h1>Gestión del sistema de títulos</h1>
+        <p>Panel independiente para configurar períodos, estudiantes, coordinadores, IA, respaldos y diagnósticos.</p>
+      </div>
+      <div class="app-status-pill" id="estadoGeneral">Base lista</div>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <section class="notice notice--info">
+      <strong>Bloque 9 activo.</strong> Esta es la base visual del módulo administradores. Todavía no conecta con Firebase ni Electron; eso se desarrollará en bloques posteriores.
+    </section>
+
+    <section class="card hero-card">
+      <div>
+        <p class="section-kicker">Administradores</p>
+        <h2>Módulo independiente</h2>
+        <p class="muted">Este módulo tendrá su propio HTML, CSS, JS y su propio instalador Electron.</p>
+      </div>
+      <div class="mode-grid">
+        <div class="mode-item">
+          <span>1</span>
+          <strong>Doble click</strong>
+          <p>Abriendo <code>administrador.html</code>.</p>
+        </div>
+        <div class="mode-item">
+          <span>2</span>
+          <strong>Live Server</strong>
+          <p>Abriendo <code>/administradores/administrador.html</code>.</p>
+        </div>
+        <div class="mode-item">
+          <span>3</span>
+          <strong>Electron</strong>
+          <p>Con instalador propio para administradores.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="section-kicker">Funciones futuras</p>
+          <h2>Qué tendrá este módulo</h2>
+        </div>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature-card">
+          <h3>Períodos</h3>
+          <p>Crear, activar, cerrar o eliminar períodos de titulación.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Estudiantes</h3>
+          <p>Cargar, validar, actualizar o limpiar estudiantes por período.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Coordinadores</h3>
+          <p>Asignar carreras, permisos y responsables de revisión.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Configuración IA</h3>
+          <p>Registrar proveedores, modelos, estado y claves de uso.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Google Sheets</h3>
+          <p>Configurar URL de Apps Script y verificar respaldos.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Diagnóstico</h3>
+          <p>Revisar estado de Firebase, colecciones, reglas y módulos.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="card diagnostic-card">
+      <div>
+        <p class="section-kicker">Diagnóstico</p>
+        <h2>Estado del módulo</h2>
+      </div>
+      <div class="diagnostic-list" id="diagnosticoModulo"></div>
+    </section>
+  </main>
+
+  <script src="js/app.config.js"></script>
+  <script src="js/administrador.app.js"></script>
+</body>
+</html>
