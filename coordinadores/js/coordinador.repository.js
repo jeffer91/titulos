@@ -4,6 +4,7 @@
 
   var config = window.TA_COORDINADORES_CONFIG;
   var firebaseService = window.TACoordFirebaseService;
+  var revisionService = window.TACoordRevisionService;
 
   function cargarConfigApp() {
     return firebaseService.leerDocumento(config.collections.config, config.documents.appConfig)
@@ -60,6 +61,69 @@
     });
   }
 
+  function revisarTitulo(titulo, accion, observacion, coordinador) {
+    if (!revisionService) return Promise.reject(new Error('No se cargó el servicio de revisión.'));
+    if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título seleccionado.'));
+    if (!coordinador || !coordinador.email) return Promise.reject(new Error('No se encontró el coordinador activo.'));
+
+    var estadoNuevo = estadoDesdeAccion(accion);
+    var comentario = limpiarTexto(observacion);
+
+    if ((estadoNuevo === 'APROBADO_CON_OBSERVACION' || estadoNuevo === 'DEVUELTO') && !comentario) {
+      return Promise.reject(new Error('Para esta decisión debes escribir una observación.'));
+    }
+
+    var revision = {
+      estado: estadoNuevo,
+      accion: accion,
+      observacion: comentario,
+      coordinadorEmail: coordinador.email,
+      coordinadorNombre: coordinador.nombres || '',
+      fechaLocal: new Date().toISOString()
+    };
+
+    var payload = {
+      estado: estadoNuevo,
+      revision: revision,
+      revisadoPor: coordinador.email,
+      revisadoPorNombre: coordinador.nombres || '',
+      revisadoEnLocal: revision.fechaLocal,
+      actualizadoPorModulo: 'coordinadores'
+    };
+
+    return revisionService.guardarRevision(config.collections.titulos, titulo.id, payload)
+      .then(function () {
+        return registrarLogRevision(titulo, revision);
+      })
+      .then(function () {
+        return Object.assign({}, titulo, payload);
+      });
+  }
+
+  function registrarLogRevision(titulo, revision) {
+    return revisionService.registrarLog(config.collections.logs, {
+      accion: 'REVISION_TITULO_COORDINADOR',
+      modulo: 'coordinadores',
+      tituloId: titulo.id,
+      cedula: titulo.cedula || titulo.numeroIdentificacion || '',
+      nombres: titulo.nombres || '',
+      carrera: titulo.carrera || titulo.nombreCarrera || '',
+      periodoId: titulo.periodoId || '',
+      estado: revision.estado,
+      revision: revision
+    }).catch(function () {
+      return null;
+    });
+  }
+
+  function estadoDesdeAccion(accion) {
+    var normalized = String(accion || '').trim().toUpperCase();
+    if (normalized === 'APROBAR') return 'APROBADO';
+    if (normalized === 'APROBAR_OBSERVACION') return 'APROBADO_CON_OBSERVACION';
+    if (normalized === 'DEVOLVER') return 'DEVUELTO';
+    throw new Error('Acción de revisión no válida.');
+  }
+
   function perteneceACoordinador(titulo, coordinador) {
     var carreraTitulo = normalizarTextoComparacion(titulo.carrera || titulo.nombreCarrera || '');
     var codigoTitulo = normalizarTextoComparacion(titulo.codigoCarrera || '');
@@ -110,6 +174,8 @@
       titulosEnviados: propuestas,
       enviadoEn: data.enviadoEn || data.creadoEn || data.actualizadoEn || null,
       revision: data.revision || null,
+      revisadoPor: data.revisadoPor || '',
+      revisadoPorNombre: data.revisadoPorNombre || '',
       raw: data
     };
   }
@@ -140,6 +206,7 @@
     cargarConfigApp: cargarConfigApp,
     buscarCoordinadorPorEmail: buscarCoordinadorPorEmail,
     listarTitulosParaCoordinador: listarTitulosParaCoordinador,
+    revisarTitulo: revisarTitulo,
     normalizarTitulo: normalizarTitulo,
     normalizarCoordinador: normalizarCoordinador
   });
