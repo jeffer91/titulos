@@ -48,6 +48,7 @@
 
   function validarEnvio(formData, totalPropuestas) {
     var total = totalPropuestas || 3;
+    var preferido = Number(formData && formData.tituloPreferidoNumero);
 
     if (!formData || !Array.isArray(formData.propuestas)) {
       return error('No se pudieron leer las propuestas.');
@@ -62,7 +63,7 @@
       if (!resultado.ok) return resultado;
     }
 
-    if (![1, 2, 3].indexOf(Number(formData.tituloPreferidoNumero)) === -1) {
+    if ([1, 2, 3].indexOf(preferido) === -1) {
       return error('Selecciona un título preferido válido.');
     }
 
