@@ -5,18 +5,58 @@
   var config = window.TA_ESTUDIANTES_CONFIG;
   var ui = window.TAEstudianteUI;
   var validaciones = window.TAEstudianteValidaciones;
+  var firebaseService = window.TAFirebaseService;
+  var repository = window.TAEstudianteRepository;
 
   var estado = {
     estudiante: null,
+    appConfig: null,
+    envioExistente: null,
+    firebaseListo: false,
     ultimoFormulario: null
   };
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
   function iniciar() {
-    ui.showStatus('#consultaMensaje', config.textos.consultaPendiente, 'info');
+    ui.setText('#estadoGeneral', 'Conectando Firebase');
+    ui.showStatus('#consultaMensaje', 'Inicializando conexión con Firebase...', 'info');
     conectarEventos();
     limpiarCedulaMientrasEscribe();
+    iniciarFirebase();
+  }
+
+  function iniciarFirebase() {
+    if (!firebaseService || !repository) {
+      estado.firebaseListo = false;
+      ui.setText('#estadoGeneral', 'Firebase no cargado');
+      ui.showStatus('#consultaMensaje', 'No se cargaron los archivos de Firebase. Revisa los scripts del HTML.', 'error');
+      bloquearConsulta(true);
+      return;
+    }
+
+    firebaseService.iniciar(config.firebase).then(function (resultado) {
+      estado.firebaseListo = resultado.ok;
+
+      if (!resultado.ok) {
+        ui.setText('#estadoGeneral', 'Firebase pendiente');
+        ui.showStatus('#consultaMensaje', resultado.mensaje, 'warning');
+        bloquearConsulta(true);
+        return;
+      }
+
+      ui.setText('#estadoGeneral', 'Firebase conectado');
+      ui.showStatus('#consultaMensaje', config.textos.firebaseConectado, 'success');
+      bloquearConsulta(false);
+    });
+  }
+
+  function bloquearConsulta(bloquear) {
+    var btnConsultar = ui.qs('#btnConsultar');
+    var cedulaInput = ui.qs('#cedulaInput');
+
+    if (btnConsultar) btnConsultar.disabled = Boolean(bloquear);
+    if (cedulaInput) cedulaInput.disabled = Boolean(bloquear);
   }
 
   function conectarEventos() {
@@ -79,24 +119,63 @@
       return;
     }
 
-    ui.setLoading(btnConsultar, true, 'Consultando...');
+    if (!estado.firebaseListo) {
+      ui.showStatus('#consultaMensaje', config.textos.firebasePendiente, 'warning');
+      return;
+    }
 
-    window.setTimeout(function () {
-      estado.estudiante = crearEstudianteVisual(resultado.data);
-      ui.renderStudent(estado.estudiante);
-      ui.showStatus('#consultaMensaje', 'Formulario habilitado. ' + config.textos.firebasePendiente, 'success');
-      ui.setLoading(btnConsultar, false);
-    }, 350);
+    ui.setLoading(btnConsultar, true, 'Consultando...');
+    ui.hide('#seccionEstudiante');
+    ui.hide('#formPropuestas');
+    ui.showStatus('#consultaMensaje', 'Buscando estudiante en Firebase...', 'info');
+
+    repository.consultarEstudianteCompleto(resultado.data)
+      .then(function (respuesta) {
+        if (!respuesta || !respuesta.ok) {
+          ui.showStatus('#consultaMensaje', respuesta ? respuesta.mensaje : 'No se encontró información del estudiante.', 'error');
+          limpiarEstadoConsulta();
+          return;
+        }
+
+        estado.estudiante = respuesta.data.estudiante;
+        estado.appConfig = respuesta.data.appConfig;
+        estado.envioExistente = respuesta.data.envioExistente;
+
+        ui.renderStudent(estado.estudiante);
+        cargarContactoDesdeEstudiante(estado.estudiante);
+        mostrarEstadoIntentos(respuesta.data);
+      })
+      .catch(function (error) {
+        limpiarEstadoConsulta();
+        ui.showStatus('#consultaMensaje', 'Error al consultar Firebase: ' + obtenerMensajeError(error), 'error');
+      })
+      .finally(function () {
+        ui.setLoading(btnConsultar, false);
+      });
   }
 
-  function crearEstudianteVisual(cedula) {
-    return {
-      cedula: cedula,
-      nombres: config.demo.nombres,
-      carrera: config.demo.carrera,
-      codigoCarrera: config.demo.codigoCarrera,
-      periodoId: config.demo.periodoId
-    };
+  function limpiarEstadoConsulta() {
+    estado.estudiante = null;
+    estado.appConfig = null;
+    estado.envioExistente = null;
+    estado.ultimoFormulario = null;
+    ui.hide('#seccionEstudiante');
+    ui.hide('#formPropuestas');
+  }
+
+  function cargarContactoDesdeEstudiante(estudiante) {
+    if (!estudiante) return;
+    ui.setValue('#celularInput', estudiante.celular || '');
+  }
+
+  function mostrarEstadoIntentos(data) {
+    var mensaje = 'Formulario habilitado. Intentos disponibles: ' + data.intentosDisponibles + ' de ' + data.maxIntentos + '.';
+
+    if (data.envioExistente) {
+      mensaje += ' Ya existe un envío anterior registrado.';
+    }
+
+    ui.showStatus('#consultaMensaje', mensaje, 'success');
   }
 
   function manejarSugerencias(numero) {
@@ -195,7 +274,11 @@
     window.setTimeout(function () {
       ui.closeModal();
       ui.setLoading(btnConfirmar, false);
-      ui.showStatus('#envioMensaje', 'Bloque 1 completado: envío visual validado. ' + config.textos.envioPendiente, 'success');
+      ui.showStatus('#envioMensaje', 'Bloque 2 completado: consulta Firebase activa. ' + config.textos.envioPendiente, 'success');
     }, 450);
+  }
+
+  function obtenerMensajeError(error) {
+    return error && error.message ? error.message : String(error || 'Error desconocido');
   }
 })();
