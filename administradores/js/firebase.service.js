@@ -139,6 +139,10 @@
     return getDb().collection(collectionName).doc(documentId).set(payload, { merge: merge });
   }
 
+  function eliminarDocumento(collectionName, documentId) {
+    return getDb().collection(collectionName).doc(documentId).delete();
+  }
+
   function agregarDocumento(collectionName, data) {
     var payload = Object.assign({}, data || {}, {
       creadoEn: serverTimestamp(),
@@ -146,6 +150,31 @@
     });
 
     return getDb().collection(collectionName).add(payload);
+  }
+
+  function listarDocumentos(collectionName, options) {
+    var query = getDb().collection(collectionName);
+    var opts = options || {};
+
+    if (opts.where && opts.where.length === 3) {
+      query = query.where(opts.where[0], opts.where[1], opts.where[2]);
+    }
+
+    if (opts.orderBy) {
+      query = query.orderBy(opts.orderBy, opts.direction || 'asc');
+    }
+
+    if (opts.limit) {
+      query = query.limit(Number(opts.limit));
+    }
+
+    return query.get().then(function (snapshot) {
+      var docs = [];
+      snapshot.forEach(function (doc) {
+        docs.push(normalizarDocumento(doc));
+      });
+      return docs;
+    });
   }
 
   function contarColeccion(collectionName, limit) {
@@ -176,7 +205,9 @@
     getDb: getDb,
     leerDocumento: leerDocumento,
     guardarDocumento: guardarDocumento,
+    eliminarDocumento: eliminarDocumento,
     agregarDocumento: agregarDocumento,
+    listarDocumentos: listarDocumentos,
     contarColeccion: contarColeccion,
     serverTimestamp: serverTimestamp
   });
