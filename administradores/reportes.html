@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Administradores | Reportes</title>
+  <link rel="stylesheet" href="css/administrador.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header__content">
+      <div>
+        <span class="app-badge">Módulo administradores</span>
+        <h1>Reportes y exportación</h1>
+        <p>Consulta títulos y estudiantes por período, filtra estados y exporta archivos CSV.</p>
+      </div>
+      <div class="app-status-pill" id="estadoGeneral">Conectando</div>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <section class="notice notice--info">
+      <strong>Bloque 18 activo.</strong> Esta pantalla permite generar reportes administrativos y exportarlos a CSV.
+    </section>
+
+    <section class="card hero-card">
+      <div>
+        <p class="section-kicker">Firebase</p>
+        <h2>Estado de conexión</h2>
+        <p class="muted" id="firebaseMensaje">Inicializando conexión...</p>
+      </div>
+      <div class="mode-grid">
+        <div class="mode-item"><span>1</span><strong>Proyecto</strong><p id="projectIdTexto">—</p></div>
+        <div class="mode-item"><span>2</span><strong>Período activo</strong><p id="periodoActivoTexto">—</p></div>
+        <div class="mode-item"><span>3</span><strong>Registros</strong><p id="registrosTexto">0</p></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="section-kicker">Filtros</p>
+          <h2>Consultar reportes</h2>
+          <p class="muted">Los datos se consultan desde Firebase y se preparan para exportación local.</p>
+        </div>
+      </div>
+
+      <form id="formReportes" class="form-grid admin-form" autocomplete="off">
+        <div class="field">
+          <label for="periodoReporteInput">Período</label>
+          <input id="periodoReporteInput" name="periodo" type="text" placeholder="Ejemplo: 2025-11__2026-05" />
+        </div>
+        <div class="field">
+          <label for="estadoReporteInput">Estado de títulos</label>
+          <select id="estadoReporteInput" name="estado">
+            <option value="TODOS">Todos</option>
+            <option value="ENVIADO">Enviado</option>
+            <option value="APROBADO">Aprobado</option>
+            <option value="APROBADO_CON_OBSERVACION">Aprobado con observación</option>
+            <option value="DEVUELTO">Devuelto</option>
+          </select>
+        </div>
+        <div class="form-actions field--full">
+          <button class="btn btn--primary" type="button" id="btnReporteTitulos">Reporte títulos</button>
+          <button class="btn btn--secondary" type="button" id="btnReporteEstudiantes">Reporte estudiantes</button>
+          <button class="btn btn--ghost" type="button" id="btnExportarCsv">Exportar CSV</button>
+        </div>
+      </form>
+
+      <div class="status-message" id="reportesMensaje" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <div class="summary-grid">
+        <div class="summary-item"><span>Total</span><strong id="reporteTotalTexto">0</strong></div>
+        <div class="summary-item"><span>Tipo</span><strong id="reporteTipoTexto">—</strong></div>
+        <div class="summary-item"><span>Última consulta</span><strong id="reporteFechaTexto">—</strong></div>
+      </div>
+      <div class="student-preview" id="reportePreview"></div>
+    </section>
+  </main>
+
+  <script src="js/app.config.js"></script>
+  <script src="js/firebase.service.js"></script>
+  <script src="js/reportes.admin.js"></script>
+</body>
+</html>
