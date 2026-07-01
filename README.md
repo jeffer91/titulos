@@ -30,8 +30,13 @@ titulos/
 │  ├─ PRE_PUBLICACION_CHECKLIST.md
 │  ├─ PRUEBAS_FINALES.md
 │  ├─ LIMPIEZA_PROYECTO.md
+│  ├─ REVISION_VISUAL.md
 │  └─ ESTADO_FINAL.md
 ├─ shared/
+│  ├─ css/
+│  │  ├─ navigation.css
+│  │  └─ visibility-fixes.css
+│  └─ js/
 ├─ estudiantes/
 ├─ coordinadores/
 └─ administradores/
@@ -96,6 +101,7 @@ pruebas.html
 docs/PRUEBAS_FINALES.md
 docs/LIMPIEZA_PROYECTO.md
 docs/ESTADO_FINAL.md
+docs/REVISION_VISUAL.md
 ```
 
 ## Orden de desarrollo completado
@@ -111,3 +117,4 @@ docs/ESTADO_FINAL.md
 9. Electron administradores.
 10. Preparación Cloudflare Pages.
 11. Pruebas finales y limpieza del proyecto.
+12. Revisión visual y corrección de visibilidad.
