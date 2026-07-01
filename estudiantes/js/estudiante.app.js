@@ -9,6 +9,7 @@
   var repository = window.TAEstudianteRepository;
   var formularioService = window.TAEstudianteFormulario;
   var iaService = window.TAEstudianteIA;
+  var sheetsService = window.TAEstudianteSheets;
 
   var estado = {
     estudiante: null,
@@ -31,7 +32,7 @@
   }
 
   function iniciarFirebase() {
-    if (!firebaseService || !repository || !formularioService || !iaService) {
+    if (!firebaseService || !repository || !formularioService || !iaService || !sheetsService) {
       estado.firebaseListo = false;
       ui.setText('#estadoGeneral', 'Archivos incompletos');
       ui.showStatus('#consultaMensaje', 'No se cargaron todos los archivos del módulo estudiantes. Revisa los scripts del HTML.', 'error');
@@ -374,15 +375,44 @@
     repository.guardarEnvioFinal(estado.ultimoPayload)
       .then(function (respuesta) {
         estado.envioExistente = respuesta.data;
+        estado.ultimoPayload = respuesta.data;
         formularioService.eliminarBorrador(estado.estudiante, estado.appConfig);
         ui.closeModal();
-        ui.showStatus('#envioMensaje', 'Propuestas enviadas correctamente. Código de registro: ' + respuesta.id + '.', 'success');
+        ui.showStatus('#envioMensaje', 'Propuestas guardadas en Firebase. Enviando respaldo a Google Sheets...', 'info');
+        return respaldarEnSheets(respuesta);
+      })
+      .then(function (resultadoFinal) {
+        if (resultadoFinal.sheets && resultadoFinal.sheets.ok) {
+          ui.showStatus('#envioMensaje', 'Propuestas enviadas correctamente y respaldadas en Google Sheets. Código de registro: ' + resultadoFinal.id + '.', 'success');
+          return;
+        }
+
+        ui.showStatus('#envioMensaje', 'Propuestas enviadas correctamente. Código de registro: ' + resultadoFinal.id + '. Advertencia: ' + resultadoFinal.sheets.mensaje, 'warning');
       })
       .catch(function (error) {
         ui.showStatus('#envioMensaje', 'No se pudo guardar el envío: ' + obtenerMensajeError(error), 'error');
       })
       .finally(function () {
         ui.setLoading(btnConfirmar, false);
+      });
+  }
+
+  function respaldarEnSheets(respuestaFirebase) {
+    return sheetsService.respaldarEnvio(respuestaFirebase.data, estado.appConfig)
+      .then(function (resultadoSheets) {
+        return repository.actualizarRespaldoSheets(
+          respuestaFirebase.data.periodoId,
+          respuestaFirebase.data.cedula,
+          resultadoSheets
+        ).catch(function () {
+          return resultadoSheets;
+        }).then(function (respaldoRegistrado) {
+          return {
+            id: respuestaFirebase.id,
+            firebase: respuestaFirebase,
+            sheets: respaldoRegistrado || resultadoSheets
+          };
+        });
       });
   }
 
