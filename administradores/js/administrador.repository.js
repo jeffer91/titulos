@@ -45,6 +45,132 @@
       });
   }
 
+  function listarPeriodos() {
+    return firebaseService.listarDocumentos(config.collections.periodos)
+      .then(function (periodos) {
+        return periodos
+          .map(normalizarPeriodo)
+          .sort(function (a, b) {
+            return String(b.id).localeCompare(String(a.id));
+          });
+      });
+  }
+
+  function guardarPeriodo(data) {
+    var periodo = normalizarPeriodo(data);
+    var docId = normalizarPeriodoId(periodo.id);
+
+    if (!docId) return Promise.reject(new Error('El ID del período es obligatorio.'));
+    if (docId.indexOf('/') !== -1) return Promise.reject(new Error('El ID del período no puede contener /.'));
+    if (!periodo.nombre) return Promise.reject(new Error('El nombre del período es obligatorio.'));
+
+    periodo.id = docId;
+    periodo.actualizadoPorModulo = 'administradores';
+
+    return firebaseService.guardarDocumento(config.collections.periodos, docId, periodo, { merge: true })
+      .then(function () {
+        return registrarLog('PERIODO_GUARDADO', periodo);
+      })
+      .then(function () {
+        return periodo;
+      });
+  }
+
+  function activarPeriodo(periodoId) {
+    var docId = normalizarPeriodoId(periodoId);
+    if (!docId) return Promise.reject(new Error('Selecciona un período para activar.'));
+
+    return listarPeriodos()
+      .then(function (periodos) {
+        var tareas = periodos.map(function (periodo) {
+          if (periodo.id === docId) {
+            return firebaseService.guardarDocumento(config.collections.periodos, periodo.id, {
+              activo: true,
+              estado: 'ACTIVO',
+              actualizadoPorModulo: 'administradores'
+            }, { merge: true });
+          }
+
+          if (periodo.activo || periodo.estado === 'ACTIVO') {
+            return firebaseService.guardarDocumento(config.collections.periodos, periodo.id, {
+              activo: false,
+              estado: 'INACTIVO',
+              actualizadoPorModulo: 'administradores'
+            }, { merge: true });
+          }
+
+          return Promise.resolve();
+        });
+
+        return Promise.all(tareas);
+      })
+      .then(function () {
+        return cargarConfigApp();
+      })
+      .then(function (appConfig) {
+        return guardarConfigApp(Object.assign({}, appConfig, {
+          periodoActivo: docId,
+          procesoActivo: true
+        }));
+      })
+      .then(function () {
+        return registrarLog('PERIODO_ACTIVADO', { periodoId: docId });
+      })
+      .then(function () {
+        return docId;
+      });
+  }
+
+  function cerrarPeriodo(periodoId) {
+    var docId = normalizarPeriodoId(periodoId);
+    if (!docId) return Promise.reject(new Error('Selecciona un período para cerrar.'));
+
+    return firebaseService.guardarDocumento(config.collections.periodos, docId, {
+      activo: false,
+      estado: 'CERRADO',
+      actualizadoPorModulo: 'administradores'
+    }, { merge: true })
+      .then(function () {
+        return cargarConfigApp();
+      })
+      .then(function (appConfig) {
+        if (appConfig.periodoActivo !== docId) return appConfig;
+        return guardarConfigApp(Object.assign({}, appConfig, {
+          periodoActivo: '',
+          procesoActivo: false
+        }));
+      })
+      .then(function () {
+        return registrarLog('PERIODO_CERRADO', { periodoId: docId });
+      })
+      .then(function () {
+        return docId;
+      });
+  }
+
+  function eliminarPeriodo(periodoId) {
+    var docId = normalizarPeriodoId(periodoId);
+    if (!docId) return Promise.reject(new Error('Selecciona un período para eliminar.'));
+
+    return firebaseService.eliminarDocumento(config.collections.periodos, docId)
+      .then(function () {
+        return cargarConfigApp();
+      })
+      .then(function (appConfig) {
+        if (appConfig.periodoActivo !== docId) return appConfig;
+        return guardarConfigApp(Object.assign({}, appConfig, {
+          periodoActivo: '',
+          procesoActivo: false
+        }));
+      })
+      .then(function () {
+        return registrarLog('PERIODO_ELIMINADO', { periodoId: docId });
+      })
+      .then(function () {
+        return docId;
+      });
+  }
+
   function cargarConfigIA(proveedor) {
     var documentId = normalizarProveedor(proveedor);
     return firebaseService.leerDocumento(config.collections.ia, documentId)
@@ -98,6 +224,7 @@
     var tareas = [
       diagnosticarDocumento('Configuración general', config.collections.config, config.documents.appConfig),
       diagnosticarDocumento('IA Gemini', config.collections.ia, 'gemini'),
+      diagnosticarColeccion('Períodos', config.collections.periodos),
       diagnosticarColeccion('Estudiantes', config.collections.estudiantes),
       diagnosticarColeccion('Títulos', config.collections.titulos),
       diagnosticarColeccion('Logs', config.collections.logs)
@@ -152,6 +279,27 @@
     });
   }
 
+  function normalizarPeriodo(data) {
+    var original = data || {};
+    return {
+      id: normalizarPeriodoId(original.id || original.periodoId || original.codigo || ''),
+      periodoId: normalizarPeriodoId(original.id || original.periodoId || original.codigo || ''),
+      nombre: String(original.nombre || original.descripcionCorta || original.id || '').trim(),
+      fechaInicio: String(original.fechaInicio || '').trim(),
+      fechaFin: String(original.fechaFin || '').trim(),
+      estado: String(original.estado || (original.activo ? 'ACTIVO' : 'INACTIVO')).trim().toUpperCase(),
+      activo: parseBoolean(original.activo) || String(original.estado || '').toUpperCase() === 'ACTIVO',
+      observacion: String(original.observacion || original.descripcion || '').trim()
+    };
+  }
+
+  function normalizarPeriodoId(periodoId) {
+    return String(periodoId || '')
+      .trim()
+      .replace(/\s+/g, '_')
+      .replace(/[^A-Za-z0-9_\-.]/g, '');
+  }
+
   function limpiarDataParaLog(data) {
     var copia = Object.assign({}, data || {});
     if (copia.apiKey) copia.apiKey = '***';
@@ -182,6 +330,11 @@
   window.TAAdminRepository = Object.freeze({
     cargarConfigApp: cargarConfigApp,
     guardarConfigApp: guardarConfigApp,
+    listarPeriodos: listarPeriodos,
+    guardarPeriodo: guardarPeriodo,
+    activarPeriodo: activarPeriodo,
+    cerrarPeriodo: cerrarPeriodo,
+    eliminarPeriodo: eliminarPeriodo,
     cargarConfigIA: cargarConfigIA,
     guardarConfigIA: guardarConfigIA,
     ejecutarDiagnostico: ejecutarDiagnostico
