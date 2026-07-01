@@ -26,6 +26,12 @@ coordinadores/
 │  └─ revision.app.js
 ├─ assets/
 └─ electron/
+   ├─ package.json
+   ├─ main.js
+   ├─ preload.js
+   ├─ README.md
+   ├─ INICIAR_COORDINADORES.bat
+   └─ BUILD_COORDINADORES.bat
 ```
 
 ## Funciones construidas
@@ -36,6 +42,22 @@ coordinadores/
 - Listado de títulos enviados por período y estado.
 - Visualización de propuestas.
 - Registro de decisiones de revisión: aprobado, aprobado con observación o devuelto.
+- Base de instalador Electron independiente para coordinadores.
+
+## Probar Electron
+
+Desde la carpeta `coordinadores/electron`:
+
+```bash
+npm install
+npm start
+```
+
+Para generar instalador:
+
+```bash
+npm run dist
+```
 
 ## Regla técnica
 
