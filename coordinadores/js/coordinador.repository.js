@@ -4,7 +4,6 @@
 
   var config = window.TA_COORDINADORES_CONFIG;
   var firebaseService = window.TACoordFirebaseService;
-  var revisionService = window.TACoordRevisionService;
 
   function cargarConfigApp() {
     return firebaseService.leerDocumento(config.collections.config, config.documents.appConfig)
@@ -62,7 +61,6 @@
   }
 
   function revisarTitulo(titulo, accion, observacion, coordinador) {
-    if (!revisionService) return Promise.reject(new Error('No se cargó el servicio de revisión.'));
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título seleccionado.'));
     if (!coordinador || !coordinador.email) return Promise.reject(new Error('No se encontró el coordinador activo.'));
 
@@ -88,10 +86,11 @@
       revisadoPor: coordinador.email,
       revisadoPorNombre: coordinador.nombres || '',
       revisadoEnLocal: revision.fechaLocal,
-      actualizadoPorModulo: 'coordinadores'
+      actualizadoPorModulo: 'coordinadores',
+      actualizadoEn: serverTimestamp()
     };
 
-    return revisionService.guardarRevision(config.collections.titulos, titulo.id, payload)
+    return getDb().collection(config.collections.titulos).doc(titulo.id).set(payload, { merge: true })
       .then(function () {
         return registrarLogRevision(titulo, revision);
       })
@@ -101,7 +100,7 @@
   }
 
   function registrarLogRevision(titulo, revision) {
-    return revisionService.registrarLog(config.collections.logs, {
+    return getDb().collection(config.collections.logs).add({
       accion: 'REVISION_TITULO_COORDINADOR',
       modulo: 'coordinadores',
       tituloId: titulo.id,
@@ -110,7 +109,9 @@
       carrera: titulo.carrera || titulo.nombreCarrera || '',
       periodoId: titulo.periodoId || '',
       estado: revision.estado,
-      revision: revision
+      revision: revision,
+      creadoEn: serverTimestamp(),
+      actualizadoEn: serverTimestamp()
     }).catch(function () {
       return null;
     });
@@ -122,6 +123,15 @@
     if (normalized === 'APROBAR_OBSERVACION') return 'APROBADO_CON_OBSERVACION';
     if (normalized === 'DEVOLVER') return 'DEVUELTO';
     throw new Error('Acción de revisión no válida.');
+  }
+
+  function getDb() {
+    return firebaseService.getDb();
+  }
+
+  function serverTimestamp() {
+    if (!window.firebase || !window.firebase.firestore) return new Date().toISOString();
+    return window.firebase.firestore.FieldValue.serverTimestamp();
   }
 
   function perteneceACoordinador(titulo, coordinador) {
