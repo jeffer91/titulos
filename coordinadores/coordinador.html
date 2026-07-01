@@ -12,38 +12,72 @@
       <div>
         <span class="app-badge">Módulo coordinadores</span>
         <h1>Revisión de títulos académicos</h1>
-        <p>Panel independiente para revisar, aprobar o devolver propuestas de estudiantes.</p>
+        <p>Panel independiente para revisar títulos enviados por estudiantes.</p>
       </div>
-      <div class="app-status-pill" id="estadoGeneral">Base lista</div>
+      <div class="app-status-pill" id="estadoGeneral">Conectando</div>
     </div>
   </header>
 
   <main class="app-container">
     <section class="notice notice--info">
-      <strong>Bloque 8 activo.</strong> Esta es la base visual del módulo coordinadores. Todavía no conecta con Firebase ni Electron; eso se desarrollará en bloques posteriores.
+      <strong>Bloque 14 activo.</strong> El módulo coordinadores ya conecta con Firebase y lista títulos según las carreras asignadas al coordinador.
     </section>
 
     <section class="card hero-card">
       <div>
-        <p class="section-kicker">Coordinadores</p>
-        <h2>Módulo independiente</h2>
-        <p class="muted">Este módulo tendrá su propio HTML, CSS, JS y su propio instalador Electron.</p>
+        <p class="section-kicker">Firebase</p>
+        <h2>Estado de conexión</h2>
+        <p class="muted" id="firebaseMensaje">Inicializando conexión...</p>
       </div>
       <div class="mode-grid">
-        <div class="mode-item">
-          <span>1</span>
-          <strong>Doble click</strong>
-          <p>Abriendo <code>coordinador.html</code>.</p>
+        <div class="mode-item"><span>1</span><strong>Modo</strong><p id="modoEjecucionTexto">—</p></div>
+        <div class="mode-item"><span>2</span><strong>Proyecto</strong><p id="projectIdTexto">—</p></div>
+        <div class="mode-item"><span>3</span><strong>Período activo</strong><p id="periodoActivoTexto">—</p></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="section-kicker">Acceso</p>
+          <h2>Identificar coordinador</h2>
+          <p class="muted">Ingresa el correo registrado por administración para cargar tus carreras asignadas.</p>
         </div>
-        <div class="mode-item">
-          <span>2</span>
-          <strong>Live Server</strong>
-          <p>Abriendo <code>/coordinadores/coordinador.html</code>.</p>
+      </div>
+
+      <form class="form-grid" id="formCoordinador" autocomplete="off">
+        <div class="field">
+          <label for="coordEmailInput">Correo del coordinador</label>
+          <input id="coordEmailInput" name="email" type="email" placeholder="coordinador@dominio.edu" />
         </div>
-        <div class="mode-item">
-          <span>3</span>
-          <strong>Electron</strong>
-          <p>Con instalador propio para coordinadores.</p>
+        <div class="field">
+          <label for="periodoInput">Período</label>
+          <input id="periodoInput" name="periodo" type="text" placeholder="Ejemplo: 2025-11__2026-05" />
+        </div>
+        <div class="field">
+          <label for="estadoFiltroInput">Estado</label>
+          <select id="estadoFiltroInput" name="estado">
+            <option value="TODOS">Todos</option>
+            <option value="ENVIADO">Enviado</option>
+            <option value="APROBADO">Aprobado</option>
+            <option value="APROBADO_CON_OBSERVACION">Aprobado con observación</option>
+            <option value="DEVUELTO">Devuelto</option>
+          </select>
+        </div>
+        <div class="form-actions field--full">
+          <button class="btn btn--primary" type="submit" id="btnConsultarTitulos">Consultar títulos</button>
+        </div>
+      </form>
+
+      <div class="status-message" id="consultaMensaje" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="card is-hidden" id="seccionCoordinador">
+      <div class="card__header">
+        <div>
+          <p class="section-kicker">Coordinador</p>
+          <h2 id="coordNombreTexto">—</h2>
+          <p class="muted" id="coordCarrerasTexto">—</p>
         </div>
       </div>
     </section>
@@ -51,29 +85,19 @@
     <section class="card">
       <div class="card__header">
         <div>
-          <p class="section-kicker">Funciones futuras</p>
-          <h2>Qué tendrá este módulo</h2>
+          <p class="section-kicker">Títulos</p>
+          <h2>Listado para revisión</h2>
+          <p class="muted">En este bloque solo se listan y se visualizan. La aprobación/devolución queda para el siguiente bloque.</p>
         </div>
       </div>
 
-      <div class="feature-grid">
-        <article class="feature-card">
-          <h3>Consulta por carrera</h3>
-          <p>Ver estudiantes asignados según carrera, período y estado del título.</p>
-        </article>
-        <article class="feature-card">
-          <h3>Revisión de propuestas</h3>
-          <p>Leer las tres propuestas enviadas y el título preferido del estudiante.</p>
-        </article>
-        <article class="feature-card">
-          <h3>Aprobación o devolución</h3>
-          <p>Aprobar, aprobar con observación o devolver con comentarios claros.</p>
-        </article>
-        <article class="feature-card">
-          <h3>Historial</h3>
-          <p>Registrar fecha, coordinador, decisión y observaciones de revisión.</p>
-        </article>
+      <div class="summary-grid">
+        <div class="summary-item"><span>Total</span><strong id="totalTitulosTexto">0</strong></div>
+        <div class="summary-item"><span>Enviados</span><strong id="totalEnviadosTexto">0</strong></div>
+        <div class="summary-item"><span>Filtrados por carrera</span><strong id="totalCarreraTexto">0</strong></div>
       </div>
+
+      <div class="titles-list" id="titulosLista"></div>
     </section>
 
     <section class="card diagnostic-card">
@@ -86,6 +110,8 @@
   </main>
 
   <script src="js/app.config.js"></script>
+  <script src="js/firebase.service.js"></script>
+  <script src="js/coordinador.repository.js"></script>
   <script src="js/coordinador.app.js"></script>
 </body>
 </html>
