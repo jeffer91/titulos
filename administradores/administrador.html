@@ -20,7 +20,7 @@
 
   <main class="app-container">
     <section class="notice notice--info">
-      <strong>Bloque 11 activo.</strong> El panel administrativo ya permite crear, listar, activar, cerrar y eliminar períodos de titulación.
+      <strong>Bloque 12 activo.</strong> El panel administrativo ya permite cargar, listar y limpiar estudiantes por período.
     </section>
 
     <section class="card hero-card">
@@ -30,21 +30,9 @@
         <p class="muted" id="firebaseMensaje">Inicializando conexión...</p>
       </div>
       <div class="mode-grid">
-        <div class="mode-item">
-          <span>1</span>
-          <strong>Modo</strong>
-          <p id="modoEjecucionTexto">—</p>
-        </div>
-        <div class="mode-item">
-          <span>2</span>
-          <strong>Proyecto</strong>
-          <p id="projectIdTexto">—</p>
-        </div>
-        <div class="mode-item">
-          <span>3</span>
-          <strong>Configuración</strong>
-          <p id="configOrigenTexto">Pendiente</p>
-        </div>
+        <div class="mode-item"><span>1</span><strong>Modo</strong><p id="modoEjecucionTexto">—</p></div>
+        <div class="mode-item"><span>2</span><strong>Proyecto</strong><p id="projectIdTexto">—</p></div>
+        <div class="mode-item"><span>3</span><strong>Configuración</strong><p id="configOrigenTexto">Pendiente</p></div>
       </div>
     </section>
 
@@ -59,48 +47,14 @@
       </div>
 
       <form id="formConfigGeneral" class="form-grid admin-form" autocomplete="off">
-        <div class="field">
-          <label for="procesoActivoInput">Proceso activo</label>
-          <select id="procesoActivoInput" name="procesoActivo">
-            <option value="true">Sí</option>
-            <option value="false">No</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="periodoActivoInput">Período activo</label>
-          <input id="periodoActivoInput" name="periodoActivo" type="text" placeholder="Ejemplo: 2025-11__2026-05" />
-        </div>
-        <div class="field">
-          <label for="maxIntentosInput">Máximo de intentos</label>
-          <input id="maxIntentosInput" name="maxIntentos" type="number" min="1" max="10" step="1" />
-        </div>
-        <div class="field">
-          <label for="propuestasObligatoriasInput">Propuestas obligatorias</label>
-          <input id="propuestasObligatoriasInput" name="propuestasObligatorias" type="number" min="1" max="5" step="1" />
-        </div>
-        <div class="field">
-          <label for="iaActivaInput">IA activa</label>
-          <select id="iaActivaInput" name="iaActiva">
-            <option value="true">Sí</option>
-            <option value="false">No</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="proveedorIAInput">Proveedor IA principal</label>
-          <select id="proveedorIAInput" name="proveedorIA">
-            <option value="gemini">Gemini</option>
-            <option value="groq">Groq</option>
-            <option value="openrouter">OpenRouter</option>
-            <option value="mistral">Mistral</option>
-          </select>
-        </div>
-        <div class="field field--full">
-          <label for="googleSheetsUrlInput">URL Google Sheets / Apps Script</label>
-          <input id="googleSheetsUrlInput" name="googleSheetsUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" />
-        </div>
-        <div class="form-actions field--full">
-          <button class="btn btn--primary" type="submit" id="btnGuardarConfig">Guardar configuración</button>
-        </div>
+        <div class="field"><label for="procesoActivoInput">Proceso activo</label><select id="procesoActivoInput" name="procesoActivo"><option value="true">Sí</option><option value="false">No</option></select></div>
+        <div class="field"><label for="periodoActivoInput">Período activo</label><input id="periodoActivoInput" name="periodoActivo" type="text" placeholder="Ejemplo: 2025-11__2026-05" /></div>
+        <div class="field"><label for="maxIntentosInput">Máximo de intentos</label><input id="maxIntentosInput" name="maxIntentos" type="number" min="1" max="10" step="1" /></div>
+        <div class="field"><label for="propuestasObligatoriasInput">Propuestas obligatorias</label><input id="propuestasObligatoriasInput" name="propuestasObligatorias" type="number" min="1" max="5" step="1" /></div>
+        <div class="field"><label for="iaActivaInput">IA activa</label><select id="iaActivaInput" name="iaActiva"><option value="true">Sí</option><option value="false">No</option></select></div>
+        <div class="field"><label for="proveedorIAInput">Proveedor IA principal</label><select id="proveedorIAInput" name="proveedorIA"><option value="gemini">Gemini</option><option value="groq">Groq</option><option value="openrouter">OpenRouter</option><option value="mistral">Mistral</option></select></div>
+        <div class="field field--full"><label for="googleSheetsUrlInput">URL Google Sheets / Apps Script</label><input id="googleSheetsUrlInput" name="googleSheetsUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" /></div>
+        <div class="form-actions field--full"><button class="btn btn--primary" type="submit" id="btnGuardarConfig">Guardar configuración</button></div>
       </form>
       <div class="status-message" id="configMensaje" role="status" aria-live="polite"></div>
     </section>
@@ -110,49 +64,60 @@
         <div>
           <p class="section-kicker">Períodos</p>
           <h2>Gestión de períodos</h2>
-          <p class="muted">Estos datos se guardan en <code>periodos/{periodoId}</code>. Al activar un período también se actualiza <code>titulos_config/app.periodoActivo</code>.</p>
+          <p class="muted">Estos datos se guardan en <code>periodos/{periodoId}</code>.</p>
         </div>
         <button class="btn btn--secondary" type="button" id="btnCargarPeriodos">Cargar períodos</button>
       </div>
 
       <form id="formPeriodo" class="form-grid admin-form" autocomplete="off">
-        <div class="field">
-          <label for="periodoIdInput">ID del período</label>
-          <input id="periodoIdInput" name="periodoId" type="text" placeholder="Ejemplo: 2025-11__2026-05" />
-          <small>Sin espacios ni barras. Puedes usar guiones, puntos o guion bajo.</small>
-        </div>
-        <div class="field">
-          <label for="periodoNombreInput">Nombre visible</label>
-          <input id="periodoNombreInput" name="nombre" type="text" placeholder="Ejemplo: Noviembre 2025 - Mayo 2026" />
-        </div>
-        <div class="field">
-          <label for="periodoFechaInicioInput">Fecha inicio</label>
-          <input id="periodoFechaInicioInput" name="fechaInicio" type="date" />
-        </div>
-        <div class="field">
-          <label for="periodoFechaFinInput">Fecha fin</label>
-          <input id="periodoFechaFinInput" name="fechaFin" type="date" />
-        </div>
-        <div class="field">
-          <label for="periodoEstadoInput">Estado</label>
-          <select id="periodoEstadoInput" name="estado">
-            <option value="INACTIVO">Inactivo</option>
-            <option value="ACTIVO">Activo</option>
-            <option value="CERRADO">Cerrado</option>
-          </select>
-        </div>
-        <div class="field field--full">
-          <label for="periodoObservacionInput">Observación</label>
-          <textarea id="periodoObservacionInput" name="observacion" rows="3" placeholder="Notas internas del período"></textarea>
-        </div>
-        <div class="form-actions field--full">
-          <button class="btn btn--secondary" type="button" id="btnLimpiarPeriodo">Limpiar</button>
-          <button class="btn btn--primary" type="submit" id="btnGuardarPeriodo">Guardar período</button>
-        </div>
+        <div class="field"><label for="periodoIdInput">ID del período</label><input id="periodoIdInput" name="periodoId" type="text" placeholder="Ejemplo: 2025-11__2026-05" /><small>Sin espacios ni barras. Puedes usar guiones, puntos o guion bajo.</small></div>
+        <div class="field"><label for="periodoNombreInput">Nombre visible</label><input id="periodoNombreInput" name="nombre" type="text" placeholder="Ejemplo: Noviembre 2025 - Mayo 2026" /></div>
+        <div class="field"><label for="periodoFechaInicioInput">Fecha inicio</label><input id="periodoFechaInicioInput" name="fechaInicio" type="date" /></div>
+        <div class="field"><label for="periodoFechaFinInput">Fecha fin</label><input id="periodoFechaFinInput" name="fechaFin" type="date" /></div>
+        <div class="field"><label for="periodoEstadoInput">Estado</label><select id="periodoEstadoInput" name="estado"><option value="INACTIVO">Inactivo</option><option value="ACTIVO">Activo</option><option value="CERRADO">Cerrado</option></select></div>
+        <div class="field field--full"><label for="periodoObservacionInput">Observación</label><textarea id="periodoObservacionInput" name="observacion" rows="3" placeholder="Notas internas del período"></textarea></div>
+        <div class="form-actions field--full"><button class="btn btn--secondary" type="button" id="btnLimpiarPeriodo">Limpiar</button><button class="btn btn--primary" type="submit" id="btnGuardarPeriodo">Guardar período</button></div>
       </form>
 
       <div class="status-message" id="periodosMensaje" role="status" aria-live="polite"></div>
       <div class="period-list" id="periodosLista"></div>
+    </section>
+
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="section-kicker">Estudiantes</p>
+          <h2>Carga y limpieza de estudiantes</h2>
+          <p class="muted">La carga se guarda en <code>Estudiantes/{numeroIdentificacion}</code>. Puedes usar CSV, TXT, JSON o Excel.</p>
+        </div>
+        <button class="btn btn--secondary" type="button" id="btnListarEstudiantes">Listar estudiantes</button>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-item"><span>Total filas</span><strong id="estudiantesTotalFilas">0</strong></div>
+        <div class="summary-item"><span>Válidos</span><strong id="estudiantesTotalValidos">0</strong></div>
+        <div class="summary-item"><span>Errores</span><strong id="estudiantesTotalErrores">0</strong></div>
+      </div>
+
+      <form id="formEstudiantes" class="form-grid admin-form" autocomplete="off">
+        <div class="field">
+          <label for="estudiantesPeriodoInput">Período de los estudiantes</label>
+          <input id="estudiantesPeriodoInput" name="periodoId" type="text" placeholder="Ejemplo: 2025-11__2026-05" />
+        </div>
+        <div class="field">
+          <label for="archivoEstudiantesInput">Archivo de estudiantes</label>
+          <input id="archivoEstudiantesInput" name="archivo" type="file" accept=".csv,.txt,.json,.xlsx,.xls" />
+          <small>Columnas mínimas: cédula, nombres y carrera.</small>
+        </div>
+        <div class="form-actions field--full">
+          <button class="btn btn--secondary" type="button" id="btnLeerArchivoEstudiantes">Leer archivo</button>
+          <button class="btn btn--primary" type="button" id="btnGuardarEstudiantes">Guardar estudiantes</button>
+          <button class="btn btn--danger" type="button" id="btnLimpiarEstudiantesPeriodo">Limpiar estudiantes del período</button>
+        </div>
+      </form>
+
+      <div class="status-message" id="estudiantesMensaje" role="status" aria-live="polite"></div>
+      <div class="student-preview" id="estudiantesPreview"></div>
     </section>
 
     <section class="card">
@@ -166,42 +131,13 @@
       </div>
 
       <form id="formIA" class="form-grid admin-form" autocomplete="off">
-        <div class="field">
-          <label for="iaProveedorInput">Proveedor</label>
-          <select id="iaProveedorInput" name="proveedor">
-            <option value="gemini">Gemini</option>
-            <option value="groq">Groq</option>
-            <option value="openrouter">OpenRouter</option>
-            <option value="mistral">Mistral</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="iaActivoInput">Activo</label>
-          <select id="iaActivoInput" name="activo">
-            <option value="true">Sí</option>
-            <option value="false">No</option>
-          </select>
-        </div>
-        <div class="field field--full">
-          <label for="iaApiKeyInput">API Key</label>
-          <input id="iaApiKeyInput" name="apiKey" type="password" placeholder="Clave del proveedor seleccionado" />
-          <small>La clave se guarda en Firestore. Antes de publicar, revisa reglas de seguridad.</small>
-        </div>
-        <div class="field">
-          <label for="iaModelInput">Modelo</label>
-          <input id="iaModelInput" name="model" type="text" placeholder="Ejemplo: gemini-1.5-flash" />
-        </div>
-        <div class="field">
-          <label for="iaTemperatureInput">Temperatura</label>
-          <input id="iaTemperatureInput" name="temperature" type="number" min="0" max="2" step="0.05" />
-        </div>
-        <div class="field">
-          <label for="iaMaxTokensInput">Máximo tokens</label>
-          <input id="iaMaxTokensInput" name="maxOutputTokens" type="number" min="100" max="4000" step="50" />
-        </div>
-        <div class="form-actions field--full">
-          <button class="btn btn--primary" type="submit" id="btnGuardarIA">Guardar IA</button>
-        </div>
+        <div class="field"><label for="iaProveedorInput">Proveedor</label><select id="iaProveedorInput" name="proveedor"><option value="gemini">Gemini</option><option value="groq">Groq</option><option value="openrouter">OpenRouter</option><option value="mistral">Mistral</option></select></div>
+        <div class="field"><label for="iaActivoInput">Activo</label><select id="iaActivoInput" name="activo"><option value="true">Sí</option><option value="false">No</option></select></div>
+        <div class="field field--full"><label for="iaApiKeyInput">API Key</label><input id="iaApiKeyInput" name="apiKey" type="password" placeholder="Clave del proveedor seleccionado" /><small>La clave se guarda en Firestore. Antes de publicar, revisa reglas de seguridad.</small></div>
+        <div class="field"><label for="iaModelInput">Modelo</label><input id="iaModelInput" name="model" type="text" placeholder="Ejemplo: gemini-1.5-flash" /></div>
+        <div class="field"><label for="iaTemperatureInput">Temperatura</label><input id="iaTemperatureInput" name="temperature" type="number" min="0" max="2" step="0.05" /></div>
+        <div class="field"><label for="iaMaxTokensInput">Máximo tokens</label><input id="iaMaxTokensInput" name="maxOutputTokens" type="number" min="100" max="4000" step="50" /></div>
+        <div class="form-actions field--full"><button class="btn btn--primary" type="submit" id="btnGuardarIA">Guardar IA</button></div>
       </form>
       <div class="status-message" id="iaMensaje" role="status" aria-live="polite"></div>
     </section>
@@ -221,6 +157,8 @@
   <script src="js/app.config.js"></script>
   <script src="js/firebase.service.js"></script>
   <script src="js/administrador.repository.js"></script>
+  <script src="js/estudiantes.import.service.js"></script>
+  <script src="js/estudiantes.admin.js"></script>
   <script src="js/administrador.app.js"></script>
 </body>
 </html>
