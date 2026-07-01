@@ -30,6 +30,12 @@ administradores/
 │  └─ reportes.admin.js
 ├─ assets/
 └─ electron/
+   ├─ package.json
+   ├─ main.js
+   ├─ preload.js
+   ├─ README.md
+   ├─ INICIAR_ADMINISTRADORES.bat
+   └─ BUILD_ADMINISTRADORES.bat
 ```
 
 ## Funciones construidas
@@ -42,6 +48,22 @@ administradores/
 - Diagnóstico básico.
 - Reportes de títulos y estudiantes.
 - Exportación CSV.
+- Base de instalador Electron independiente para administradores.
+
+## Probar Electron
+
+Desde la carpeta `administradores/electron`:
+
+```bash
+npm install
+npm start
+```
+
+Para generar instalador:
+
+```bash
+npm run dist
+```
 
 ## Regla técnica
 
