@@ -259,6 +259,22 @@ small { color: var(--muted); }
 .suggestion-item button { margin-top: 10px; }
 .is-hidden { display: none !important; }
 
+.is-locked {
+  opacity: 0.78;
+  position: relative;
+}
+
+.is-locked::after {
+  content: 'Envío registrado';
+  display: inline-flex;
+  margin: -6px 0 18px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--success-bg);
+  color: var(--success);
+  font-weight: 800;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -305,6 +321,15 @@ small { color: var(--muted); }
   font-size: 1.4rem;
 }
 
+.summary-alert {
+  border: 1px solid #fedf89;
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: var(--warning-bg);
+  color: #7a4d00;
+}
+
 .summary-block {
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -316,10 +341,60 @@ small { color: var(--muted); }
 .summary-block h3 { margin: 0 0 8px; }
 .summary-block p { margin: 6px 0; }
 
+.receipt-card {
+  border-color: #b7ebc6;
+  background: linear-gradient(180deg, #ffffff, #f6fffa);
+}
+
+.receipt-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.receipt-code {
+  border-radius: 16px;
+  background: var(--success-bg);
+  color: var(--success);
+  padding: 14px 16px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+  text-align: right;
+  min-width: min(320px, 100%);
+}
+
+.receipt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.receipt-item {
+  border: 1px solid var(--line);
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.receipt-item span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin-bottom: 6px;
+}
+
+.receipt-item strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 900px) {
-  .app-header__content, .card__header, .proposal-card__top, .card--final { flex-direction: column; }
-  .consulta-form, .form-grid, .student-grid { grid-template-columns: 1fr; }
+  .app-header__content, .card__header, .proposal-card__top, .card--final, .receipt-card__header { flex-direction: column; }
+  .consulta-form, .form-grid, .student-grid, .receipt-grid { grid-template-columns: 1fr; }
   .btn { width: 100%; }
   .final-actions, .proposal-actions, .modal__actions { width: 100%; flex-direction: column; }
   .preferred-option { width: 100%; justify-content: center; }
+  .receipt-code { width: 100%; text-align: left; }
 }
