@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema de Títulos Académicos</title>
+  <link rel="stylesheet" href="shared/css/navigation.css" />
+</head>
+<body>
+  <header class="home-header">
+    <div class="home-header__content">
+      <span class="app-badge">Panel principal</span>
+      <h1>Sistema de títulos académicos</h1>
+      <p>Acceso centralizado a estudiantes, coordinadores y administradores.</p>
+    </div>
+  </header>
+
+  <main class="home-container">
+    <section class="notice notice--info">
+      <strong>Bloque 16 activo.</strong> Esta pantalla unifica la navegación entre módulos sin mezclar sus archivos internos.
+    </section>
+
+    <section class="module-grid">
+      <article class="module-card">
+        <span class="module-card__tag">Estudiantes</span>
+        <h2>Envío de propuestas</h2>
+        <p>Consulta de cédula, generación de sugerencias, envío final y comprobante.</p>
+        <a class="btn btn--primary" href="estudiantes/estudiante.html">Abrir estudiantes</a>
+      </article>
+
+      <article class="module-card">
+        <span class="module-card__tag">Coordinadores</span>
+        <h2>Listado de títulos</h2>
+        <p>Consulta de títulos enviados según período, estado y carreras asignadas.</p>
+        <a class="btn btn--primary" href="coordinadores/coordinador.html">Abrir coordinadores</a>
+      </article>
+
+      <article class="module-card">
+        <span class="module-card__tag">Coordinadores</span>
+        <h2>Decisiones de revisión</h2>
+        <p>Registro de decisiones sobre títulos: aprobación, observación o devolución.</p>
+        <a class="btn btn--secondary" href="coordinadores/revision.html">Abrir revisión</a>
+      </article>
+
+      <article class="module-card">
+        <span class="module-card__tag">Administradores</span>
+        <h2>Panel administrativo</h2>
+        <p>Configuración general, períodos, estudiantes, coordinadores, IA y diagnóstico.</p>
+        <a class="btn btn--primary" href="administradores/administrador.html">Abrir administradores</a>
+      </article>
+
+      <article class="module-card">
+        <span class="module-card__tag">Administradores</span>
+        <h2>Gestión de coordinadores</h2>
+        <p>Pantalla directa para crear, editar y eliminar coordinadores.</p>
+        <a class="btn btn--secondary" href="administradores/coordinadores.html">Abrir gestión</a>
+      </article>
+
+      <article class="module-card module-card--warning">
+        <span class="module-card__tag">Seguridad</span>
+        <h2>Guía de permisos</h2>
+        <p>Checklist visual y reglas recomendadas antes de publicar en la web.</p>
+        <a class="btn btn--ghost" href="seguridad.html">Abrir seguridad</a>
+      </article>
+    </section>
+
+    <section class="card">
+      <p class="section-kicker">Estado de construcción</p>
+      <h2>Rutas principales</h2>
+      <div class="route-list">
+        <code>estudiantes/estudiante.html</code>
+        <code>coordinadores/coordinador.html</code>
+        <code>coordinadores/revision.html</code>
+        <code>administradores/administrador.html</code>
+        <code>administradores/coordinadores.html</code>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
