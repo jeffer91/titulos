@@ -1,0 +1,46 @@
+{
+  "name": "titulos-administradores",
+  "version": "0.1.0",
+  "description": "Instalador independiente del modulo administradores para el sistema de titulos academicos.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "dist": "electron-builder --win nsis",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "ec.edu.titulos.administradores",
+    "productName": "Titulos Administradores",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "../administrador.html",
+      "../coordinadores.html",
+      "../reportes.html",
+      "../css/**",
+      "../js/**",
+      "../assets/**"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  }
+}
