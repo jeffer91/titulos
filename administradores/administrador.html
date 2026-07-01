@@ -20,7 +20,7 @@
 
   <main class="app-container">
     <section class="notice notice--info">
-      <strong>Bloque 10 activo.</strong> El panel administrativo ya intenta conectar con Firebase y permite cargar/guardar la configuración general e IA.
+      <strong>Bloque 11 activo.</strong> El panel administrativo ya permite crear, listar, activar, cerrar y eliminar períodos de titulación.
     </section>
 
     <section class="card hero-card">
@@ -103,6 +103,56 @@
         </div>
       </form>
       <div class="status-message" id="configMensaje" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="section-kicker">Períodos</p>
+          <h2>Gestión de períodos</h2>
+          <p class="muted">Estos datos se guardan en <code>periodos/{periodoId}</code>. Al activar un período también se actualiza <code>titulos_config/app.periodoActivo</code>.</p>
+        </div>
+        <button class="btn btn--secondary" type="button" id="btnCargarPeriodos">Cargar períodos</button>
+      </div>
+
+      <form id="formPeriodo" class="form-grid admin-form" autocomplete="off">
+        <div class="field">
+          <label for="periodoIdInput">ID del período</label>
+          <input id="periodoIdInput" name="periodoId" type="text" placeholder="Ejemplo: 2025-11__2026-05" />
+          <small>Sin espacios ni barras. Puedes usar guiones, puntos o guion bajo.</small>
+        </div>
+        <div class="field">
+          <label for="periodoNombreInput">Nombre visible</label>
+          <input id="periodoNombreInput" name="nombre" type="text" placeholder="Ejemplo: Noviembre 2025 - Mayo 2026" />
+        </div>
+        <div class="field">
+          <label for="periodoFechaInicioInput">Fecha inicio</label>
+          <input id="periodoFechaInicioInput" name="fechaInicio" type="date" />
+        </div>
+        <div class="field">
+          <label for="periodoFechaFinInput">Fecha fin</label>
+          <input id="periodoFechaFinInput" name="fechaFin" type="date" />
+        </div>
+        <div class="field">
+          <label for="periodoEstadoInput">Estado</label>
+          <select id="periodoEstadoInput" name="estado">
+            <option value="INACTIVO">Inactivo</option>
+            <option value="ACTIVO">Activo</option>
+            <option value="CERRADO">Cerrado</option>
+          </select>
+        </div>
+        <div class="field field--full">
+          <label for="periodoObservacionInput">Observación</label>
+          <textarea id="periodoObservacionInput" name="observacion" rows="3" placeholder="Notas internas del período"></textarea>
+        </div>
+        <div class="form-actions field--full">
+          <button class="btn btn--secondary" type="button" id="btnLimpiarPeriodo">Limpiar</button>
+          <button class="btn btn--primary" type="submit" id="btnGuardarPeriodo">Guardar período</button>
+        </div>
+      </form>
+
+      <div class="status-message" id="periodosMensaje" role="status" aria-live="polite"></div>
+      <div class="period-list" id="periodosLista"></div>
     </section>
 
     <section class="card">
