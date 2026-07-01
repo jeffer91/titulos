@@ -4,16 +4,54 @@
 
   window.TA_COORDINADORES_CONFIG = Object.freeze({
     modulo: 'coordinadores',
-    version: '0.1.0-bloque-8',
-    modo: 'base-visual',
-    firebaseActivo: false,
+    version: '0.2.0-bloque-14',
+    modo: 'firebase-listado-titulos',
+    firebaseActivo: true,
     electronActivo: false,
+
+    /*
+      Coloca aquí la misma configuración pública Firebase Web App usada por estudiantes y administradores.
+    */
+    firebase: Object.freeze({
+      apiKey: 'COLOCA_AQUI_TU_API_KEY',
+      authDomain: 'COLOCA_AQUI_TU_AUTH_DOMAIN',
+      projectId: 'COLOCA_AQUI_TU_PROJECT_ID',
+      storageBucket: 'COLOCA_AQUI_TU_STORAGE_BUCKET',
+      messagingSenderId: 'COLOCA_AQUI_TU_MESSAGING_SENDER_ID',
+      appId: 'COLOCA_AQUI_TU_APP_ID'
+    }),
+
+    collections: Object.freeze({
+      estudiantes: 'Estudiantes',
+      titulos: 'titulos',
+      config: 'titulos_config',
+      logs: 'titulos_logs',
+      coordinadores: 'coordinadores'
+    }),
+
+    documents: Object.freeze({
+      appConfig: 'app'
+    }),
+
+    defaultAppConfig: Object.freeze({
+      procesoActivo: true,
+      periodoActivo: '',
+      maxIntentos: 2,
+      propuestasObligatorias: 3,
+      iaActiva: true,
+      proveedorIA: 'gemini',
+      googleSheetsUrl: ''
+    }),
+
+    estadosTitulo: Object.freeze(['TODOS', 'ENVIADO', 'APROBADO', 'APROBADO_CON_OBSERVACION', 'DEVUELTO']),
+
     rutas: Object.freeze({
       htmlPrincipal: 'coordinadores/coordinador.html',
       cssPrincipal: 'coordinadores/css/coordinador.css',
       jsPrincipal: 'coordinadores/js/coordinador.app.js',
       electron: 'coordinadores/electron/'
     }),
+
     funcionesFuturas: Object.freeze([
       'Consulta de títulos por carrera y período',
       'Revisión de propuestas enviadas por estudiantes',
