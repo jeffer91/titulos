@@ -10,7 +10,7 @@ Abrir:
 index.html
 ```
 
-Desde esa pantalla se accede a estudiantes, coordinadores, administradores y seguridad.
+Desde esa pantalla se accede a estudiantes, coordinadores, administradores, reportes y seguridad.
 
 ## Estructura general
 
@@ -18,14 +18,15 @@ Desde esa pantalla se accede a estudiantes, coordinadores, administradores y seg
 titulos/
 ├─ index.html
 ├─ seguridad.html
+├─ _headers
+├─ _redirects
 ├─ firestore.rules.example
+├─ cloudflare-pages.config.md
 ├─ docs/
-│  └─ SEGURIDAD.md
+│  ├─ SEGURIDAD.md
+│  ├─ CLOUDFLARE_PAGES.md
+│  └─ PRE_PUBLICACION_CHECKLIST.md
 ├─ shared/
-│  ├─ css/
-│  │  └─ navigation.css
-│  └─ js/
-│     └─ security.check.js
 ├─ estudiantes/
 ├─ coordinadores/
 └─ administradores/
@@ -48,7 +49,27 @@ coordinadores/coordinador.html
 coordinadores/revision.html
 administradores/administrador.html
 administradores/coordinadores.html
+administradores/reportes.html
 seguridad.html
+```
+
+## Electron
+
+```text
+coordinadores/electron/
+administradores/electron/
+```
+
+Cada módulo tiene su propio instalador.
+
+## Cloudflare Pages
+
+Revisar:
+
+```text
+docs/CLOUDFLARE_PAGES.md
+docs/PRE_PUBLICACION_CHECKLIST.md
+cloudflare-pages.config.md
 ```
 
 ## Seguridad
@@ -68,3 +89,7 @@ firestore.rules.example
 4. Módulo coordinadores.
 5. Navegación centralizada.
 6. Seguridad visual y reglas de referencia.
+7. Reportes y exportación.
+8. Electron coordinadores.
+9. Electron administradores.
+10. Preparación Cloudflare Pages.
