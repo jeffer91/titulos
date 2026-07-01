@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seguridad | Sistema de Títulos</title>
+  <link rel="stylesheet" href="shared/css/navigation.css" />
+</head>
+<body>
+  <header class="home-header">
+    <div class="home-header__content">
+      <span class="app-badge">Seguridad</span>
+      <h1>Permisos y publicación segura</h1>
+      <p>Checklist visual para preparar Firebase, roles y publicación web.</p>
+    </div>
+  </header>
+
+  <main class="home-container">
+    <section class="notice notice--info">
+      <strong>Bloque 17 activo.</strong> Esta guía evita publicar el sistema sin revisar permisos, reglas y datos sensibles.
+    </section>
+
+    <section class="security-grid">
+      <article class="security-item security-item--danger">
+        <h3>No publicar sin reglas</h3>
+        <p>Antes de subir a Cloudflare o cualquier hosting, revisa reglas de Firestore. Un frontend directo no debe quedar abierto a escritura pública.</p>
+      </article>
+
+      <article class="security-item security-item--warning">
+        <h3>Claves de IA</h3>
+        <p>Guardar claves en Firestore desde frontend funciona para pruebas, pero no es una protección real. Para producción conviene usar un backend o proxy.</p>
+      </article>
+
+      <article class="security-item">
+        <h3>Roles mínimos</h3>
+        <ul>
+          <li>Estudiante: consultar solo su información y enviar sus títulos.</li>
+          <li>Coordinador: revisar solo carreras asignadas.</li>
+          <li>Administrador: configurar períodos, estudiantes, coordinadores e IA.</li>
+        </ul>
+      </article>
+
+      <article class="security-item">
+        <h3>Archivos de referencia</h3>
+        <ul>
+          <li><code>docs/SEGURIDAD_FIRESTORE.md</code></li>
+          <li><code>firestore.rules.example</code></li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="card">
+      <p class="section-kicker">Regreso</p>
+      <h2>Navegación</h2>
+      <a class="btn btn--primary" href="index.html">Volver al panel principal</a>
+    </section>
+  </main>
+</body>
+</html>
