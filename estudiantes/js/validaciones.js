@@ -10,37 +10,43 @@
     var limpia = limpiarCedula(cedula);
 
     if (!limpia) {
-      return error('Ingresa tu número de identificación.');
+      return error('Ingresa tu número de identificación.', '#cedulaInput');
     }
 
     if (limpia.length !== 10) {
-      return error('La cédula debe tener 10 dígitos.');
+      return error('La cédula debe tener 10 dígitos.', '#cedulaInput');
     }
 
     return ok(limpia);
   }
 
   function validarPropuesta(propuesta) {
+    var numero = Number(propuesta.numero);
     var campos = [
-      ['temaGeneral', 'tema general'],
-      ['problemaNecesidad', 'problema o necesidad'],
-      ['lugarContexto', 'lugar o contexto'],
-      ['grupoEstudio', 'grupo de estudio'],
-      ['anioPeriodo', 'año o período'],
-      ['objetivo', 'objetivo simple'],
-      ['tituloFinal', 'título final']
+      ['temaGeneral', 'tema general', '#p' + numero + 'Tema'],
+      ['problemaNecesidad', 'problema o necesidad', '#p' + numero + 'Problema'],
+      ['lugarContexto', 'lugar o contexto', '#p' + numero + 'Contexto'],
+      ['grupoEstudio', 'grupo de estudio', '#p' + numero + 'Grupo'],
+      ['anioPeriodo', 'año o período', '#p' + numero + 'Periodo'],
+      ['objetivo', 'objetivo simple', '#p' + numero + 'Objetivo'],
+      ['tituloFinal', 'título final', '#p' + numero + 'Titulo']
     ];
 
     for (var i = 0; i < campos.length; i += 1) {
       var key = campos[i][0];
       var label = campos[i][1];
+      var selector = campos[i][2];
       if (!String(propuesta[key] || '').trim()) {
-        return error('Completa el campo "' + label + '" de la propuesta ' + propuesta.numero + '.');
+        return error('Completa el campo "' + label + '" de la propuesta ' + numero + '.', selector);
       }
     }
 
     if (propuesta.tituloFinal.length < 20) {
-      return error('El título final de la propuesta ' + propuesta.numero + ' debe ser más claro y completo.');
+      return error('El título final de la propuesta ' + numero + ' debe ser más claro y completo.', '#p' + numero + 'Titulo');
+    }
+
+    if (propuesta.objetivo.length < 15) {
+      return error('El objetivo simple de la propuesta ' + numero + ' debe explicar mejor qué quieres lograr.', '#p' + numero + 'Objetivo');
     }
 
     return ok(propuesta);
@@ -70,18 +76,39 @@
     return ok(formData);
   }
 
-  function ok(data) {
-    return { ok: true, data: data, mensaje: '' };
+  function validarFormularioParaBorrador(formData) {
+    if (!formData || !Array.isArray(formData.propuestas)) {
+      return error('No hay información suficiente para guardar el borrador.');
+    }
+
+    var tieneContenido = Boolean(formData.telegram || formData.celular);
+
+    formData.propuestas.forEach(function (propuesta) {
+      Object.keys(propuesta).forEach(function (key) {
+        if (key !== 'numero' && String(propuesta[key] || '').trim()) tieneContenido = true;
+      });
+    });
+
+    if (!tieneContenido) {
+      return error('Escribe al menos un dato antes de guardar el borrador.');
+    }
+
+    return ok(formData);
   }
 
-  function error(mensaje) {
-    return { ok: false, data: null, mensaje: mensaje };
+  function ok(data) {
+    return { ok: true, data: data, mensaje: '', selector: '' };
+  }
+
+  function error(mensaje, selector) {
+    return { ok: false, data: null, mensaje: mensaje, selector: selector || '' };
   }
 
   window.TAEstudianteValidaciones = Object.freeze({
     limpiarCedula: limpiarCedula,
     validarCedulaBasica: validarCedulaBasica,
     validarPropuesta: validarPropuesta,
-    validarEnvio: validarEnvio
+    validarEnvio: validarEnvio,
+    validarFormularioParaBorrador: validarFormularioParaBorrador
   });
 })();
