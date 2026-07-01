@@ -14,36 +14,36 @@
         <h1>Gestión del sistema de títulos</h1>
         <p>Panel independiente para configurar períodos, estudiantes, coordinadores, IA, respaldos y diagnósticos.</p>
       </div>
-      <div class="app-status-pill" id="estadoGeneral">Base lista</div>
+      <div class="app-status-pill" id="estadoGeneral">Conectando</div>
     </div>
   </header>
 
   <main class="app-container">
     <section class="notice notice--info">
-      <strong>Bloque 9 activo.</strong> Esta es la base visual del módulo administradores. Todavía no conecta con Firebase ni Electron; eso se desarrollará en bloques posteriores.
+      <strong>Bloque 10 activo.</strong> El panel administrativo ya intenta conectar con Firebase y permite cargar/guardar la configuración general e IA.
     </section>
 
     <section class="card hero-card">
       <div>
-        <p class="section-kicker">Administradores</p>
-        <h2>Módulo independiente</h2>
-        <p class="muted">Este módulo tendrá su propio HTML, CSS, JS y su propio instalador Electron.</p>
+        <p class="section-kicker">Firebase</p>
+        <h2>Estado de conexión</h2>
+        <p class="muted" id="firebaseMensaje">Inicializando conexión...</p>
       </div>
       <div class="mode-grid">
         <div class="mode-item">
           <span>1</span>
-          <strong>Doble click</strong>
-          <p>Abriendo <code>administrador.html</code>.</p>
+          <strong>Modo</strong>
+          <p id="modoEjecucionTexto">—</p>
         </div>
         <div class="mode-item">
           <span>2</span>
-          <strong>Live Server</strong>
-          <p>Abriendo <code>/administradores/administrador.html</code>.</p>
+          <strong>Proyecto</strong>
+          <p id="projectIdTexto">—</p>
         </div>
         <div class="mode-item">
           <span>3</span>
-          <strong>Electron</strong>
-          <p>Con instalador propio para administradores.</p>
+          <strong>Configuración</strong>
+          <p id="configOrigenTexto">Pendiente</p>
         </div>
       </div>
     </section>
@@ -51,49 +51,126 @@
     <section class="card">
       <div class="card__header">
         <div>
-          <p class="section-kicker">Funciones futuras</p>
-          <h2>Qué tendrá este módulo</h2>
+          <p class="section-kicker">Configuración general</p>
+          <h2>Proceso de titulación</h2>
+          <p class="muted">Estos datos se guardan en <code>titulos_config/app</code>.</p>
         </div>
+        <button class="btn btn--secondary" type="button" id="btnCargarConfig">Cargar configuración</button>
       </div>
 
-      <div class="feature-grid">
-        <article class="feature-card">
-          <h3>Períodos</h3>
-          <p>Crear, activar, cerrar o eliminar períodos de titulación.</p>
-        </article>
-        <article class="feature-card">
-          <h3>Estudiantes</h3>
-          <p>Cargar, validar, actualizar o limpiar estudiantes por período.</p>
-        </article>
-        <article class="feature-card">
-          <h3>Coordinadores</h3>
-          <p>Asignar carreras, permisos y responsables de revisión.</p>
-        </article>
-        <article class="feature-card">
-          <h3>Configuración IA</h3>
-          <p>Registrar proveedores, modelos, estado y claves de uso.</p>
-        </article>
-        <article class="feature-card">
-          <h3>Google Sheets</h3>
-          <p>Configurar URL de Apps Script y verificar respaldos.</p>
-        </article>
-        <article class="feature-card">
-          <h3>Diagnóstico</h3>
-          <p>Revisar estado de Firebase, colecciones, reglas y módulos.</p>
-        </article>
+      <form id="formConfigGeneral" class="form-grid admin-form" autocomplete="off">
+        <div class="field">
+          <label for="procesoActivoInput">Proceso activo</label>
+          <select id="procesoActivoInput" name="procesoActivo">
+            <option value="true">Sí</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="periodoActivoInput">Período activo</label>
+          <input id="periodoActivoInput" name="periodoActivo" type="text" placeholder="Ejemplo: 2025-11__2026-05" />
+        </div>
+        <div class="field">
+          <label for="maxIntentosInput">Máximo de intentos</label>
+          <input id="maxIntentosInput" name="maxIntentos" type="number" min="1" max="10" step="1" />
+        </div>
+        <div class="field">
+          <label for="propuestasObligatoriasInput">Propuestas obligatorias</label>
+          <input id="propuestasObligatoriasInput" name="propuestasObligatorias" type="number" min="1" max="5" step="1" />
+        </div>
+        <div class="field">
+          <label for="iaActivaInput">IA activa</label>
+          <select id="iaActivaInput" name="iaActiva">
+            <option value="true">Sí</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="proveedorIAInput">Proveedor IA principal</label>
+          <select id="proveedorIAInput" name="proveedorIA">
+            <option value="gemini">Gemini</option>
+            <option value="groq">Groq</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="mistral">Mistral</option>
+          </select>
+        </div>
+        <div class="field field--full">
+          <label for="googleSheetsUrlInput">URL Google Sheets / Apps Script</label>
+          <input id="googleSheetsUrlInput" name="googleSheetsUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" />
+        </div>
+        <div class="form-actions field--full">
+          <button class="btn btn--primary" type="submit" id="btnGuardarConfig">Guardar configuración</button>
+        </div>
+      </form>
+      <div class="status-message" id="configMensaje" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="section-kicker">Configuración IA</p>
+          <h2>Proveedor de inteligencia artificial</h2>
+          <p class="muted">Estos datos se guardan en <code>IA/{proveedor}</code>.</p>
+        </div>
+        <button class="btn btn--secondary" type="button" id="btnCargarIA">Cargar IA</button>
       </div>
+
+      <form id="formIA" class="form-grid admin-form" autocomplete="off">
+        <div class="field">
+          <label for="iaProveedorInput">Proveedor</label>
+          <select id="iaProveedorInput" name="proveedor">
+            <option value="gemini">Gemini</option>
+            <option value="groq">Groq</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="mistral">Mistral</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="iaActivoInput">Activo</label>
+          <select id="iaActivoInput" name="activo">
+            <option value="true">Sí</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="field field--full">
+          <label for="iaApiKeyInput">API Key</label>
+          <input id="iaApiKeyInput" name="apiKey" type="password" placeholder="Clave del proveedor seleccionado" />
+          <small>La clave se guarda en Firestore. Antes de publicar, revisa reglas de seguridad.</small>
+        </div>
+        <div class="field">
+          <label for="iaModelInput">Modelo</label>
+          <input id="iaModelInput" name="model" type="text" placeholder="Ejemplo: gemini-1.5-flash" />
+        </div>
+        <div class="field">
+          <label for="iaTemperatureInput">Temperatura</label>
+          <input id="iaTemperatureInput" name="temperature" type="number" min="0" max="2" step="0.05" />
+        </div>
+        <div class="field">
+          <label for="iaMaxTokensInput">Máximo tokens</label>
+          <input id="iaMaxTokensInput" name="maxOutputTokens" type="number" min="100" max="4000" step="50" />
+        </div>
+        <div class="form-actions field--full">
+          <button class="btn btn--primary" type="submit" id="btnGuardarIA">Guardar IA</button>
+        </div>
+      </form>
+      <div class="status-message" id="iaMensaje" role="status" aria-live="polite"></div>
     </section>
 
     <section class="card diagnostic-card">
-      <div>
-        <p class="section-kicker">Diagnóstico</p>
-        <h2>Estado del módulo</h2>
+      <div class="card__header">
+        <div>
+          <p class="section-kicker">Diagnóstico</p>
+          <h2>Estado del módulo</h2>
+        </div>
+        <button class="btn btn--secondary" type="button" id="btnDiagnostico">Actualizar diagnóstico</button>
       </div>
       <div class="diagnostic-list" id="diagnosticoModulo"></div>
     </section>
   </main>
 
   <script src="js/app.config.js"></script>
+  <script src="js/firebase.service.js"></script>
+  <script src="js/administrador.repository.js"></script>
   <script src="js/administrador.app.js"></script>
 </body>
 </html>
