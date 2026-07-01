@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coordinadores | Decisiones de títulos</title>
   <link rel="stylesheet" href="css/coordinador.css" />
+  <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
   <header class="app-header">
@@ -20,7 +21,7 @@
 
   <main class="app-container">
     <section class="notice notice--info">
-      <strong>Bloque 15 activo.</strong> Esta pantalla registra decisiones de revisión en Firebase.
+      <strong>Bloque 23 activo.</strong> Vista revisada para que consulta, resultados, observaciones y botones de decisión se muestren bien.
     </section>
 
     <section class="card">
@@ -31,12 +32,12 @@
         </div>
       </div>
       <form class="form-grid" id="formRevision" autocomplete="off">
-        <div class="field"><label for="coordEmailInput">Correo</label><input id="coordEmailInput" type="email" /></div>
-        <div class="field"><label for="periodoInput">Período</label><input id="periodoInput" type="text" /></div>
+        <div class="field"><label for="coordEmailInput">Correo</label><input id="coordEmailInput" type="email" placeholder="coordinador@dominio.edu" /></div>
+        <div class="field"><label for="periodoInput">Período</label><input id="periodoInput" type="text" placeholder="Ejemplo: 2025-11__2026-05" /></div>
         <div class="field"><label for="estadoFiltroInput">Estado</label><select id="estadoFiltroInput"><option value="TODOS">Todos</option><option value="ENVIADO">Enviado</option><option value="APROBADO">Aprobado</option><option value="APROBADO_CON_OBSERVACION">Aprobado con observación</option><option value="DEVUELTO">Devuelto</option></select></div>
         <div class="form-actions field--full"><button class="btn btn--primary" id="btnConsultar" type="submit">Consultar</button></div>
       </form>
-      <div class="status-message" id="revisionMensaje"></div>
+      <div class="status-message" id="revisionMensaje" role="status" aria-live="polite"></div>
     </section>
 
     <section class="card">
