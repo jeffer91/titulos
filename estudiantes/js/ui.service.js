@@ -56,10 +56,17 @@
     }
   }
 
+  function setButtonsDisabled(selectors, disabled) {
+    selectors.forEach(function (selector) {
+      var button = qs(selector);
+      if (button) button.disabled = Boolean(disabled);
+    });
+  }
+
   function renderStudent(student) {
     setText('#datoCedula', student.cedula);
     setText('#datoNombres', student.nombres);
-    setText('#datoCarrera', student.carrera);
+    setText('#datoCarrera', student.carrera || student.nombreCarrera);
     setText('#datoPeriodo', student.periodoId);
     show('#seccionEstudiante');
     show('#formPropuestas');
@@ -92,6 +99,34 @@
       tituloPreferidoNumero: Number((qs('input[name="tituloPreferido"]:checked') || {}).value || 1),
       propuestas: propuestas
     };
+  }
+
+  function fillFormData(formData) {
+    if (!formData) return;
+
+    setValue('#telegramInput', formData.telegram || '');
+    setValue('#celularInput', formData.celular || '');
+
+    if (Array.isArray(formData.propuestas)) {
+      formData.propuestas.forEach(function (propuesta) {
+        var numero = Number(propuesta.numero);
+        if (!numero) return;
+        setValue('#p' + numero + 'Tema', propuesta.temaGeneral || '');
+        setValue('#p' + numero + 'Problema', propuesta.problemaNecesidad || '');
+        setValue('#p' + numero + 'Contexto', propuesta.lugarContexto || '');
+        setValue('#p' + numero + 'Grupo', propuesta.grupoEstudio || '');
+        setValue('#p' + numero + 'Periodo', propuesta.anioPeriodo || '');
+        setValue('#p' + numero + 'Objetivo', propuesta.objetivo || '');
+        setValue('#p' + numero + 'Titulo', propuesta.tituloFinal || '');
+      });
+    }
+
+    marcarTituloPreferido(formData.tituloPreferidoNumero || 1);
+  }
+
+  function marcarTituloPreferido(numero) {
+    var radio = qs('input[name="tituloPreferido"][value="' + Number(numero || 1) + '"]');
+    if (radio) radio.checked = true;
   }
 
   function value(selector) {
@@ -130,7 +165,13 @@
     });
   }
 
-  function renderSummary(estudiante, formData) {
+  function clearSuggestions() {
+    qsa('.suggestions').forEach(function (container) {
+      container.innerHTML = '';
+    });
+  }
+
+  function renderSummary(estudiante, formData, payload) {
     var container = qs('#resumenContenido');
     if (!container) return;
 
@@ -139,17 +180,22 @@
     html += '<h3>Estudiante</h3>';
     html += '<p><strong>Cédula:</strong> ' + escapeHtml(estudiante.cedula) + '</p>';
     html += '<p><strong>Nombres:</strong> ' + escapeHtml(estudiante.nombres) + '</p>';
-    html += '<p><strong>Carrera:</strong> ' + escapeHtml(estudiante.carrera) + '</p>';
+    html += '<p><strong>Carrera:</strong> ' + escapeHtml(estudiante.carrera || estudiante.nombreCarrera) + '</p>';
     html += '<p><strong>Período:</strong> ' + escapeHtml(estudiante.periodoId) + '</p>';
+    if (payload) {
+      html += '<p><strong>Intento:</strong> ' + escapeHtml(payload.intentosUsados) + ' de ' + escapeHtml(payload.maxIntentos) + '</p>';
+    }
     html += '</div>';
 
     formData.propuestas.forEach(function (propuesta) {
-      var preferido = propuesta.numero === formData.tituloPreferidoNumero ? ' Sí' : ' No';
+      var preferido = Number(propuesta.numero) === Number(formData.tituloPreferidoNumero) ? 'Sí' : 'No';
       html += '<div class="summary-block">';
       html += '<h3>Propuesta ' + propuesta.numero + '</h3>';
       html += '<p><strong>Título final:</strong> ' + escapeHtml(propuesta.tituloFinal) + '</p>';
       html += '<p><strong>Tema:</strong> ' + escapeHtml(propuesta.temaGeneral) + '</p>';
-      html += '<p><strong>Preferido:</strong>' + preferido + '</p>';
+      html += '<p><strong>Problema:</strong> ' + escapeHtml(propuesta.problemaNecesidad) + '</p>';
+      html += '<p><strong>Contexto:</strong> ' + escapeHtml(propuesta.lugarContexto) + '</p>';
+      html += '<p><strong>Preferido:</strong> ' + preferido + '</p>';
       html += '</div>';
     });
 
@@ -162,6 +208,24 @@
 
   function closeModal() {
     hide('#modalResumen');
+  }
+
+  function clearFieldErrors() {
+    qsa('.is-invalid').forEach(function (element) {
+      element.classList.remove('is-invalid');
+      element.removeAttribute('aria-invalid');
+    });
+  }
+
+  function markFieldError(selector) {
+    clearFieldErrors();
+    var element = qs(selector);
+    if (!element) return;
+
+    element.classList.add('is-invalid');
+    element.setAttribute('aria-invalid', 'true');
+    element.focus();
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function escapeHtml(valueToEscape) {
@@ -183,12 +247,18 @@
     setValue: setValue,
     showStatus: showStatus,
     setLoading: setLoading,
+    setButtonsDisabled: setButtonsDisabled,
     renderStudent: renderStudent,
     readFormData: readFormData,
+    fillFormData: fillFormData,
+    marcarTituloPreferido: marcarTituloPreferido,
     renderSuggestions: renderSuggestions,
+    clearSuggestions: clearSuggestions,
     renderSummary: renderSummary,
     openModal: openModal,
     closeModal: closeModal,
+    clearFieldErrors: clearFieldErrors,
+    markFieldError: markFieldError,
     escapeHtml: escapeHtml
   });
 })();
