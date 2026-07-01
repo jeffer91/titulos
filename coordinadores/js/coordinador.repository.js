@@ -40,10 +40,11 @@
     var estadoFiltro = String(filtros && filtros.estado || '').trim().toUpperCase();
 
     if (!periodoId) return Promise.reject(new Error('Ingresa el período para consultar títulos.'));
+    if (!coordinador || !coordinador.carreras || !coordinador.carreras.length) return Promise.reject(new Error('El coordinador no tiene carreras asignadas.'));
 
     return firebaseService.listarDocumentos(config.collections.titulos, {
       where: ['periodoId', '==', periodoId],
-      limit: 1000
+      limit: 1500
     }).then(function (titulos) {
       return titulos
         .map(normalizarTitulo)
@@ -63,6 +64,7 @@
   function revisarTitulo(titulo, accion, observacion, coordinador) {
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título seleccionado.'));
     if (!coordinador || !coordinador.email) return Promise.reject(new Error('No se encontró el coordinador activo.'));
+    if (!perteneceACoordinador(titulo, coordinador)) return Promise.reject(new Error('Este título no pertenece a las carreras asignadas al coordinador.'));
 
     var estadoNuevo = estadoDesdeAccion(accion);
     var comentario = limpiarTexto(observacion);
@@ -86,11 +88,10 @@
       revisadoPor: coordinador.email,
       revisadoPorNombre: coordinador.nombres || '',
       revisadoEnLocal: revision.fechaLocal,
-      actualizadoPorModulo: 'coordinadores',
-      actualizadoEn: serverTimestamp()
+      actualizadoPorModulo: 'coordinadores'
     };
 
-    return getDb().collection(config.collections.titulos).doc(titulo.id).set(payload, { merge: true })
+    return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, payload, { merge: true })
       .then(function () {
         return registrarLogRevision(titulo, revision);
       })
@@ -100,7 +101,7 @@
   }
 
   function registrarLogRevision(titulo, revision) {
-    return getDb().collection(config.collections.logs).add({
+    return firebaseService.agregarDocumento(config.collections.logs, {
       accion: 'REVISION_TITULO_COORDINADOR',
       modulo: 'coordinadores',
       tituloId: titulo.id,
@@ -109,9 +110,7 @@
       carrera: titulo.carrera || titulo.nombreCarrera || '',
       periodoId: titulo.periodoId || '',
       estado: revision.estado,
-      revision: revision,
-      creadoEn: serverTimestamp(),
-      actualizadoEn: serverTimestamp()
+      revision: revision
     }).catch(function () {
       return null;
     });
@@ -125,26 +124,23 @@
     throw new Error('Acción de revisión no válida.');
   }
 
-  function getDb() {
-    return firebaseService.getDb();
-  }
-
-  function serverTimestamp() {
-    if (!window.firebase || !window.firebase.firestore) return new Date().toISOString();
-    return window.firebase.firestore.FieldValue.serverTimestamp();
-  }
-
   function perteneceACoordinador(titulo, coordinador) {
     var carreraTitulo = normalizarTextoComparacion(titulo.carrera || titulo.nombreCarrera || '');
     var codigoTitulo = normalizarTextoComparacion(titulo.codigoCarrera || '');
+    var carreras = coordinador && Array.isArray(coordinador.carreras) ? coordinador.carreras : [];
 
-    return coordinador.carreras.some(function (carrera) {
+    if (!carreraTitulo && !codigoTitulo) return false;
+
+    return carreras.some(function (carrera) {
       var carreraCoord = normalizarTextoComparacion(carrera);
-      return carreraCoord && (
-        carreraTitulo === carreraCoord ||
-        codigoTitulo === carreraCoord ||
-        carreraTitulo.indexOf(carreraCoord) !== -1 ||
-        carreraCoord.indexOf(carreraTitulo) !== -1
+      if (!carreraCoord) return false;
+      if (carreraCoord === '*' || carreraCoord === 'TODAS' || carreraCoord === 'TODOS' || carreraCoord === 'ALL') return true;
+
+      return (
+        (carreraTitulo && carreraTitulo === carreraCoord) ||
+        (codigoTitulo && codigoTitulo === carreraCoord) ||
+        (carreraTitulo && carreraTitulo.indexOf(carreraCoord) !== -1) ||
+        (carreraTitulo && carreraCoord.indexOf(carreraTitulo) !== -1)
       );
     });
   }
@@ -153,11 +149,11 @@
     return {
       id: data.id || normalizarEmail(data.email || data.correo || ''),
       email: normalizarEmail(data.email || data.correo || data.id || ''),
-      nombres: String(data.nombres || data.nombre || data.nombreCompleto || '').trim(),
+      nombres: limpiarTexto(data.nombres || data.nombre || data.nombreCompleto || ''),
       carreras: normalizarCarreras(data.carreras || data.carrerasAsignadas || data.carrera || ''),
       activo: data.activo !== false,
       rol: data.rol || 'coordinador',
-      observacion: String(data.observacion || '').trim(),
+      observacion: limpiarTexto(data.observacion || ''),
       raw: data
     };
   }
@@ -192,7 +188,7 @@
 
   function normalizarCarreras(value) {
     if (Array.isArray(value)) return value.map(limpiarTexto).filter(Boolean);
-    return String(value || '').split(',').map(limpiarTexto).filter(Boolean);
+    return String(value || '').split(/[,;|]/).map(limpiarTexto).filter(Boolean);
   }
 
   function normalizarEmail(value) {
