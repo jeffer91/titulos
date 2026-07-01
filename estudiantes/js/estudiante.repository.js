@@ -106,6 +106,57 @@
       });
   }
 
+  function guardarEnvioFinal(payload) {
+    if (!payload || !payload.cedula || !payload.periodoId) {
+      return Promise.reject(new Error('No se puede guardar porque faltan cédula o período.'));
+    }
+
+    var docId = construirTituloId(payload.periodoId, payload.cedula);
+    var data = Object.assign({}, payload, {
+      id: docId,
+      estado: 'ENVIADO',
+      enviadoEn: firebaseService.serverTimestamp(),
+      actualizadoEn: firebaseService.serverTimestamp(),
+      respaldoSheets: payload.respaldoSheets || {
+        ok: false,
+        pendiente: true,
+        mensaje: 'Pendiente de respaldo en Google Sheets.'
+      }
+    });
+
+    return firebaseService.guardarDocumento(config.collections.titulos, docId, data, { merge: false })
+      .then(function () {
+        return registrarLogEnvio(docId, data, 'ENVIO_ESTUDIANTE');
+      })
+      .then(function () {
+        return {
+          ok: true,
+          id: docId,
+          data: data,
+          mensaje: 'Propuestas enviadas correctamente.'
+        };
+      });
+  }
+
+  function registrarLogEnvio(tituloId, payload, accion) {
+    var log = {
+      tituloId: tituloId,
+      accion: accion || 'ENVIO_ESTUDIANTE',
+      cedula: payload.cedula,
+      nombres: payload.nombres,
+      carrera: payload.carrera,
+      periodoId: payload.periodoId,
+      estado: payload.estado,
+      intentosUsados: payload.intentosUsados,
+      maxIntentos: payload.maxIntentos,
+      tituloPreferidoNumero: payload.tituloPreferidoNumero,
+      origenCaptura: payload.origenCaptura || '',
+      creadoEn: firebaseService.serverTimestamp()
+    };
+
+    return firebaseService.agregarDocumento(config.collections.logs, log);
+  }
+
   function construirTituloId(periodoId, cedula) {
     return String(periodoId || 'SIN_PERIODO') + '__' + String(cedula || 'SIN_CEDULA');
   }
@@ -145,6 +196,8 @@
     buscarEstudiantePorCedula: buscarEstudiantePorCedula,
     consultarEnvio: consultarEnvio,
     consultarEstudianteCompleto: consultarEstudianteCompleto,
+    guardarEnvioFinal: guardarEnvioFinal,
+    registrarLogEnvio: registrarLogEnvio,
     construirTituloId: construirTituloId,
     normalizarEstudiante: normalizarEstudiante
   });
