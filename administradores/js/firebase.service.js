@@ -9,6 +9,7 @@
 
   var FIREBASE_APP_CDN = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js';
   var FIREBASE_FIRESTORE_CDN = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js';
+  var BATCH_LIMIT = 450;
 
   function iniciar(firebaseConfig) {
     return cargarSdk()
@@ -152,6 +153,49 @@
     return getDb().collection(collectionName).add(payload);
   }
 
+  function guardarLote(collectionName, documents, options) {
+    var docs = Array.isArray(documents) ? documents : [];
+    var merge = !options || options.merge !== false;
+    var chunks = dividirEnBloques(docs, BATCH_LIMIT);
+    var total = 0;
+
+    return chunks.reduce(function (promise, chunk) {
+      return promise.then(function () {
+        var batch = getDb().batch();
+        chunk.forEach(function (item) {
+          var ref = getDb().collection(collectionName).doc(item.id);
+          var payload = Object.assign({}, item.data || {}, {
+            actualizadoEn: serverTimestamp()
+          });
+          batch.set(ref, payload, { merge: merge });
+          total += 1;
+        });
+        return batch.commit();
+      });
+    }, Promise.resolve()).then(function () {
+      return { total: total };
+    });
+  }
+
+  function eliminarLote(collectionName, ids) {
+    var docsIds = Array.isArray(ids) ? ids : [];
+    var chunks = dividirEnBloques(docsIds, BATCH_LIMIT);
+    var total = 0;
+
+    return chunks.reduce(function (promise, chunk) {
+      return promise.then(function () {
+        var batch = getDb().batch();
+        chunk.forEach(function (documentId) {
+          batch.delete(getDb().collection(collectionName).doc(documentId));
+          total += 1;
+        });
+        return batch.commit();
+      });
+    }, Promise.resolve()).then(function () {
+      return { total: total };
+    });
+  }
+
   function listarDocumentos(collectionName, options) {
     var query = getDb().collection(collectionName);
     var opts = options || {};
@@ -184,6 +228,14 @@
       });
   }
 
+  function dividirEnBloques(items, size) {
+    var chunks = [];
+    for (var i = 0; i < items.length; i += size) {
+      chunks.push(items.slice(i, i + size));
+    }
+    return chunks;
+  }
+
   function serverTimestamp() {
     if (!window.firebase || !window.firebase.firestore) return new Date().toISOString();
     return window.firebase.firestore.FieldValue.serverTimestamp();
@@ -207,6 +259,8 @@
     guardarDocumento: guardarDocumento,
     eliminarDocumento: eliminarDocumento,
     agregarDocumento: agregarDocumento,
+    guardarLote: guardarLote,
+    eliminarLote: eliminarLote,
     listarDocumentos: listarDocumentos,
     contarColeccion: contarColeccion,
     serverTimestamp: serverTimestamp
