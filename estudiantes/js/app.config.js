@@ -1,20 +1,20 @@
 /*
   Configuración base del módulo estudiantes.
-  Este archivo usa variables globales para funcionar con doble click y Live Server.
+  Este archivo usa variables globales para funcionar con doble click, Live Server y publicación estática.
 */
 (function () {
   'use strict';
 
   window.TA_ESTUDIANTES_CONFIG = Object.freeze({
     modulo: 'estudiantes',
-    version: '0.3.0-bloque-3',
-    modo: 'firebase-directo-formulario',
+    version: '0.6.0-bloque-24',
+    modo: 'firebase-envio-ia-sheets',
     propuestasObligatorias: 3,
 
     /*
       Coloca aquí la configuración pública de Firebase Web App.
-      Esta configuración NO es la clave de IA. Es la configuración normal del proyecto Firebase.
-      La clave de IA se leerá después desde la colección IA, en otro bloque.
+      Esta configuración NO es una clave privada. Es la configuración normal del proyecto Firebase.
+      Las claves IA se leen desde Firebase según la configuración administrativa.
     */
     firebase: Object.freeze({
       apiKey: 'COLOCA_AQUI_TU_API_KEY',
@@ -42,22 +42,24 @@
       periodoActivo: '',
       maxIntentos: 2,
       propuestasObligatorias: 3,
-      iaActiva: false,
+      iaActiva: true,
       proveedorIA: 'gemini',
       googleSheetsUrl: ''
     }),
 
     firebaseActivo: true,
-    iaActiva: false,
-    sheetsActivo: false,
+    iaActiva: true,
+    sheetsActivo: true,
     borradorLocalActivo: true,
 
     textos: Object.freeze({
       consultaPendiente: 'Ingresa tu cédula para consultar tus datos en Firebase.',
       firebasePendiente: 'Firebase está pendiente de configurar en estudiantes/js/app.config.js.',
       firebaseConectado: 'Firebase conectado. Ya puedes consultar por cédula.',
-      iaPendiente: 'La generación real con IA se agregará en el Bloque 4.',
-      envioPendiente: 'El envío real a Firebase se agregará en el Bloque 5.',
+      iaPendiente: 'La IA está desactivada en la configuración administrativa.',
+      iaGenerando: 'Generando sugerencias con IA...',
+      iaLista: 'Sugerencias generadas correctamente.',
+      envioPendiente: 'Completa las tres propuestas antes de enviar.',
       borradorGuardado: 'Borrador local guardado en este equipo.',
       borradorRestaurado: 'Se restauró un borrador local guardado en este equipo.'
     }),
