@@ -7,13 +7,16 @@
   var validaciones = window.TAEstudianteValidaciones;
   var firebaseService = window.TAFirebaseService;
   var repository = window.TAEstudianteRepository;
+  var formularioService = window.TAEstudianteFormulario;
 
   var estado = {
     estudiante: null,
     appConfig: null,
     envioExistente: null,
     firebaseListo: false,
-    ultimoFormulario: null
+    ultimoFormulario: null,
+    ultimoPayload: null,
+    autoGuardadoTimer: null
   };
 
   document.addEventListener('DOMContentLoaded', iniciar);
@@ -27,10 +30,10 @@
   }
 
   function iniciarFirebase() {
-    if (!firebaseService || !repository) {
+    if (!firebaseService || !repository || !formularioService) {
       estado.firebaseListo = false;
-      ui.setText('#estadoGeneral', 'Firebase no cargado');
-      ui.showStatus('#consultaMensaje', 'No se cargaron los archivos de Firebase. Revisa los scripts del HTML.', 'error');
+      ui.setText('#estadoGeneral', 'Archivos incompletos');
+      ui.showStatus('#consultaMensaje', 'No se cargaron todos los archivos del módulo estudiantes. Revisa los scripts del HTML.', 'error');
       bloquearConsulta(true);
       return;
     }
@@ -66,6 +69,8 @@
     var btnCerrarModal = ui.qs('#btnCerrarModal');
     var btnCancelarResumen = ui.qs('#btnCancelarResumen');
     var btnConfirmarEnvio = ui.qs('#btnConfirmarEnvio');
+    var btnGuardarBorrador = ui.qs('#btnGuardarBorrador');
+    var btnLimpiarBorrador = ui.qs('#btnLimpiarBorrador');
 
     if (formConsulta) {
       formConsulta.addEventListener('submit', manejarConsulta);
@@ -73,10 +78,20 @@
 
     if (formPropuestas) {
       formPropuestas.addEventListener('submit', manejarEnvio);
+      formPropuestas.addEventListener('input', programarAutoGuardado);
+      formPropuestas.addEventListener('change', programarAutoGuardado);
     }
 
     if (btnVistaPrevia) {
       btnVistaPrevia.addEventListener('click', mostrarVistaPrevia);
+    }
+
+    if (btnGuardarBorrador) {
+      btnGuardarBorrador.addEventListener('click', guardarBorradorManual);
+    }
+
+    if (btnLimpiarBorrador) {
+      btnLimpiarBorrador.addEventListener('click', limpiarBorradorManual);
     }
 
     if (btnCerrarModal) {
@@ -114,8 +129,11 @@
     var cedula = ui.value('#cedulaInput');
     var resultado = validaciones.validarCedulaBasica(cedula);
 
+    ui.clearFieldErrors();
+
     if (!resultado.ok) {
       ui.showStatus('#consultaMensaje', resultado.mensaje, 'error');
+      if (resultado.selector) ui.markFieldError(resultado.selector);
       return;
     }
 
@@ -125,8 +143,7 @@
     }
 
     ui.setLoading(btnConsultar, true, 'Consultando...');
-    ui.hide('#seccionEstudiante');
-    ui.hide('#formPropuestas');
+    limpiarEstadoConsulta();
     ui.showStatus('#consultaMensaje', 'Buscando estudiante en Firebase...', 'info');
 
     repository.consultarEstudianteCompleto(resultado.data)
@@ -142,7 +159,7 @@
         estado.envioExistente = respuesta.data.envioExistente;
 
         ui.renderStudent(estado.estudiante);
-        cargarContactoDesdeEstudiante(estado.estudiante);
+        inicializarFormularioTrasConsulta(respuesta.data);
         mostrarEstadoIntentos(respuesta.data);
       })
       .catch(function (error) {
@@ -159,8 +176,55 @@
     estado.appConfig = null;
     estado.envioExistente = null;
     estado.ultimoFormulario = null;
+    estado.ultimoPayload = null;
     ui.hide('#seccionEstudiante');
     ui.hide('#formPropuestas');
+    ui.clearSuggestions();
+    ui.clearFieldErrors();
+    ui.showStatus('#envioMensaje', '', 'info');
+  }
+
+  function inicializarFormularioTrasConsulta(data) {
+    var formDataExistente = null;
+    var borrador = null;
+
+    limpiarFormularioVisual();
+    cargarContactoDesdeEstudiante(estado.estudiante);
+
+    if (data.envioExistente) {
+      formDataExistente = formularioService.formDataDesdeEnvio(data.envioExistente, config.propuestasObligatorias);
+      ui.fillFormData(formDataExistente);
+      ui.showStatus('#envioMensaje', 'Se cargó el último envío registrado para revisión.', 'info');
+    }
+
+    borrador = formularioService.leerBorrador(estado.estudiante, estado.appConfig);
+    if (borrador && borrador.formData) {
+      ui.fillFormData(borrador.formData);
+      ui.showStatus('#envioMensaje', config.textos.borradorRestaurado, 'success');
+    }
+  }
+
+  function limpiarFormularioVisual() {
+    var vacio = {
+      telegram: '',
+      celular: '',
+      tituloPreferidoNumero: 1,
+      propuestas: [1, 2, 3].map(function (numero) {
+        return {
+          numero: numero,
+          temaGeneral: '',
+          problemaNecesidad: '',
+          lugarContexto: '',
+          grupoEstudio: '',
+          anioPeriodo: '',
+          objetivo: '',
+          tituloFinal: ''
+        };
+      })
+    };
+
+    ui.fillFormData(vacio);
+    ui.clearSuggestions();
   }
 
   function cargarContactoDesdeEstudiante(estudiante) {
@@ -182,8 +246,11 @@
     var propuesta = ui.readFormData(config.propuestasObligatorias).propuestas[numero - 1];
     var resultado = validarBaseParaSugerencias(propuesta);
 
+    ui.clearFieldErrors();
+
     if (!resultado.ok) {
       ui.showStatus('#envioMensaje', resultado.mensaje, 'error');
+      if (resultado.selector) ui.markFieldError(resultado.selector);
       return;
     }
 
@@ -194,18 +261,18 @@
 
   function validarBaseParaSugerencias(propuesta) {
     if (!propuesta.temaGeneral) {
-      return { ok: false, mensaje: 'Para generar sugerencias, primero escribe el tema general de la propuesta ' + propuesta.numero + '.' };
+      return { ok: false, mensaje: 'Para generar sugerencias, primero escribe el tema general de la propuesta ' + propuesta.numero + '.', selector: '#p' + propuesta.numero + 'Tema' };
     }
 
     if (!propuesta.problemaNecesidad) {
-      return { ok: false, mensaje: 'Para generar sugerencias, primero escribe el problema o necesidad de la propuesta ' + propuesta.numero + '.' };
+      return { ok: false, mensaje: 'Para generar sugerencias, primero escribe el problema o necesidad de la propuesta ' + propuesta.numero + '.', selector: '#p' + propuesta.numero + 'Problema' };
     }
 
     if (!propuesta.objetivo) {
-      return { ok: false, mensaje: 'Para generar sugerencias, primero escribe el objetivo simple de la propuesta ' + propuesta.numero + '.' };
+      return { ok: false, mensaje: 'Para generar sugerencias, primero escribe el objetivo simple de la propuesta ' + propuesta.numero + '.', selector: '#p' + propuesta.numero + 'Objetivo' };
     }
 
-    return { ok: true, mensaje: '' };
+    return { ok: true, mensaje: '', selector: '' };
   }
 
   function generarSugerenciasVisuales(propuesta) {
@@ -228,6 +295,47 @@
       .replace(/[.]+$/g, '');
   }
 
+  function guardarBorradorManual() {
+    var formData = ui.readFormData(config.propuestasObligatorias);
+    var resultado = validaciones.validarFormularioParaBorrador(formData);
+
+    if (!estado.estudiante) {
+      ui.showStatus('#envioMensaje', 'Primero consulta la cédula del estudiante.', 'error');
+      return;
+    }
+
+    if (!resultado.ok) {
+      ui.showStatus('#envioMensaje', resultado.mensaje, 'warning');
+      return;
+    }
+
+    var guardado = formularioService.guardarBorrador(estado.estudiante, estado.appConfig, formData);
+    ui.showStatus('#envioMensaje', guardado.mensaje, guardado.ok ? 'success' : 'warning');
+  }
+
+  function programarAutoGuardado() {
+    if (!estado.estudiante || !config.borradorLocalActivo) return;
+
+    window.clearTimeout(estado.autoGuardadoTimer);
+    estado.autoGuardadoTimer = window.setTimeout(function () {
+      var formData = ui.readFormData(config.propuestasObligatorias);
+      var resultado = validaciones.validarFormularioParaBorrador(formData);
+      if (resultado.ok) {
+        formularioService.guardarBorrador(estado.estudiante, estado.appConfig, formData);
+      }
+    }, 800);
+  }
+
+  function limpiarBorradorManual() {
+    if (!estado.estudiante) {
+      ui.showStatus('#envioMensaje', 'Primero consulta la cédula del estudiante.', 'error');
+      return;
+    }
+
+    var resultado = formularioService.eliminarBorrador(estado.estudiante, estado.appConfig);
+    ui.showStatus('#envioMensaje', resultado.mensaje, resultado.ok ? 'success' : 'warning');
+  }
+
   function mostrarVistaPrevia() {
     prepararResumen(false);
   }
@@ -246,13 +354,17 @@
     var formData = ui.readFormData(config.propuestasObligatorias);
     var resultado = validaciones.validarEnvio(formData, config.propuestasObligatorias);
 
+    ui.clearFieldErrors();
+
     if (!resultado.ok) {
       ui.showStatus('#envioMensaje', resultado.mensaje, 'error');
+      if (resultado.selector) ui.markFieldError(resultado.selector);
       return;
     }
 
     estado.ultimoFormulario = formData;
-    ui.renderSummary(estado.estudiante, formData);
+    estado.ultimoPayload = formularioService.construirPayload(estado.estudiante, estado.appConfig, formData, estado.envioExistente);
+    ui.renderSummary(estado.estudiante, formData, estado.ultimoPayload);
     ui.openModal();
 
     if (!abrirComoEnvio) {
@@ -263,7 +375,7 @@
   function confirmarEnvioVisual() {
     var btnConfirmar = ui.qs('#btnConfirmarEnvio');
 
-    if (!estado.estudiante || !estado.ultimoFormulario) {
+    if (!estado.estudiante || !estado.ultimoFormulario || !estado.ultimoPayload) {
       ui.closeModal();
       ui.showStatus('#envioMensaje', 'No hay información lista para enviar.', 'error');
       return;
@@ -274,7 +386,9 @@
     window.setTimeout(function () {
       ui.closeModal();
       ui.setLoading(btnConfirmar, false);
-      ui.showStatus('#envioMensaje', 'Bloque 2 completado: consulta Firebase activa. ' + config.textos.envioPendiente, 'success');
+      formularioService.guardarBorrador(estado.estudiante, estado.appConfig, estado.ultimoFormulario);
+      ui.showStatus('#envioMensaje', 'Bloque 3 completado: formulario validado y payload preparado. ' + config.textos.envioPendiente, 'success');
+      console.log('Payload preparado para Bloque 5:', estado.ultimoPayload);
     }, 450);
   }
 
