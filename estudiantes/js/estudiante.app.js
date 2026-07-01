@@ -86,7 +86,7 @@
     if (btnLimpiarBorrador) btnLimpiarBorrador.addEventListener('click', limpiarBorradorManual);
     if (btnCerrarModal) btnCerrarModal.addEventListener('click', ui.closeModal);
     if (btnCancelarResumen) btnCancelarResumen.addEventListener('click', ui.closeModal);
-    if (btnConfirmarEnvio) btnConfirmarEnvio.addEventListener('click', confirmarEnvioVisual);
+    if (btnConfirmarEnvio) btnConfirmarEnvio.addEventListener('click', confirmarEnvioFinal);
 
     ui.qsa('.js-generar-sugerencias').forEach(function (button) {
       button.addEventListener('click', function () {
@@ -353,8 +353,14 @@
     if (!abrirComoEnvio) ui.showStatus('#envioMensaje', 'Vista previa generada correctamente.', 'success');
   }
 
-  function confirmarEnvioVisual() {
+  function confirmarEnvioFinal() {
     var btnConfirmar = ui.qs('#btnConfirmarEnvio');
+
+    if (!estado.firebaseListo) {
+      ui.closeModal();
+      ui.showStatus('#envioMensaje', 'Firebase no está conectado. No se puede guardar el envío.', 'error');
+      return;
+    }
 
     if (!estado.estudiante || !estado.ultimoFormulario || !estado.ultimoPayload) {
       ui.closeModal();
@@ -362,15 +368,22 @@
       return;
     }
 
-    ui.setLoading(btnConfirmar, true, 'Confirmando...');
+    ui.setLoading(btnConfirmar, true, 'Enviando...');
+    ui.showStatus('#envioMensaje', 'Guardando propuestas en Firebase...', 'info');
 
-    window.setTimeout(function () {
-      ui.closeModal();
-      ui.setLoading(btnConfirmar, false);
-      formularioService.guardarBorrador(estado.estudiante, estado.appConfig, estado.ultimoFormulario);
-      ui.showStatus('#envioMensaje', 'Bloque 4 completado: IA conectada para sugerencias. ' + config.textos.envioPendiente, 'success');
-      console.log('Payload preparado para Bloque 5:', estado.ultimoPayload);
-    }, 450);
+    repository.guardarEnvioFinal(estado.ultimoPayload)
+      .then(function (respuesta) {
+        estado.envioExistente = respuesta.data;
+        formularioService.eliminarBorrador(estado.estudiante, estado.appConfig);
+        ui.closeModal();
+        ui.showStatus('#envioMensaje', 'Propuestas enviadas correctamente. Código de registro: ' + respuesta.id + '.', 'success');
+      })
+      .catch(function (error) {
+        ui.showStatus('#envioMensaje', 'No se pudo guardar el envío: ' + obtenerMensajeError(error), 'error');
+      })
+      .finally(function () {
+        ui.setLoading(btnConfirmar, false);
+      });
   }
 
   function obtenerMensajeError(error) {
