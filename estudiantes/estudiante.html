@@ -14,13 +14,13 @@
         <h1>Registro de títulos académicos</h1>
         <p>Consulta tus datos, completa tres propuestas y selecciona tu título preferido.</p>
       </div>
-      <div class="app-status-pill" id="estadoGeneral">Base visual</div>
+      <div class="app-status-pill" id="estadoGeneral">Firebase</div>
     </div>
   </header>
 
   <main class="app-container">
     <section class="notice notice--info" id="appNotice">
-      <strong>Bloque 1 activo.</strong> Esta pantalla ya abre con doble click y Live Server. La conexión real con Firebase se agregará en el siguiente bloque.
+      <strong>Bloque 2 activo.</strong> La pantalla ya intenta conectarse con Firebase directo. Para consultar estudiantes reales debes completar la configuración pública en <strong>estudiantes/js/app.config.js</strong>.
     </section>
 
     <section class="card" aria-labelledby="tituloConsulta">
@@ -34,14 +34,7 @@
       <form class="consulta-form" id="formConsulta" autocomplete="off">
         <div class="field">
           <label for="cedulaInput">Número de identificación</label>
-          <input
-            id="cedulaInput"
-            name="cedula"
-            type="text"
-            inputmode="numeric"
-            maxlength="10"
-            placeholder="Ejemplo: 1753894870"
-          />
+          <input id="cedulaInput" name="cedula" type="text" inputmode="numeric" maxlength="10" placeholder="Ejemplo: 1753894870" />
           <small>Ingresa únicamente números.</small>
         </div>
         <button class="btn btn--primary" type="submit" id="btnConsultar">Consultar</button>
@@ -59,22 +52,10 @@
       </div>
 
       <div class="student-grid">
-        <div class="info-box">
-          <span>Cédula</span>
-          <strong id="datoCedula">—</strong>
-        </div>
-        <div class="info-box">
-          <span>Nombres</span>
-          <strong id="datoNombres">—</strong>
-        </div>
-        <div class="info-box">
-          <span>Carrera</span>
-          <strong id="datoCarrera">—</strong>
-        </div>
-        <div class="info-box">
-          <span>Período</span>
-          <strong id="datoPeriodo">—</strong>
-        </div>
+        <div class="info-box"><span>Cédula</span><strong id="datoCedula">—</strong></div>
+        <div class="info-box"><span>Nombres</span><strong id="datoNombres">—</strong></div>
+        <div class="info-box"><span>Carrera</span><strong id="datoCarrera">—</strong></div>
+        <div class="info-box"><span>Período</span><strong id="datoPeriodo">—</strong></div>
       </div>
     </section>
 
@@ -86,7 +67,6 @@
             <h2 id="tituloContacto">Contacto opcional</h2>
           </div>
         </div>
-
         <div class="form-grid form-grid--two">
           <div class="field">
             <label for="telegramInput">Usuario de Telegram</label>
@@ -112,132 +92,54 @@
           <article class="proposal-card" data-propuesta="1">
             <div class="proposal-card__top">
               <h3>Propuesta 1</h3>
-              <label class="preferred-option">
-                <input type="radio" name="tituloPreferido" value="1" checked />
-                Título preferido
-              </label>
+              <label class="preferred-option"><input type="radio" name="tituloPreferido" value="1" checked /> Título preferido</label>
             </div>
             <div class="form-grid">
-              <div class="field">
-                <label for="p1Tema">Tema general</label>
-                <input id="p1Tema" name="p1Tema" type="text" placeholder="Ejemplo: diagnóstico de fallas" />
-              </div>
-              <div class="field">
-                <label for="p1Problema">Problema o necesidad</label>
-                <textarea id="p1Problema" name="p1Problema" rows="3" placeholder="Describe la dificultad principal"></textarea>
-              </div>
-              <div class="field">
-                <label for="p1Contexto">Lugar o contexto</label>
-                <input id="p1Contexto" name="p1Contexto" type="text" placeholder="Ejemplo: taller automotriz, empresa, institución" />
-              </div>
-              <div class="field">
-                <label for="p1Grupo">Grupo de estudio</label>
-                <input id="p1Grupo" name="p1Grupo" type="text" placeholder="Ejemplo: estudiantes, clientes, técnicos" />
-              </div>
-              <div class="field">
-                <label for="p1Periodo">Año o período</label>
-                <input id="p1Periodo" name="p1Periodo" type="text" placeholder="Ejemplo: 2026" />
-              </div>
-              <div class="field">
-                <label for="p1Objetivo">Objetivo simple</label>
-                <textarea id="p1Objetivo" name="p1Objetivo" rows="3" placeholder="Explica qué quieres lograr"></textarea>
-              </div>
-              <div class="field field--full">
-                <label for="p1Titulo">Título final</label>
-                <textarea id="p1Titulo" name="p1Titulo" rows="2" placeholder="Escribe o pega aquí el título final de la propuesta 1"></textarea>
-              </div>
+              <div class="field"><label for="p1Tema">Tema general</label><input id="p1Tema" name="p1Tema" type="text" placeholder="Ejemplo: diagnóstico de fallas" /></div>
+              <div class="field"><label for="p1Problema">Problema o necesidad</label><textarea id="p1Problema" name="p1Problema" rows="3" placeholder="Describe la dificultad principal"></textarea></div>
+              <div class="field"><label for="p1Contexto">Lugar o contexto</label><input id="p1Contexto" name="p1Contexto" type="text" placeholder="Ejemplo: taller automotriz, empresa, institución" /></div>
+              <div class="field"><label for="p1Grupo">Grupo de estudio</label><input id="p1Grupo" name="p1Grupo" type="text" placeholder="Ejemplo: estudiantes, clientes, técnicos" /></div>
+              <div class="field"><label for="p1Periodo">Año o período</label><input id="p1Periodo" name="p1Periodo" type="text" placeholder="Ejemplo: 2026" /></div>
+              <div class="field"><label for="p1Objetivo">Objetivo simple</label><textarea id="p1Objetivo" name="p1Objetivo" rows="3" placeholder="Explica qué quieres lograr"></textarea></div>
+              <div class="field field--full"><label for="p1Titulo">Título final</label><textarea id="p1Titulo" name="p1Titulo" rows="2" placeholder="Escribe o pega aquí el título final de la propuesta 1"></textarea></div>
             </div>
-            <div class="proposal-actions">
-              <button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="1">Generar sugerencias</button>
-            </div>
+            <div class="proposal-actions"><button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="1">Generar sugerencias</button></div>
             <div class="suggestions" id="sugerencias1"></div>
           </article>
 
           <article class="proposal-card" data-propuesta="2">
             <div class="proposal-card__top">
               <h3>Propuesta 2</h3>
-              <label class="preferred-option">
-                <input type="radio" name="tituloPreferido" value="2" />
-                Título preferido
-              </label>
+              <label class="preferred-option"><input type="radio" name="tituloPreferido" value="2" /> Título preferido</label>
             </div>
             <div class="form-grid">
-              <div class="field">
-                <label for="p2Tema">Tema general</label>
-                <input id="p2Tema" name="p2Tema" type="text" />
-              </div>
-              <div class="field">
-                <label for="p2Problema">Problema o necesidad</label>
-                <textarea id="p2Problema" name="p2Problema" rows="3"></textarea>
-              </div>
-              <div class="field">
-                <label for="p2Contexto">Lugar o contexto</label>
-                <input id="p2Contexto" name="p2Contexto" type="text" />
-              </div>
-              <div class="field">
-                <label for="p2Grupo">Grupo de estudio</label>
-                <input id="p2Grupo" name="p2Grupo" type="text" />
-              </div>
-              <div class="field">
-                <label for="p2Periodo">Año o período</label>
-                <input id="p2Periodo" name="p2Periodo" type="text" />
-              </div>
-              <div class="field">
-                <label for="p2Objetivo">Objetivo simple</label>
-                <textarea id="p2Objetivo" name="p2Objetivo" rows="3"></textarea>
-              </div>
-              <div class="field field--full">
-                <label for="p2Titulo">Título final</label>
-                <textarea id="p2Titulo" name="p2Titulo" rows="2"></textarea>
-              </div>
+              <div class="field"><label for="p2Tema">Tema general</label><input id="p2Tema" name="p2Tema" type="text" /></div>
+              <div class="field"><label for="p2Problema">Problema o necesidad</label><textarea id="p2Problema" name="p2Problema" rows="3"></textarea></div>
+              <div class="field"><label for="p2Contexto">Lugar o contexto</label><input id="p2Contexto" name="p2Contexto" type="text" /></div>
+              <div class="field"><label for="p2Grupo">Grupo de estudio</label><input id="p2Grupo" name="p2Grupo" type="text" /></div>
+              <div class="field"><label for="p2Periodo">Año o período</label><input id="p2Periodo" name="p2Periodo" type="text" /></div>
+              <div class="field"><label for="p2Objetivo">Objetivo simple</label><textarea id="p2Objetivo" name="p2Objetivo" rows="3"></textarea></div>
+              <div class="field field--full"><label for="p2Titulo">Título final</label><textarea id="p2Titulo" name="p2Titulo" rows="2"></textarea></div>
             </div>
-            <div class="proposal-actions">
-              <button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="2">Generar sugerencias</button>
-            </div>
+            <div class="proposal-actions"><button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="2">Generar sugerencias</button></div>
             <div class="suggestions" id="sugerencias2"></div>
           </article>
 
           <article class="proposal-card" data-propuesta="3">
             <div class="proposal-card__top">
               <h3>Propuesta 3</h3>
-              <label class="preferred-option">
-                <input type="radio" name="tituloPreferido" value="3" />
-                Título preferido
-              </label>
+              <label class="preferred-option"><input type="radio" name="tituloPreferido" value="3" /> Título preferido</label>
             </div>
             <div class="form-grid">
-              <div class="field">
-                <label for="p3Tema">Tema general</label>
-                <input id="p3Tema" name="p3Tema" type="text" />
-              </div>
-              <div class="field">
-                <label for="p3Problema">Problema o necesidad</label>
-                <textarea id="p3Problema" name="p3Problema" rows="3"></textarea>
-              </div>
-              <div class="field">
-                <label for="p3Contexto">Lugar o contexto</label>
-                <input id="p3Contexto" name="p3Contexto" type="text" />
-              </div>
-              <div class="field">
-                <label for="p3Grupo">Grupo de estudio</label>
-                <input id="p3Grupo" name="p3Grupo" type="text" />
-              </div>
-              <div class="field">
-                <label for="p3Periodo">Año o período</label>
-                <input id="p3Periodo" name="p3Periodo" type="text" />
-              </div>
-              <div class="field">
-                <label for="p3Objetivo">Objetivo simple</label>
-                <textarea id="p3Objetivo" name="p3Objetivo" rows="3"></textarea>
-              </div>
-              <div class="field field--full">
-                <label for="p3Titulo">Título final</label>
-                <textarea id="p3Titulo" name="p3Titulo" rows="2"></textarea>
-              </div>
+              <div class="field"><label for="p3Tema">Tema general</label><input id="p3Tema" name="p3Tema" type="text" /></div>
+              <div class="field"><label for="p3Problema">Problema o necesidad</label><textarea id="p3Problema" name="p3Problema" rows="3"></textarea></div>
+              <div class="field"><label for="p3Contexto">Lugar o contexto</label><input id="p3Contexto" name="p3Contexto" type="text" /></div>
+              <div class="field"><label for="p3Grupo">Grupo de estudio</label><input id="p3Grupo" name="p3Grupo" type="text" /></div>
+              <div class="field"><label for="p3Periodo">Año o período</label><input id="p3Periodo" name="p3Periodo" type="text" /></div>
+              <div class="field"><label for="p3Objetivo">Objetivo simple</label><textarea id="p3Objetivo" name="p3Objetivo" rows="3"></textarea></div>
+              <div class="field field--full"><label for="p3Titulo">Título final</label><textarea id="p3Titulo" name="p3Titulo" rows="2"></textarea></div>
             </div>
-            <div class="proposal-actions">
-              <button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="3">Generar sugerencias</button>
-            </div>
+            <div class="proposal-actions"><button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="3">Generar sugerencias</button></div>
             <div class="suggestions" id="sugerencias3"></div>
           </article>
         </div>
@@ -273,6 +175,8 @@
   </div>
 
   <script src="js/app.config.js"></script>
+  <script src="js/firebase.service.js"></script>
+  <script src="js/estudiante.repository.js"></script>
   <script src="js/ui.service.js"></script>
   <script src="js/validaciones.js"></script>
   <script src="js/estudiante.app.js"></script>
