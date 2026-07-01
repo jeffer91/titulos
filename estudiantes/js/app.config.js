@@ -7,8 +7,8 @@
 
   window.TA_ESTUDIANTES_CONFIG = Object.freeze({
     modulo: 'estudiantes',
-    version: '0.2.0-bloque-2',
-    modo: 'firebase-directo',
+    version: '0.3.0-bloque-3',
+    modo: 'firebase-directo-formulario',
     propuestasObligatorias: 3,
 
     /*
@@ -50,13 +50,16 @@
     firebaseActivo: true,
     iaActiva: false,
     sheetsActivo: false,
+    borradorLocalActivo: true,
 
     textos: Object.freeze({
       consultaPendiente: 'Ingresa tu cédula para consultar tus datos en Firebase.',
       firebasePendiente: 'Firebase está pendiente de configurar en estudiantes/js/app.config.js.',
       firebaseConectado: 'Firebase conectado. Ya puedes consultar por cédula.',
       iaPendiente: 'La generación real con IA se agregará en el Bloque 4.',
-      envioPendiente: 'El envío real a Firebase se agregará en el Bloque 5.'
+      envioPendiente: 'El envío real a Firebase se agregará en el Bloque 5.',
+      borradorGuardado: 'Borrador local guardado en este equipo.',
+      borradorRestaurado: 'Se restauró un borrador local guardado en este equipo.'
     }),
 
     demo: Object.freeze({
