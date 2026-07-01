@@ -10,7 +10,7 @@ Abrir:
 index.html
 ```
 
-Desde esa pantalla se accede a estudiantes, coordinadores, administradores, reportes y seguridad.
+Desde esa pantalla se accede a estudiantes, coordinadores, administradores, reportes, seguridad y pruebas finales.
 
 ## Estructura general
 
@@ -18,14 +18,19 @@ Desde esa pantalla se accede a estudiantes, coordinadores, administradores, repo
 titulos/
 ├─ index.html
 ├─ seguridad.html
+├─ pruebas.html
 ├─ _headers
 ├─ _redirects
+├─ .gitignore
 ├─ firestore.rules.example
 ├─ cloudflare-pages.config.md
 ├─ docs/
 │  ├─ SEGURIDAD.md
 │  ├─ CLOUDFLARE_PAGES.md
-│  └─ PRE_PUBLICACION_CHECKLIST.md
+│  ├─ PRE_PUBLICACION_CHECKLIST.md
+│  ├─ PRUEBAS_FINALES.md
+│  ├─ LIMPIEZA_PROYECTO.md
+│  └─ ESTADO_FINAL.md
 ├─ shared/
 ├─ estudiantes/
 ├─ coordinadores/
@@ -51,6 +56,7 @@ administradores/administrador.html
 administradores/coordinadores.html
 administradores/reportes.html
 seguridad.html
+pruebas.html
 ```
 
 ## Electron
@@ -81,7 +87,18 @@ docs/SEGURIDAD.md
 firestore.rules.example
 ```
 
-## Orden de desarrollo
+## Pruebas finales
+
+Antes de usar el sistema con estudiantes reales, revisar:
+
+```text
+pruebas.html
+docs/PRUEBAS_FINALES.md
+docs/LIMPIEZA_PROYECTO.md
+docs/ESTADO_FINAL.md
+```
+
+## Orden de desarrollo completado
 
 1. Estructura base del repositorio.
 2. Pantalla de estudiantes completa.
@@ -93,3 +110,4 @@ firestore.rules.example
 8. Electron coordinadores.
 9. Electron administradores.
 10. Preparación Cloudflare Pages.
+11. Pruebas finales y limpieza del proyecto.
