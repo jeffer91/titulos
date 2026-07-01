@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pruebas finales | Sistema de Títulos</title>
+  <link rel="stylesheet" href="shared/css/navigation.css" />
+</head>
+<body>
+  <header class="home-header">
+    <div class="home-header__content">
+      <span class="app-badge">Bloque 22</span>
+      <h1>Pruebas finales y limpieza</h1>
+      <p>Checklist final para revisar estudiantes, coordinadores, administradores, Electron y publicación web.</p>
+    </div>
+  </header>
+
+  <main class="home-container">
+    <section class="notice notice--info">
+      <strong>Bloque 22 activo.</strong> Esta pantalla centraliza las pruebas manuales antes de usar el sistema en producción.
+    </section>
+
+    <section class="security-grid">
+      <article class="security-item">
+        <h3>1. Estudiantes</h3>
+        <ul>
+          <li>Abrir <code>estudiantes/estudiante.html</code>.</li>
+          <li>Consultar una cédula cargada.</li>
+          <li>Generar o escribir 3 propuestas.</li>
+          <li>Enviar y verificar comprobante.</li>
+          <li>Confirmar registro en <code>titulos</code>.</li>
+        </ul>
+      </article>
+
+      <article class="security-item">
+        <h3>2. Administradores</h3>
+        <ul>
+          <li>Abrir <code>administradores/administrador.html</code>.</li>
+          <li>Verificar Firebase conectado.</li>
+          <li>Crear o activar período.</li>
+          <li>Cargar estudiantes.</li>
+          <li>Crear coordinador con carreras asignadas.</li>
+        </ul>
+      </article>
+
+      <article class="security-item">
+        <h3>3. Coordinadores</h3>
+        <ul>
+          <li>Abrir <code>coordinadores/coordinador.html</code>.</li>
+          <li>Ingresar correo del coordinador.</li>
+          <li>Listar títulos por período.</li>
+          <li>Abrir <code>coordinadores/revision.html</code>.</li>
+          <li>Aprobar, aprobar con observación o devolver.</li>
+        </ul>
+      </article>
+
+      <article class="security-item">
+        <h3>4. Reportes</h3>
+        <ul>
+          <li>Abrir <code>administradores/reportes.html</code>.</li>
+          <li>Consultar títulos por período.</li>
+          <li>Consultar estudiantes por período.</li>
+          <li>Exportar CSV.</li>
+          <li>Abrir el CSV en Excel.</li>
+        </ul>
+      </article>
+
+      <article class="security-item security-item--warning">
+        <h3>5. Seguridad</h3>
+        <ul>
+          <li>Revisar <code>seguridad.html</code>.</li>
+          <li>Revisar <code>docs/SEGURIDAD.md</code>.</li>
+          <li>Adaptar <code>firestore.rules.example</code>.</li>
+          <li>No publicar con reglas abiertas.</li>
+        </ul>
+      </article>
+
+      <article class="security-item">
+        <h3>6. Electron y Cloudflare</h3>
+        <ul>
+          <li>Probar <code>coordinadores/electron</code>.</li>
+          <li>Probar <code>administradores/electron</code>.</li>
+          <li>Revisar <code>docs/CLOUDFLARE_PAGES.md</code>.</li>
+          <li>Publicar desde branch <code>main</code>.</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="card">
+      <p class="section-kicker">Documentación final</p>
+      <h2>Archivos de cierre</h2>
+      <div class="route-list">
+        <code>docs/PRUEBAS_FINALES.md</code>
+        <code>docs/ESTADO_FINAL.md</code>
+        <code>docs/LIMPIEZA_PROYECTO.md</code>
+      </div>
+      <br />
+      <a class="btn btn--primary" href="index.html">Volver al panel principal</a>
+    </section>
+  </main>
+</body>
+</html>
