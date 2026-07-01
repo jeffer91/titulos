@@ -18,7 +18,9 @@
     firebaseListo: false,
     ultimoFormulario: null,
     ultimoPayload: null,
-    autoGuardadoTimer: null
+    ultimoResultadoFinal: null,
+    autoGuardadoTimer: null,
+    enviadoFinal: false
   };
 
   document.addEventListener('DOMContentLoaded', iniciar);
@@ -73,6 +75,8 @@
     var btnConfirmarEnvio = ui.qs('#btnConfirmarEnvio');
     var btnGuardarBorrador = ui.qs('#btnGuardarBorrador');
     var btnLimpiarBorrador = ui.qs('#btnLimpiarBorrador');
+    var btnCopiarRegistro = ui.qs('#btnCopiarRegistro');
+    var btnNuevaConsulta = ui.qs('#btnNuevaConsulta');
 
     if (formConsulta) formConsulta.addEventListener('submit', manejarConsulta);
 
@@ -88,6 +92,8 @@
     if (btnCerrarModal) btnCerrarModal.addEventListener('click', ui.closeModal);
     if (btnCancelarResumen) btnCancelarResumen.addEventListener('click', ui.closeModal);
     if (btnConfirmarEnvio) btnConfirmarEnvio.addEventListener('click', confirmarEnvioFinal);
+    if (btnCopiarRegistro) btnCopiarRegistro.addEventListener('click', copiarCodigoRegistro);
+    if (btnNuevaConsulta) btnNuevaConsulta.addEventListener('click', iniciarNuevaConsulta);
 
     ui.qsa('.js-generar-sugerencias').forEach(function (button) {
       button.addEventListener('click', function () {
@@ -160,8 +166,12 @@
     estado.envioExistente = null;
     estado.ultimoFormulario = null;
     estado.ultimoPayload = null;
+    estado.ultimoResultadoFinal = null;
+    estado.enviadoFinal = false;
     ui.hide('#seccionEstudiante');
     ui.hide('#formPropuestas');
+    ui.hide('#comprobanteFinal');
+    ui.setFormDisabled('#formPropuestas', false);
     ui.clearSuggestions();
     ui.clearFieldErrors();
     ui.showStatus('#envioMensaje', '', 'info');
@@ -229,6 +239,11 @@
 
     ui.clearFieldErrors();
 
+    if (estado.enviadoFinal) {
+      ui.showStatus('#envioMensaje', 'El envío ya fue registrado. No se pueden hacer nuevos cambios en este formulario.', 'warning');
+      return;
+    }
+
     if (!resultado.ok) {
       ui.showStatus('#envioMensaje', resultado.mensaje, 'error');
       if (resultado.selector) ui.markFieldError(resultado.selector);
@@ -290,6 +305,11 @@
       return;
     }
 
+    if (estado.enviadoFinal) {
+      ui.showStatus('#envioMensaje', 'El envío ya fue registrado. No es necesario guardar borrador.', 'warning');
+      return;
+    }
+
     if (!resultado.ok) {
       ui.showStatus('#envioMensaje', resultado.mensaje, 'warning');
       return;
@@ -300,7 +320,7 @@
   }
 
   function programarAutoGuardado() {
-    if (!estado.estudiante || !config.borradorLocalActivo) return;
+    if (!estado.estudiante || !config.borradorLocalActivo || estado.enviadoFinal) return;
 
     window.clearTimeout(estado.autoGuardadoTimer);
     estado.autoGuardadoTimer = window.setTimeout(function () {
@@ -335,6 +355,11 @@
       return;
     }
 
+    if (estado.enviadoFinal) {
+      ui.showStatus('#envioMensaje', 'Este formulario ya fue enviado y registrado.', 'warning');
+      return;
+    }
+
     var formData = ui.readFormData(config.propuestasObligatorias);
     var resultado = validaciones.validarEnvio(formData, config.propuestasObligatorias);
 
@@ -356,6 +381,12 @@
 
   function confirmarEnvioFinal() {
     var btnConfirmar = ui.qs('#btnConfirmarEnvio');
+
+    if (estado.enviadoFinal) {
+      ui.closeModal();
+      ui.showStatus('#envioMensaje', 'El envío ya fue registrado.', 'warning');
+      return;
+    }
 
     if (!estado.firebaseListo) {
       ui.closeModal();
@@ -382,6 +413,12 @@
         return respaldarEnSheets(respuesta);
       })
       .then(function (resultadoFinal) {
+        estado.ultimoResultadoFinal = resultadoFinal;
+        estado.enviadoFinal = true;
+        ui.setText('#estadoGeneral', 'Envío registrado');
+        ui.setFormDisabled('#formPropuestas', true);
+        ui.renderComprobante(resultadoFinal);
+
         if (resultadoFinal.sheets && resultadoFinal.sheets.ok) {
           ui.showStatus('#envioMensaje', 'Propuestas enviadas correctamente y respaldadas en Google Sheets. Código de registro: ' + resultadoFinal.id + '.', 'success');
           return;
@@ -414,6 +451,49 @@
           };
         });
       });
+  }
+
+  function copiarCodigoRegistro() {
+    var codeElement = ui.qs('#codigoRegistroTexto');
+    var codigo = codeElement ? String(codeElement.textContent || '').trim() : '';
+
+    if (!codigo || codigo === '—') {
+      ui.showStatus('#envioMensaje', 'No hay código de registro para copiar.', 'warning');
+      return;
+    }
+
+    copiarTexto(codigo).then(function () {
+      ui.showStatus('#envioMensaje', 'Código de registro copiado.', 'success');
+    }).catch(function () {
+      ui.showStatus('#envioMensaje', 'No se pudo copiar automáticamente. Selecciona el código y cópialo manualmente.', 'warning');
+    });
+  }
+
+  function copiarTexto(texto) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(texto);
+    }
+
+    return new Promise(function (resolve, reject) {
+      try {
+        var textarea = document.createElement('textarea');
+        textarea.value = texto;
+        textarea.setAttribute('readonly', 'readonly');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  function iniciarNuevaConsulta() {
+    window.location.reload();
   }
 
   function obtenerMensajeError(error) {
