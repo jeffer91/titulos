@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userEmail() {
+      return signedIn() ? request.auth.token.email.lower() : '';
+    }
+
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/administradores/$(userEmail()));
+    }
+
+    function isCoordinator() {
+      return signedIn() && exists(/databases/$(database)/documents/coordinadores/$(userEmail()));
+    }
+
+    match /Estudiantes/{studentId} {
+      allow read: if signedIn() && (isAdmin() || request.auth.uid == studentId);
+      allow create, update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /titulos/{titleId} {
+      allow read: if signedIn() && (isAdmin() || isCoordinator());
+      allow create: if signedIn();
+      allow update: if signedIn() && (isAdmin() || isCoordinator());
+      allow delete: if isAdmin();
+    }
+
+    match /periodos/{periodId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /coordinadores/{coordId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /titulos_config/{configId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /titulos_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /IA/{providerId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
