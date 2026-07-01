@@ -1,1 +1,1 @@
-// Bloque 15 temporal: APROBAR DEVOLVER APROBAR_OBSERVACION
+// Archivo temporal vacío.
