@@ -20,7 +20,7 @@
 
   <main class="app-container">
     <section class="notice notice--info" id="appNotice">
-      <strong>Bloque 6 activo.</strong> La pantalla ya guarda en Firebase y luego intenta respaldar el envío en Google Sheets mediante la URL configurada en Firebase.
+      <strong>Bloque 7 activo.</strong> La pantalla ya incluye experiencia final para estudiantes: validaciones visuales, bloqueo después de enviar, comprobante y mensajes claros.
     </section>
 
     <section class="card" aria-labelledby="tituloConsulta">
@@ -160,6 +160,22 @@
         <div class="status-message" id="envioMensaje" role="status" aria-live="polite"></div>
       </section>
     </form>
+
+    <section class="card receipt-card is-hidden" id="comprobanteFinal" aria-labelledby="tituloComprobante">
+      <div class="receipt-card__header">
+        <div>
+          <p class="section-kicker">Comprobante</p>
+          <h2 id="tituloComprobante">Envío registrado correctamente</h2>
+          <p class="muted">Guarda este código como respaldo de tu envío.</p>
+        </div>
+        <div class="receipt-code" id="codigoRegistroTexto">—</div>
+      </div>
+      <div class="receipt-grid" id="comprobanteContenido"></div>
+      <div class="final-actions">
+        <button class="btn btn--ghost" type="button" id="btnCopiarRegistro">Copiar código</button>
+        <button class="btn btn--secondary" type="button" id="btnNuevaConsulta">Nueva consulta</button>
+      </div>
+    </section>
   </main>
 
   <div class="modal-backdrop is-hidden" id="modalResumen" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
