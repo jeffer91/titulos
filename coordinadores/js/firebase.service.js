@@ -126,6 +126,25 @@
       });
   }
 
+  function guardarDocumento(collectionName, documentId, data, options) {
+    var merge = !options || options.merge !== false;
+    var payload = Object.assign({}, data || {}, {
+      actualizadoEn: serverTimestamp()
+    });
+
+    if (!merge) payload.creadoEn = serverTimestamp();
+    return getDb().collection(collectionName).doc(documentId).set(payload, { merge: merge });
+  }
+
+  function agregarDocumento(collectionName, data) {
+    var payload = Object.assign({}, data || {}, {
+      creadoEn: serverTimestamp(),
+      actualizadoEn: serverTimestamp()
+    });
+
+    return getDb().collection(collectionName).add(payload);
+  }
+
   function listarDocumentos(collectionName, options) {
     var query = getDb().collection(collectionName);
     var opts = options || {};
@@ -151,6 +170,11 @@
     });
   }
 
+  function serverTimestamp() {
+    if (!window.firebase || !window.firebase.firestore) return new Date().toISOString();
+    return window.firebase.firestore.FieldValue.serverTimestamp();
+  }
+
   function normalizarDocumento(snapshot) {
     var data = snapshot.data() || {};
     data.id = snapshot.id;
@@ -166,6 +190,9 @@
     estaListo: estaListo,
     getDb: getDb,
     leerDocumento: leerDocumento,
-    listarDocumentos: listarDocumentos
+    guardarDocumento: guardarDocumento,
+    agregarDocumento: agregarDocumento,
+    listarDocumentos: listarDocumentos,
+    serverTimestamp: serverTimestamp
   });
 })();
