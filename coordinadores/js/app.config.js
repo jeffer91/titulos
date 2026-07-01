@@ -4,8 +4,8 @@
 
   window.TA_COORDINADORES_CONFIG = Object.freeze({
     modulo: 'coordinadores',
-    version: '0.2.0-bloque-14',
-    modo: 'firebase-listado-titulos',
+    version: '0.3.0-bloque-15',
+    modo: 'firebase-revision-titulos',
     firebaseActivo: true,
     electronActivo: false,
 
@@ -44,6 +44,12 @@
     }),
 
     estadosTitulo: Object.freeze(['TODOS', 'ENVIADO', 'APROBADO', 'APROBADO_CON_OBSERVACION', 'DEVUELTO']),
+
+    accionesRevision: Object.freeze({
+      aprobar: 'APROBAR',
+      aprobarObservacion: 'APROBAR_OBSERVACION',
+      devolver: 'DEVOLVER'
+    }),
 
     rutas: Object.freeze({
       htmlPrincipal: 'coordinadores/coordinador.html',
