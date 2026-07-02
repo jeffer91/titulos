@@ -2,33 +2,32 @@
 (function () {
   'use strict';
 
+  var firebaseConfig = window.TA_ADMIN_FIREBASE_CONFIG || Object.freeze({
+    apiKey: '',
+    authDomain: '',
+    projectId: '',
+    storageBucket: '',
+    messagingSenderId: '',
+    appId: ''
+  });
+
   window.TA_ADMINISTRADORES_CONFIG = Object.freeze({
     modulo: 'administradores',
-    version: '0.3.0-bloque-11',
-    modo: 'firebase-periodos',
+    version: '1.1.0-respaldo-normalizacion',
+    modo: 'firebase-panel-admin',
     firebaseActivo: true,
-    electronActivo: false,
+    electronActivo: true,
 
-    /*
-      Coloca aquí la configuración pública de Firebase Web App.
-      Esta configuración permite conectar el panel administrativo con Firestore.
-    */
-    firebase: Object.freeze({
-      apiKey: 'COLOCA_AQUI_TU_API_KEY',
-      authDomain: 'COLOCA_AQUI_TU_AUTH_DOMAIN',
-      projectId: 'COLOCA_AQUI_TU_PROJECT_ID',
-      storageBucket: 'COLOCA_AQUI_TU_STORAGE_BUCKET',
-      messagingSenderId: 'COLOCA_AQUI_TU_MESSAGING_SENDER_ID',
-      appId: 'COLOCA_AQUI_TU_APP_ID'
-    }),
+    firebase: firebaseConfig,
 
     collections: Object.freeze({
       estudiantes: 'Estudiantes',
       titulos: 'titulos',
+      titulosHistorial: 'titulos_historial',
       config: 'titulos_config',
       logs: 'titulos_logs',
       ia: 'IA',
-      coordinadores: 'coordinadores',
+      coordinadores: 'titulos_coordinadores',
       periodos: 'periodos'
     }),
 
@@ -39,30 +38,118 @@
     defaultAppConfig: Object.freeze({
       procesoActivo: true,
       periodoActivo: '',
-      maxIntentos: 2,
+      periodoActivoId: '',
+      periodoActivoLabel: '',
+      periodosActivos: [],
+      periodosActivosLabels: [],
+      maxIntentos: 1,
       propuestasObligatorias: 3,
-      iaActiva: true,
+
       proveedorIA: 'gemini',
-      googleSheetsUrl: ''
+      proveedorIALabel: 'Google Gemini API',
+      iaActiva: true,
+
+      sheetsActivo: false,
+      sheetsWebAppUrl: '',
+      sheetsToken: '',
+      sheetsOrigen: 'titulos-app',
+      sheetsNotas: '',
+      sheetsUltimaPrueba: '',
+      sheetsUltimoResultado: '',
+      sheetsActualizadoEn: ''
     }),
 
-    estadosPeriodo: Object.freeze(['INACTIVO', 'ACTIVO', 'CERRADO']),
-    proveedoresIA: Object.freeze(['gemini', 'groq', 'openrouter', 'mistral']),
+    estadosTitulo: Object.freeze({
+      sinEnviar: 'SIN_ENVIAR',
+      enviado: 'ENVIADO',
+      pendiente: 'PENDIENTE',
+      devuelto: 'DEVUELTO',
+      aprobado: 'APROBADO',
+      borradorReiniciado: 'BORRADOR_REINICIADO',
+      archivado: 'ARCHIVADO'
+    }),
+
+    proveedoresSugerencias: Object.freeze([
+      {
+        id: 'gemini',
+        nombre: 'Google Gemini API',
+        modeloDefault: 'gemini-1.5-flash-latest',
+        endpointDefault: ''
+      },
+      {
+        id: 'groq',
+        nombre: 'GroqCloud',
+        modeloDefault: 'llama-3.1-8b-instant',
+        endpointDefault: 'https://api.groq.com/openai/v1/chat/completions'
+      },
+      {
+        id: 'openrouter',
+        nombre: 'OpenRouter Free Models',
+        modeloDefault: 'meta-llama/llama-3.1-8b-instruct:free',
+        endpointDefault: 'https://openrouter.ai/api/v1/chat/completions'
+      },
+      {
+        id: 'cloudflare',
+        nombre: 'Cloudflare Workers AI',
+        modeloDefault: '@cf/meta/llama-3.1-8b-instruct',
+        endpointDefault: ''
+      }
+    ]),
+
+    respaldo: Object.freeze({
+      tipos: Object.freeze({
+        ping: 'PING',
+        envio: 'ENVIO',
+        estudiante: 'ESTUDIANTE',
+        coordinador: 'COORDINADOR',
+        periodo: 'PERIODO',
+        resolucion: 'RESOLUCION',
+        normalizacion: 'NORMALIZACION',
+        log: 'LOG'
+      }),
+
+      hojasEspejo: Object.freeze([
+        'Envios',
+        'Estudiantes',
+        'Coordinadores',
+        'Periodos',
+        'Resoluciones'
+      ]),
+
+      hojasHistorial: Object.freeze([
+        'Normalizaciones',
+        'Logs',
+        'PING'
+      ]),
+
+      timeoutMs: 18000
+    }),
+
+    normalizacion: Object.freeze({
+      agruparOnlineVista: true,
+      corregirFirebaseAutomatico: true,
+      guardarOriginalOnline: false,
+      idEstudiante: 'cedula_periodo'
+    }),
 
     rutas: Object.freeze({
-      htmlPrincipal: 'administradores/administrador.html',
-      cssPrincipal: 'administradores/css/administrador.css',
-      jsPrincipal: 'administradores/js/administrador.app.js',
-      electron: 'administradores/electron/'
+      estudiantes: '../estudiantes/estudiante.html',
+      coordinadores: '../coordinadores/coordinador.html',
+      administrador: 'administrador.html',
+      electron: 'electron/'
     }),
 
-    funcionesFuturas: Object.freeze([
-      'Gestión de períodos de titulación',
-      'Carga y limpieza de estudiantes',
-      'Asignación de coordinadores por carrera',
-      'Configuración de proveedores IA',
-      'Configuración de Google Sheets',
-      'Diagnóstico general del sistema'
-    ])
+    textos: Object.freeze({
+      cargando: 'Cargando información...',
+      firebaseOk: 'Conectado',
+      firebaseError: 'No se pudo conectar con Firebase.',
+      sinDatos: 'Sin datos para mostrar.',
+      guardado: 'Información guardada correctamente.',
+      errorGuardado: 'No se pudo guardar la información.',
+      actualizado: 'Información actualizada correctamente.',
+      respaldoOk: 'Respaldo conectado correctamente.',
+      respaldoError: 'No se pudo conectar con Google Sheets.',
+      normalizacionOk: 'Normalización completada correctamente.'
+    })
   });
 })();

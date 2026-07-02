@@ -1,0 +1,33 @@
+{
+  "name": "youtube-video-editor",
+  "version": "0.1.0",
+  "description": "App Electron modular para edición de videos de YouTube. Flujo actual: carga, audio y transcripción local.",
+  "main": "main.js",
+  "type": "commonjs",
+  "author": "Jeff",
+  "license": "MIT",
+  "private": true,
+  "appInfo": {
+    "nombreArchivo": "package.json",
+    "ruta": "youtube-video-editor/package.json",
+    "funcion": "Define configuración principal, scripts de ejecución, revisión de sintaxis y dependencia base de Electron."
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "check": "node --check main.js && node --check preload.js && node --check src/app.js && node --check modules/transcripcion/transcripcion.js && node --check modules/transcripcion/transcripcion.ipc.js && node --check modules/transcripcion/transcripcion.service.js && node --check modules/transcripcion/transcripcion.export.js && node --check shared/workflow/video-workflow.store.js && node --check shared/media/media-paths.service.js && node --check shared/process/process-runner.service.js && node --check shared/media/audio-filter.util.js && node --check shared/media/audio-extractor.service.js && node --check shared/media/audio-enhancer.service.js && node --check modules/carga/carga.js && node --check modules/carga/carga.ipc.js && node --check modules/carga/carga.service.js"
+  },
+  "keywords": [
+    "electron",
+    "youtube",
+    "video",
+    "audio",
+    "carga",
+    "transcripcion",
+    "whisper",
+    "ffmpeg"
+  ],
+  "devDependencies": {
+    "electron": "latest"
+  }
+}

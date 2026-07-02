@@ -1,29 +1,32 @@
 /*
-  Configuración base del módulo estudiantes.
-  Este archivo usa variables globales para funcionar con doble click, Live Server y publicación estática.
+  Archivo: app.config.js
+  Ruta: estudiantes/js/app.config.js
+  Funciones principales del archivo:
+  - Definir la configuración base del módulo estudiantes.
+  - Centralizar nombres de colecciones Firebase usadas por estudiantes.
+  - Definir configuración por defecto de proceso, IA, Sheets y borrador local.
+  - Definir proveedores de IA disponibles para el orquestador.
+  - Definir textos generales usados por la pantalla de estudiantes.
 */
 (function () {
   'use strict';
 
+  var firebaseConfig = window.TA_ESTUDIANTES_FIREBASE_CONFIG || Object.freeze({
+    apiKey: '',
+    authDomain: '',
+    projectId: '',
+    storageBucket: '',
+    messagingSenderId: '',
+    appId: ''
+  });
+
   window.TA_ESTUDIANTES_CONFIG = Object.freeze({
     modulo: 'estudiantes',
-    version: '0.6.0-bloque-24',
-    modo: 'firebase-envio-ia-sheets',
+    version: '0.9.0-ia-orquestador',
+    modo: 'firebase-envio-sugerencias-sheets-ia-multiple',
     propuestasObligatorias: 3,
 
-    /*
-      Coloca aquí la configuración pública de Firebase Web App.
-      Esta configuración NO es una clave privada. Es la configuración normal del proyecto Firebase.
-      Las claves IA se leen desde Firebase según la configuración administrativa.
-    */
-    firebase: Object.freeze({
-      apiKey: 'COLOCA_AQUI_TU_API_KEY',
-      authDomain: 'COLOCA_AQUI_TU_AUTH_DOMAIN',
-      projectId: 'COLOCA_AQUI_TU_PROJECT_ID',
-      storageBucket: 'COLOCA_AQUI_TU_STORAGE_BUCKET',
-      messagingSenderId: 'COLOCA_AQUI_TU_MESSAGING_SENDER_ID',
-      appId: 'COLOCA_AQUI_TU_APP_ID'
-    }),
+    firebase: firebaseConfig,
 
     collections: Object.freeze({
       estudiantes: 'Estudiantes',
@@ -40,11 +43,60 @@
     defaultAppConfig: Object.freeze({
       procesoActivo: true,
       periodoActivo: '',
-      maxIntentos: 2,
+      periodoActivoId: '',
+      periodoActivoLabel: '',
+      periodosActivos: [],
+      periodosActivosLabels: [],
+      maxIntentos: 1,
       propuestasObligatorias: 3,
+
       iaActiva: true,
       proveedorIA: 'gemini',
-      googleSheetsUrl: ''
+      proveedorIALabel: 'Google Gemini API',
+      proveedoresIAOrden: ['gemini', 'groq', 'openrouter', 'cloudflare'],
+      iaTimeoutMs: 30000,
+
+      sheetsActivo: false,
+      sheetsWebAppUrl: '',
+      sheetsToken: '',
+      sheetsOrigen: 'titulos-app',
+      sheetsUltimaPrueba: '',
+      sheetsUltimoResultado: ''
+    }),
+
+    proveedoresSugerencias: Object.freeze([
+      Object.freeze({
+        id: 'gemini',
+        nombre: 'Google Gemini API',
+        modeloDefault: 'gemini-1.5-flash-latest',
+        endpointDefault: ''
+      }),
+      Object.freeze({
+        id: 'groq',
+        nombre: 'GroqCloud',
+        modeloDefault: 'llama-3.1-8b-instant',
+        endpointDefault: 'https://api.groq.com/openai/v1/chat/completions'
+      }),
+      Object.freeze({
+        id: 'openrouter',
+        nombre: 'OpenRouter Free Models',
+        modeloDefault: 'meta-llama/llama-3.1-8b-instruct:free',
+        endpointDefault: 'https://openrouter.ai/api/v1/chat/completions'
+      }),
+      Object.freeze({
+        id: 'cloudflare',
+        nombre: 'Cloudflare Workers AI',
+        modeloDefault: '@cf/meta/llama-3.1-8b-instruct',
+        endpointDefault: ''
+      })
+    ]),
+
+    iaOrquestador: Object.freeze({
+      proveedoresOrden: ['gemini', 'groq', 'openrouter', 'cloudflare'],
+      timeoutMs: 30000,
+      totalEnfoques: 3,
+      permitirCambioAutomatico: true,
+      mostrarErroresTecnicosAlEstudiante: false
     }),
 
     firebaseActivo: true,
@@ -53,22 +105,31 @@
     borradorLocalActivo: true,
 
     textos: Object.freeze({
-      consultaPendiente: 'Ingresa tu cédula para consultar tus datos en Firebase.',
-      firebasePendiente: 'Firebase está pendiente de configurar en estudiantes/js/app.config.js.',
-      firebaseConectado: 'Firebase conectado. Ya puedes consultar por cédula.',
-      iaPendiente: 'La IA está desactivada en la configuración administrativa.',
-      iaGenerando: 'Generando sugerencias con IA...',
-      iaLista: 'Sugerencias generadas correctamente.',
+      consultaPendiente: '',
+      firebasePendiente: '',
+      firebaseConectado: '',
+      sugerenciasNoDisponibles: 'No se pudieron generar sugerencias en este momento. Puedes escribir el título manualmente o intentarlo más tarde.',
+      sugerenciasGenerando: 'Generando sugerencias académicas...',
+      sugerenciasLista: 'Selecciona una sugerencia o escribe tu propio título.',
+      sugerenciasCambiandoIA: 'El proveedor actual está ocupado. Probando otra IA disponible...',
+      sugerenciasGeneradas: 'Sugerencias generadas correctamente. Revisa las etiquetas antes de elegir.',
       envioPendiente: 'Completa las tres propuestas antes de enviar.',
       borradorGuardado: 'Borrador local guardado en este equipo.',
       borradorRestaurado: 'Se restauró un borrador local guardado en este equipo.'
     }),
 
-    demo: Object.freeze({
-      nombres: 'Estudiante pendiente de conexión Firebase',
-      carrera: 'Carrera pendiente de conexión Firebase',
-      codigoCarrera: '—',
-      periodoId: 'Pendiente de Firebase'
+    validaciones: Object.freeze({
+      cedulaMin: 10,
+      cedulaMax: 10,
+      tituloMinCaracteres: 20,
+      tituloMaxCaracteres: 260,
+      textoMinCaracteres: 8
+    }),
+
+    telegram: Object.freeze({
+      requerido: false,
+      prefijo: '@',
+      urlBase: 'https://t.me/'
     })
   });
 })();

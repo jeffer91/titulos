@@ -1,6 +1,5 @@
 const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
-const fs = require('fs');
 
 let mainWindow = null;
 
@@ -13,80 +12,41 @@ function createWindow() {
     title: 'Administrador - Sistema de Títulos Académicos',
     backgroundColor: '#f4f7fb',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true
     }
   });
 
-  openAdminTab('inicio');
+  mainWindow.loadFile(path.join(__dirname, 'administradores', 'administrador.html'));
 
   mainWindow.on('closed', function () {
     mainWindow = null;
   });
 }
 
-function resolveAdminFile(relativePath) {
-  const candidates = [
-    path.join(__dirname, '..', relativePath),
-    path.join(__dirname, relativePath)
-  ];
-
-  for (let i = 0; i < candidates.length; i += 1) {
-    if (fs.existsSync(candidates[i])) {
-      return candidates[i];
-    }
-  }
-
-  return candidates[0];
-}
-
-function resolveRootFile(relativePath) {
-  const candidates = [
-    path.join(__dirname, '..', '..', relativePath),
-    path.join(__dirname, '..', relativePath),
-    path.join(__dirname, relativePath)
-  ];
-
-  for (let i = 0; i < candidates.length; i += 1) {
-    if (fs.existsSync(candidates[i])) {
-      return candidates[i];
-    }
-  }
-
-  return candidates[0];
-}
-
-function openAdminPage(relativePath) {
+function openLocalPage(relativePath) {
   if (!mainWindow) return;
-
-  mainWindow.loadFile(resolveAdminFile(relativePath));
+  mainWindow.loadFile(path.join(__dirname, relativePath));
 }
 
 function openAdminTab(tabName) {
   if (!mainWindow) return;
 
   mainWindow.loadFile(
-    resolveAdminFile('administrador.html'),
+    path.join(__dirname, 'administradores', 'administrador.html'),
     {
       hash: tabName || 'inicio'
     }
   );
 }
 
-function openRootPage(relativePath) {
-  if (!mainWindow) return;
-
-  mainWindow.loadFile(resolveRootFile(relativePath));
-}
-
 function buildMenu() {
   return Menu.buildFromTemplate([
     {
-      label: 'Administrador',
+      label: 'Sistema',
       submenu: [
         {
-          label: 'Inicio',
+          label: 'Administrador',
           click: function () {
             openAdminTab('inicio');
           }
@@ -98,13 +58,13 @@ function buildMenu() {
           }
         },
         {
-          label: 'Coordinadores',
+          label: 'Coordinadores admin',
           click: function () {
             openAdminTab('coordinadores');
           }
         },
         {
-          label: 'Estudiantes',
+          label: 'Estudiantes admin',
           click: function () {
             openAdminTab('estudiantes');
           }
@@ -123,50 +83,46 @@ function buildMenu() {
         },
         { type: 'separator' },
         {
-          label: 'Gestión de coordinadores',
+          label: 'Estudiantes',
           click: function () {
-            openAdminPage('coordinadores.html');
+            openLocalPage(path.join('estudiantes', 'estudiante.html'));
           }
         },
         {
-          label: 'Reportes',
+          label: 'Coordinadores',
           click: function () {
-            openAdminPage('reportes.html');
+            openLocalPage(path.join('coordinadores', 'coordinador.html'));
+          }
+        },
+        {
+          label: 'Revisión de títulos',
+          click: function () {
+            openLocalPage(path.join('coordinadores', 'revision.html'));
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Panel principal general',
+          click: function () {
+            openLocalPage('index.html');
+          }
+        },
+        {
+          label: 'Seguridad',
+          click: function () {
+            openLocalPage('seguridad.html');
+          }
+        },
+        {
+          label: 'Pruebas',
+          click: function () {
+            openLocalPage('pruebas.html');
           }
         },
         { type: 'separator' },
         {
           label: 'Salir',
           role: 'quit'
-        }
-      ]
-    },
-    {
-      label: 'Módulos',
-      submenu: [
-        {
-          label: 'Estudiantes',
-          click: function () {
-            openRootPage(path.join('estudiantes', 'estudiante.html'));
-          }
-        },
-        {
-          label: 'Coordinadores',
-          click: function () {
-            openRootPage(path.join('coordinadores', 'coordinador.html'));
-          }
-        },
-        {
-          label: 'Revisión de títulos',
-          click: function () {
-            openRootPage(path.join('coordinadores', 'revision.html'));
-          }
-        },
-        {
-          label: 'Panel principal general',
-          click: function () {
-            openRootPage('index.html');
-          }
         }
       ]
     },

@@ -3,163 +3,698 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Administradores | Gestión del sistema</title>
+  <title>Administrador | Sistema de títulos</title>
   <link rel="stylesheet" href="css/administrador.css" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
-  <header class="app-header">
-    <div class="app-header__content">
+  <nav class="global-nav" aria-label="Navegación principal del sistema">
+    <div class="global-nav__content">
+      <a class="global-nav__link" href="../estudiantes/estudiante.html">Estudiantes</a>
+      <a class="global-nav__link" href="../coordinadores/coordinador.html">Coordinadores</a>
+      <a class="global-nav__link is-active" href="administrador.html">Administrador</a>
+    </div>
+  </nav>
+
+  <header class="admin-header">
+    <div class="admin-header__content">
       <div>
-        <span class="app-badge">Módulo administradores</span>
-        <h1>Gestión del sistema de títulos</h1>
-        <p>Panel independiente para configurar períodos, estudiantes, IA, respaldos y diagnósticos.</p>
+        <p class="section-kicker section-kicker--light">Panel administrativo</p>
+        <h1>Administrador de títulos académicos</h1>
+        <p>Control de períodos, coordinadores, estudiantes, revisiones, respaldo y conexiones de generación de sugerencias.</p>
       </div>
-      <div class="app-status-pill" id="estadoGeneral">Conectando</div>
+      <div class="admin-status" id="adminEstadoGeneral">Iniciando panel</div>
     </div>
   </header>
 
-  <main class="app-container">
-    <section class="notice notice--info">
-      <strong>Bloque 23 activo.</strong> Panel revisado visualmente para que configuración, períodos, carga de estudiantes, IA y diagnóstico aparezcan completos.
-    </section>
+  <main class="admin-container">
+    <nav class="admin-tabs" aria-label="Menú administrador">
+      <button class="admin-tab is-active" type="button" data-admin-tab="inicio">Inicio</button>
+      <button class="admin-tab" type="button" data-admin-tab="periodos">Períodos</button>
+      <button class="admin-tab" type="button" data-admin-tab="coordinadores">Coordinadores</button>
+      <button class="admin-tab" type="button" data-admin-tab="estudiantes">Estudiantes</button>
+      <button class="admin-tab" type="button" data-admin-tab="ajustes">Ajustes</button>
+      <button class="admin-tab" type="button" data-admin-tab="respaldo">Respaldo</button>
+    </nav>
 
-    <section class="card hero-card">
-      <div>
-        <p class="section-kicker">Firebase</p>
-        <h2>Estado de conexión</h2>
-        <p class="muted" id="firebaseMensaje">Inicializando conexión...</p>
-      </div>
-      <div class="mode-grid">
-        <div class="mode-item"><span>1</span><strong>Modo</strong><p id="modoEjecucionTexto">—</p></div>
-        <div class="mode-item"><span>2</span><strong>Proyecto</strong><p id="projectIdTexto">—</p></div>
-        <div class="mode-item"><span>3</span><strong>Configuración</strong><p id="configOrigenTexto">Pendiente</p></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card__header">
+    <section class="admin-panel is-active" id="panelInicio" data-admin-panel="inicio" aria-labelledby="tituloInicio">
+      <div class="panel-title-row">
         <div>
-          <p class="section-kicker">Configuración general</p>
-          <h2>Proceso de titulación</h2>
-          <p class="muted">Estos datos se guardan en <code>titulos_config/app</code>.</p>
+          <p class="section-kicker">Inicio</p>
+          <h2 id="tituloInicio">Resumen general</h2>
+          <p class="muted">Revisa el avance de títulos por período, carrera y estado.</p>
         </div>
-        <button class="btn btn--secondary" type="button" id="btnCargarConfig">Cargar configuración</button>
-      </div>
-
-      <form id="formConfigGeneral" class="form-grid admin-form" autocomplete="off">
-        <div class="field"><label for="procesoActivoInput">Proceso activo</label><select id="procesoActivoInput" name="procesoActivo"><option value="true">Sí</option><option value="false">No</option></select></div>
-        <div class="field"><label for="periodoActivoInput">Período activo</label><input id="periodoActivoInput" name="periodoActivo" type="text" placeholder="Ejemplo: 2025-11__2026-05" /></div>
-        <div class="field"><label for="maxIntentosInput">Máximo de intentos</label><input id="maxIntentosInput" name="maxIntentos" type="number" min="1" max="10" step="1" /></div>
-        <div class="field"><label for="propuestasObligatoriasInput">Propuestas obligatorias</label><input id="propuestasObligatoriasInput" name="propuestasObligatorias" type="number" min="1" max="5" step="1" /></div>
-        <div class="field"><label for="iaActivaInput">IA activa</label><select id="iaActivaInput" name="iaActiva"><option value="true">Sí</option><option value="false">No</option></select></div>
-        <div class="field"><label for="proveedorIAInput">Proveedor IA principal</label><select id="proveedorIAInput" name="proveedorIA"><option value="gemini">Gemini</option><option value="groq">Groq</option><option value="openrouter">OpenRouter</option><option value="mistral">Mistral</option></select></div>
-        <div class="field field--full"><label for="googleSheetsUrlInput">URL Google Sheets / Apps Script</label><input id="googleSheetsUrlInput" name="googleSheetsUrl" type="text" placeholder="https://script.google.com/macros/s/.../exec" /></div>
-        <div class="form-actions field--full"><button class="btn btn--primary" type="submit" id="btnGuardarConfig">Guardar configuración</button></div>
-      </form>
-      <div class="status-message" id="configMensaje" role="status" aria-live="polite"></div>
-    </section>
-
-    <section class="card">
-      <div class="card__header">
-        <div>
-          <p class="section-kicker">Períodos</p>
-          <h2>Gestión de períodos</h2>
-          <p class="muted">Estos datos se guardan en <code>periodos/{periodoId}</code>.</p>
+        <div class="toolbar">
+          <select id="inicioPeriodoSelect" aria-label="Período de inicio">
+            <option value="">Cargando períodos...</option>
+          </select>
+          <button class="btn btn--primary" type="button" id="btnActualizarInicio">Actualizar</button>
         </div>
-        <button class="btn btn--secondary" type="button" id="btnCargarPeriodos">Cargar períodos</button>
-      </div>
-
-      <form id="formPeriodo" class="form-grid admin-form" autocomplete="off">
-        <div class="field"><label for="periodoIdInput">ID del período</label><input id="periodoIdInput" name="periodoId" type="text" placeholder="Ejemplo: 2025-11__2026-05" /><small>Sin espacios ni barras. Puedes usar guiones, puntos o guion bajo.</small></div>
-        <div class="field"><label for="periodoNombreInput">Nombre visible</label><input id="periodoNombreInput" name="nombre" type="text" placeholder="Ejemplo: Noviembre 2025 - Mayo 2026" /></div>
-        <div class="field"><label for="periodoFechaInicioInput">Fecha inicio</label><input id="periodoFechaInicioInput" name="fechaInicio" type="date" /></div>
-        <div class="field"><label for="periodoFechaFinInput">Fecha fin</label><input id="periodoFechaFinInput" name="fechaFin" type="date" /></div>
-        <div class="field"><label for="periodoEstadoInput">Estado</label><select id="periodoEstadoInput" name="estado"><option value="INACTIVO">Inactivo</option><option value="ACTIVO">Activo</option><option value="CERRADO">Cerrado</option></select></div>
-        <div class="field field--full"><label for="periodoObservacionInput">Observación</label><textarea id="periodoObservacionInput" name="observacion" rows="3" placeholder="Notas internas del período"></textarea></div>
-        <div class="form-actions field--full"><button class="btn btn--secondary" type="button" id="btnLimpiarPeriodo">Limpiar</button><button class="btn btn--primary" type="submit" id="btnGuardarPeriodo">Guardar período</button></div>
-      </form>
-
-      <div class="status-message" id="periodosMensaje" role="status" aria-live="polite"></div>
-      <div class="period-list" id="periodosLista"></div>
-    </section>
-
-    <section class="card">
-      <div class="card__header">
-        <div>
-          <p class="section-kicker">Estudiantes</p>
-          <h2>Carga y limpieza de estudiantes</h2>
-          <p class="muted">La carga se guarda en <code>Estudiantes/{numeroIdentificacion}</code>. Puedes usar CSV, TXT, JSON o Excel.</p>
-        </div>
-        <button class="btn btn--secondary" type="button" id="btnListarEstudiantes">Listar estudiantes</button>
       </div>
 
       <div class="summary-grid">
-        <div class="summary-item"><span>Total filas</span><strong id="estudiantesTotalFilas">0</strong></div>
-        <div class="summary-item"><span>Válidos</span><strong id="estudiantesTotalValidos">0</strong></div>
-        <div class="summary-item"><span>Errores</span><strong id="estudiantesTotalErrores">0</strong></div>
+        <article class="summary-card">
+          <span>Total estudiantes</span>
+          <strong id="inicioTotalEstudiantes">0</strong>
+        </article>
+        <article class="summary-card">
+          <span>Sin enviar</span>
+          <strong id="inicioSinEnviar">0</strong>
+        </article>
+        <article class="summary-card">
+          <span>Enviados</span>
+          <strong id="inicioEnviados">0</strong>
+        </article>
+        <article class="summary-card summary-card--warning">
+          <span>Pendientes</span>
+          <strong id="inicioPendientes">0</strong>
+        </article>
+        <article class="summary-card summary-card--danger">
+          <span>Devueltos</span>
+          <strong id="inicioDevueltos">0</strong>
+        </article>
+        <article class="summary-card summary-card--success">
+          <span>Aprobados</span>
+          <strong id="inicioAprobados">0</strong>
+        </article>
       </div>
 
-      <form id="formEstudiantes" class="form-grid admin-form" autocomplete="off">
-        <div class="field">
-          <label for="estudiantesPeriodoInput">Período de los estudiantes</label>
-          <input id="estudiantesPeriodoInput" name="periodoId" type="text" placeholder="Ejemplo: 2025-11__2026-05" />
+      <div class="dashboard-grid">
+        <section class="card">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Carreras</p>
+              <h3>Faltan por revisar por carrera</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Carrera</th>
+                  <th class="text-right">Pendientes</th>
+                </tr>
+              </thead>
+              <tbody id="inicioPendientesCarreraBody">
+                <tr><td colspan="2" class="empty-cell">Sin datos cargados.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Períodos</p>
+              <h3>Faltan por revisar por período</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Período</th>
+                  <th class="text-right">Pendientes</th>
+                </tr>
+              </thead>
+              <tbody id="inicioPendientesPeriodoBody">
+                <tr><td colspan="2" class="empty-cell">Sin datos cargados.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div class="status-message" id="inicioMensaje" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="admin-panel is-hidden" id="panelPeriodos" data-admin-panel="periodos" aria-labelledby="tituloPeriodos">
+      <div class="panel-title-row">
+        <div>
+          <p class="section-kicker">Períodos</p>
+          <h2 id="tituloPeriodos">Gestión de períodos</h2>
+          <p class="muted">Activa o desactiva los períodos que estarán disponibles para revisión.</p>
         </div>
-        <div class="field">
-          <label for="archivoEstudiantesInput">Archivo de estudiantes</label>
-          <input id="archivoEstudiantesInput" name="archivo" type="file" accept=".csv,.txt,.json,.xlsx,.xls" />
-          <small>Columnas mínimas: cédula, nombres y carrera.</small>
+        <div class="toolbar">
+          <button class="btn btn--primary" type="button" id="btnActualizarPeriodos">Actualizar períodos</button>
         </div>
-        <div class="form-actions field--full">
-          <button class="btn btn--secondary" type="button" id="btnLeerArchivoEstudiantes">Leer archivo</button>
-          <button class="btn btn--primary" type="button" id="btnGuardarEstudiantes">Guardar estudiantes</button>
-          <button class="btn btn--danger" type="button" id="btnLimpiarEstudiantesPeriodo">Limpiar estudiantes del período</button>
+      </div>
+
+      <section class="card">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Período</th>
+                <th>ID</th>
+                <th>Origen</th>
+                <th>Estado</th>
+                <th class="text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="periodosTableBody">
+              <tr><td colspan="5" class="empty-cell">Sin períodos cargados.</td></tr>
+            </tbody>
+          </table>
         </div>
-      </form>
+      </section>
+
+      <div class="status-message" id="periodosMensaje" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="admin-panel is-hidden" id="panelCoordinadores" data-admin-panel="coordinadores" aria-labelledby="tituloCoordinadores">
+      <div class="panel-title-row">
+        <div>
+          <p class="section-kicker">Coordinadores</p>
+          <h2 id="tituloCoordinadores">Gestión de coordinadores y carreras</h2>
+          <p class="muted">Crea coordinadores y asigna un responsable a cada carrera.</p>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn--primary" type="button" id="btnActualizarCoordinadores">Actualizar</button>
+        </div>
+      </div>
+
+      <div class="two-column-grid">
+        <section class="card">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Crear</p>
+              <h3>Crear coordinador</h3>
+            </div>
+          </div>
+
+          <form class="form-grid" id="formCrearCoordinador" autocomplete="off">
+            <div class="field field--full">
+              <label for="coordNombreInput">Nombre del coordinador</label>
+              <input id="coordNombreInput" name="nombre" type="text" placeholder="Ejemplo: Amado Chiluisa" />
+              <small>El ID se generará automáticamente desde el nombre.</small>
+            </div>
+            <div class="form-actions field--full">
+              <button class="btn btn--primary" type="submit" id="btnCrearCoordinador">Crear coordinador</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Eliminar</p>
+              <h3>Eliminar o desactivar coordinador</h3>
+            </div>
+          </div>
+
+          <form class="form-grid" id="formEliminarCoordinador" autocomplete="off">
+            <div class="field field--full">
+              <label for="coordEliminarSelect">Coordinador</label>
+              <select id="coordEliminarSelect">
+                <option value="">Selecciona un coordinador</option>
+              </select>
+              <small>La eliminación se manejará de forma segura desde el módulo de coordinadores.</small>
+            </div>
+            <div class="form-actions field--full">
+              <button class="btn btn--danger" type="submit" id="btnEliminarCoordinador">Eliminar coordinador</button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="card__header">
+          <div>
+            <p class="section-kicker">Asignación</p>
+            <h3>Carreras y coordinadores</h3>
+            <p class="muted">Cada carrera debe quedar vinculada a un coordinador activo.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Carrera</th>
+                <th>Coordinador asignado</th>
+                <th>Estado</th>
+                <th class="text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="coordinadoresCarrerasBody">
+              <tr><td colspan="4" class="empty-cell">Sin carreras cargadas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="status-message" id="coordinadoresMensaje" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="admin-panel is-hidden" id="panelEstudiantes" data-admin-panel="estudiantes" aria-labelledby="tituloEstudiantes">
+      <div class="panel-title-row">
+        <div>
+          <p class="section-kicker">Estudiantes</p>
+          <h2 id="tituloEstudiantes">Consulta y control de estudiantes</h2>
+          <p class="muted">Filtra estudiantes por período, carrera, estado y envío de títulos.</p>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn--primary" type="button" id="btnActualizarEstudiantes">Actualizar estudiantes</button>
+        </div>
+      </div>
+
+      <section class="card">
+        <form class="filters-grid" id="formFiltrosEstudiantes" autocomplete="off">
+          <div class="field">
+            <label for="estFiltroPeriodo">Período</label>
+            <select id="estFiltroPeriodo">
+              <option value="">Todos los períodos activos</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="estFiltroBusqueda">Buscar estudiante</label>
+            <input id="estFiltroBusqueda" type="search" placeholder="Nombre o cédula" />
+          </div>
+
+          <div class="field">
+            <label for="estFiltroCarrera">Carrera</label>
+            <select id="estFiltroCarrera">
+              <option value="">Todas las carreras</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="estFiltroEstado">Estado</label>
+            <select id="estFiltroEstado">
+              <option value="">Todos</option>
+              <option value="SIN_ENVIAR">Sin enviar</option>
+              <option value="ENVIADO">Enviado</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="DEVUELTO">Devuelto</option>
+              <option value="APROBADO">Aprobado</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="estFiltroTelegram">Telegram</label>
+            <select id="estFiltroTelegram">
+              <option value="">Todos</option>
+              <option value="CON_TELEGRAM">Con Telegram</option>
+              <option value="SIN_TELEGRAM">Sin Telegram</option>
+            </select>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn--secondary" type="submit">Aplicar filtros</button>
+            <button class="btn btn--ghost" type="button" id="btnLimpiarFiltrosEstudiantes">Limpiar</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Cédula</th>
+                <th>Nombre</th>
+                <th>Carrera</th>
+                <th>Período</th>
+                <th>Estado</th>
+                <th class="text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="estudiantesTableBody">
+              <tr><td colspan="6" class="empty-cell">Sin estudiantes cargados.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <div class="status-message" id="estudiantesMensaje" role="status" aria-live="polite"></div>
-      <div class="student-preview" id="estudiantesPreview"></div>
     </section>
 
-    <section class="card">
-      <div class="card__header">
+    <section class="admin-panel is-hidden" id="panelAjustes" data-admin-panel="ajustes" aria-labelledby="tituloAjustes">
+      <div class="panel-title-row">
         <div>
-          <p class="section-kicker">Configuración IA</p>
-          <h2>Proveedor de inteligencia artificial</h2>
-          <p class="muted">Estos datos se guardan en <code>IA/{proveedor}</code>.</p>
+          <p class="section-kicker">Ajustes</p>
+          <h2 id="tituloAjustes">Conexiones de generación de sugerencias</h2>
+          <p class="muted">Configura las claves que el módulo de estudiantes usará para generar sugerencias de títulos.</p>
         </div>
-        <button class="btn btn--secondary" type="button" id="btnCargarIA">Cargar IA</button>
+        <div class="toolbar">
+          <button class="btn btn--primary" type="button" id="btnCargarAjustes">Cargar ajustes</button>
+        </div>
       </div>
 
-      <form id="formIA" class="form-grid admin-form" autocomplete="off">
-        <div class="field"><label for="iaProveedorInput">Proveedor</label><select id="iaProveedorInput" name="proveedor"><option value="gemini">Gemini</option><option value="groq">Groq</option><option value="openrouter">OpenRouter</option><option value="mistral">Mistral</option></select></div>
-        <div class="field"><label for="iaActivoInput">Activo</label><select id="iaActivoInput" name="activo"><option value="true">Sí</option><option value="false">No</option></select></div>
-        <div class="field field--full"><label for="iaApiKeyInput">API Key</label><input id="iaApiKeyInput" name="apiKey" type="password" placeholder="Clave del proveedor seleccionado" /><small>La clave se guarda en Firestore. Antes de publicar, revisa reglas de seguridad.</small></div>
-        <div class="field"><label for="iaModelInput">Modelo</label><input id="iaModelInput" name="model" type="text" placeholder="Ejemplo: gemini-1.5-flash" /></div>
-        <div class="field"><label for="iaTemperatureInput">Temperatura</label><input id="iaTemperatureInput" name="temperature" type="number" min="0" max="2" step="0.05" /></div>
-        <div class="field"><label for="iaMaxTokensInput">Máximo tokens</label><input id="iaMaxTokensInput" name="maxOutputTokens" type="number" min="100" max="4000" step="50" /></div>
-        <div class="form-actions field--full"><button class="btn btn--primary" type="submit" id="btnGuardarIA">Guardar IA</button></div>
-      </form>
-      <div class="status-message" id="iaMensaje" role="status" aria-live="polite"></div>
+      <div class="settings-grid">
+        <section class="card provider-card" data-provider-card="gemini">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Proveedor</p>
+              <h3>Google Gemini API</h3>
+            </div>
+            <label class="switch-line">
+              <input type="checkbox" id="geminiActivo" />
+              <span>Activo</span>
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <div class="field field--full">
+              <label for="geminiApiKey">API Key</label>
+              <input id="geminiApiKey" type="text" placeholder="Clave de Google Gemini API" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="geminiModelo">Modelo</label>
+              <input id="geminiModelo" type="text" placeholder="gemini-1.5-flash" />
+            </div>
+            <div class="field">
+              <label for="geminiEndpoint">Endpoint opcional</label>
+              <input id="geminiEndpoint" type="text" placeholder="Opcional" />
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn--secondary" type="button" data-test-provider="gemini">Probar</button>
+            <button class="btn btn--primary" type="button" data-save-provider="gemini">Guardar</button>
+          </div>
+        </section>
+
+        <section class="card provider-card" data-provider-card="groq">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Proveedor</p>
+              <h3>GroqCloud</h3>
+            </div>
+            <label class="switch-line">
+              <input type="checkbox" id="groqActivo" />
+              <span>Activo</span>
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <div class="field field--full">
+              <label for="groqApiKey">API Key</label>
+              <input id="groqApiKey" type="text" placeholder="Clave de GroqCloud" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="groqModelo">Modelo</label>
+              <input id="groqModelo" type="text" placeholder="llama-3.1-8b-instant" />
+            </div>
+            <div class="field">
+              <label for="groqEndpoint">Endpoint opcional</label>
+              <input id="groqEndpoint" type="text" placeholder="Opcional" />
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn--secondary" type="button" data-test-provider="groq">Probar</button>
+            <button class="btn btn--primary" type="button" data-save-provider="groq">Guardar</button>
+          </div>
+        </section>
+
+        <section class="card provider-card" data-provider-card="openrouter">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Proveedor</p>
+              <h3>OpenRouter Free Models</h3>
+            </div>
+            <label class="switch-line">
+              <input type="checkbox" id="openrouterActivo" />
+              <span>Activo</span>
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <div class="field field--full">
+              <label for="openrouterApiKey">API Key</label>
+              <input id="openrouterApiKey" type="text" placeholder="Clave de OpenRouter" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="openrouterModelo">Modelo</label>
+              <input id="openrouterModelo" type="text" placeholder="meta-llama/llama-3.1-8b-instruct:free" />
+            </div>
+            <div class="field">
+              <label for="openrouterEndpoint">Endpoint opcional</label>
+              <input id="openrouterEndpoint" type="text" placeholder="https://openrouter.ai/api/v1/chat/completions" />
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn--secondary" type="button" data-test-provider="openrouter">Probar</button>
+            <button class="btn btn--primary" type="button" data-save-provider="openrouter">Guardar</button>
+          </div>
+        </section>
+
+        <section class="card provider-card" data-provider-card="cloudflare">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Proveedor</p>
+              <h3>Cloudflare Workers AI</h3>
+            </div>
+            <label class="switch-line">
+              <input type="checkbox" id="cloudflareActivo" />
+              <span>Activo</span>
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <div class="field field--full">
+              <label for="cloudflareApiKey">API Token</label>
+              <input id="cloudflareApiKey" type="text" placeholder="Token de Cloudflare" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="cloudflareModelo">Modelo</label>
+              <input id="cloudflareModelo" type="text" placeholder="@cf/meta/llama-3.1-8b-instruct" />
+            </div>
+            <div class="field">
+              <label for="cloudflareEndpoint">Endpoint / Account ID</label>
+              <input id="cloudflareEndpoint" type="text" placeholder="Account ID o endpoint" />
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn--secondary" type="button" data-test-provider="cloudflare">Probar</button>
+            <button class="btn btn--primary" type="button" data-save-provider="cloudflare">Guardar</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="status-message" id="ajustesMensaje" role="status" aria-live="polite"></div>
     </section>
 
-    <section class="card diagnostic-card">
-      <div class="card__header">
+    <section class="admin-panel is-hidden" id="panelRespaldo" data-admin-panel="respaldo" aria-labelledby="tituloRespaldo">
+      <div class="panel-title-row">
         <div>
-          <p class="section-kicker">Diagnóstico</p>
-          <h2>Estado del módulo</h2>
+          <p class="section-kicker">Respaldo</p>
+          <h2 id="tituloRespaldo">Google Sheets como base paralela</h2>
+          <p class="muted">Configura la URL del Apps Script, el token y la sincronización de respaldo.</p>
         </div>
-        <button class="btn btn--secondary" type="button" id="btnDiagnostico">Actualizar diagnóstico</button>
+        <div class="toolbar">
+          <button class="btn btn--primary" type="button" id="btnCargarRespaldo">Cargar respaldo</button>
+        </div>
       </div>
-      <div class="diagnostic-list" id="diagnosticoModulo"></div>
+
+      <div class="backup-grid">
+        <section class="card">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Configuración</p>
+              <h3>Conexión con Apps Script</h3>
+              <p class="muted">La URL y el token se guardarán en Firebase para que administrador y estudiantes puedan usarlos.</p>
+            </div>
+          </div>
+
+          <form class="form-grid" id="formRespaldo" autocomplete="off">
+            <div class="field field--full">
+              <label class="switch-line switch-line--left" for="sheetsActivo">
+                <input type="checkbox" id="sheetsActivo" />
+                <span>Activar respaldo en Google Sheets</span>
+              </label>
+            </div>
+
+            <div class="field field--full">
+              <label for="sheetsWebAppUrl">URL del Web App de Apps Script</label>
+              <input id="sheetsWebAppUrl" type="url" placeholder="https://script.google.com/macros/s/AKfycb.../exec" autocomplete="off" />
+              <small>Pega aquí la URL que se genera al implementar Apps Script como aplicación web.</small>
+            </div>
+
+            <div class="field">
+              <label for="sheetsToken">Token</label>
+              <input id="sheetsToken" type="text" placeholder="Ejemplo: titulos_app_2026_seguro" autocomplete="off" />
+              <small>Debe coincidir con el token configurado en Apps Script.</small>
+            </div>
+
+            <div class="field">
+              <label for="sheetsOrigen">Origen</label>
+              <input id="sheetsOrigen" type="text" placeholder="titulos-app" />
+            </div>
+
+            <div class="field field--full">
+              <label for="sheetsNotas">Notas internas</label>
+              <textarea id="sheetsNotas" placeholder="Notas sobre la conexión, implementación o cambios de respaldo."></textarea>
+            </div>
+
+            <div class="form-actions field--full">
+              <button class="btn btn--secondary" type="button" id="btnProbarRespaldo">Probar conexión</button>
+              <button class="btn btn--primary" type="submit" id="btnGuardarRespaldo">Guardar configuración</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="card__header">
+            <div>
+              <p class="section-kicker">Estado</p>
+              <h3>Diagnóstico del respaldo</h3>
+              <p class="muted">Verifica si Apps Script responde y si el respaldo está activo.</p>
+            </div>
+          </div>
+
+          <div class="backup-status-list">
+            <div class="backup-status-item">
+              <span>Estado</span>
+              <strong id="respaldoEstadoTexto">No cargado</strong>
+            </div>
+            <div class="backup-status-item">
+              <span>Última prueba</span>
+              <strong id="respaldoUltimaPrueba">—</strong>
+            </div>
+            <div class="backup-status-item">
+              <span>Último resultado</span>
+              <strong id="respaldoUltimoResultado">—</strong>
+            </div>
+          </div>
+
+          <div class="backup-help">
+            <h4>Pasos para publicar Apps Script</h4>
+            <ol>
+              <li>Pega el código completo en Apps Script.</li>
+              <li>Ejecuta una vez <strong>pruebaCrearHojas</strong>.</li>
+              <li>Ve a <strong>Implementar → Nueva implementación</strong>.</li>
+              <li>Tipo: <strong>Aplicación web</strong>.</li>
+              <li>Ejecutar como: <strong>Yo</strong>.</li>
+              <li>Acceso: <strong>Cualquier usuario con el enlace</strong>.</li>
+              <li>Copia la URL terminada en <strong>/exec</strong> y pégala aquí.</li>
+            </ol>
+          </div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="card__header">
+          <div>
+            <p class="section-kicker">Hojas esperadas</p>
+            <h3>Estructura de base paralela</h3>
+            <p class="muted">Las hojas espejo actualizan por ID; las hojas historial agregan cada evento.</p>
+          </div>
+        </div>
+
+        <div class="backup-sheet-grid">
+          <article class="backup-sheet-card">
+            <strong>Envios</strong>
+            <span>Espejo</span>
+          </article>
+          <article class="backup-sheet-card">
+            <strong>Estudiantes</strong>
+            <span>Espejo</span>
+          </article>
+          <article class="backup-sheet-card">
+            <strong>Coordinadores</strong>
+            <span>Espejo</span>
+          </article>
+          <article class="backup-sheet-card">
+            <strong>Periodos</strong>
+            <span>Espejo</span>
+          </article>
+          <article class="backup-sheet-card">
+            <strong>Resoluciones</strong>
+            <span>Espejo</span>
+          </article>
+          <article class="backup-sheet-card">
+            <strong>Normalizaciones</strong>
+            <span>Historial</span>
+          </article>
+          <article class="backup-sheet-card">
+            <strong>Logs</strong>
+            <span>Historial</span>
+          </article>
+          <article class="backup-sheet-card">
+            <strong>PING</strong>
+            <span>Historial</span>
+          </article>
+        </div>
+      </section>
+
+      <div class="status-message" id="respaldoMensaje" role="status" aria-live="polite"></div>
     </section>
   </main>
 
+  <section class="modal is-hidden" id="modalDetalleEstudiante" aria-hidden="true">
+    <div class="modal__backdrop"></div>
+    <div class="modal__panel modal__panel--wide" role="dialog" aria-modal="true" aria-labelledby="modalDetalleTitulo">
+      <button class="modal__close" type="button" id="btnCerrarDetalleEstudiante" aria-label="Cerrar detalle">×</button>
+      <div class="modal__header">
+        <div>
+          <p class="section-kicker">Estudiante</p>
+          <h2 id="modalDetalleTitulo">Detalle del estudiante</h2>
+          <p class="muted" id="modalDetalleSubtitulo">Información académica y títulos enviados.</p>
+        </div>
+      </div>
+
+      <div class="detail-grid" id="detalleEstudianteContenido">
+        <div class="empty-cell">Selecciona un estudiante para ver más información.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="modal is-hidden" id="modalConfirmacion" aria-hidden="true">
+    <div class="modal__backdrop"></div>
+    <div class="modal__panel modal__panel--small" role="dialog" aria-modal="true" aria-labelledby="modalConfirmacionTitulo">
+      <button class="modal__close" type="button" id="btnCerrarConfirmacion" aria-label="Cerrar confirmación">×</button>
+      <div>
+        <p class="section-kicker">Confirmación</p>
+        <h2 id="modalConfirmacionTitulo">Confirmar acción</h2>
+        <p class="muted" id="modalConfirmacionMensaje">¿Deseas continuar?</p>
+      </div>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" type="button" id="btnCancelarConfirmacion">Cancelar</button>
+        <button class="btn btn--danger" type="button" id="btnAceptarConfirmacion">Confirmar</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="modal is-hidden" id="modalErrorAdmin" aria-hidden="true">
+    <div class="modal__backdrop" id="backdropErrorAdmin"></div>
+    <div class="modal__panel modal__panel--small modal__panel--error" role="dialog" aria-modal="true" aria-labelledby="modalErrorTitulo">
+      <button class="modal__close" type="button" id="btnCerrarErrorAdmin" aria-label="Cerrar error">×</button>
+
+      <div>
+        <p class="section-kicker section-kicker--danger">Error</p>
+        <h2 id="modalErrorTitulo">Error en administrador</h2>
+        <p class="error-modal__message" id="modalErrorMensaje">Ocurrió un error inesperado.</p>
+      </div>
+
+      <details class="error-modal__details" id="modalErrorDetalleWrap">
+        <summary>Ver detalle técnico</summary>
+        <pre id="modalErrorDetalle">Sin detalle técnico.</pre>
+      </details>
+
+      <div class="modal__actions">
+        <button class="btn btn--primary" type="button" id="btnAceptarErrorAdmin">Entendido</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="js/firebase.config.js"></script>
   <script src="js/app.config.js"></script>
   <script src="js/firebase.service.js"></script>
+  <script src="js/admin.ui.js"></script>
+
   <script src="js/administrador.repository.js"></script>
-  <script src="js/estudiantes.import.service.js"></script>
+  <script src="js/inicio.admin.js"></script>
+  <script src="js/periodos.admin.js"></script>
+  <script src="js/coordinadores.admin.js"></script>
   <script src="js/estudiantes.admin.js"></script>
+  <script src="js/ajustes.admin.js"></script>
+  <script src="js/respaldo.admin.js"></script>
   <script src="js/administrador.app.js"></script>
 </body>
 </html>

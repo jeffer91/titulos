@@ -20,31 +20,86 @@
       return Object.assign({}, config.defaultAppConfig, appConfig, {
         origen: 'firebase'
       });
+    }).catch(function () {
+      return Object.assign({}, config.defaultAppConfig, {
+        id: config.documents.appConfig,
+        origen: 'default-local-sin-config'
+      });
     });
   }
 
-  function buscarEstudiantePorCedula(cedula) {
-    return firebaseService.leerDocumento(config.collections.estudiantes, cedula)
-      .then(function (documentoDirecto) {
-        if (documentoDirecto) return normalizarEstudiante(documentoDirecto, cedula);
+  function buscarEstudiantePorCedula(cedulaIngresada) {
+    var variantes = construirVariantesCedula(cedulaIngresada);
 
-        return firebaseService.consultarPrimero(
-          config.collections.estudiantes,
-          'numeroIdentificacion',
-          '==',
-          cedula
-        ).then(function (documentoPorCampo) {
-          if (!documentoPorCampo) return null;
-          return normalizarEstudiante(documentoPorCampo, cedula);
-        });
+    return buscarDocumentoPorIds(variantes)
+      .then(function (documentoDirecto) {
+        if (documentoDirecto) {
+          return normalizarEstudiante(documentoDirecto, cedulaIngresada);
+        }
+
+        return buscarDocumentoPorCampo('numeroIdentificacion', variantes);
+      })
+      .then(function (documentoPorNumero) {
+        if (documentoPorNumero) {
+          return normalizarEstudiante(documentoPorNumero, cedulaIngresada);
+        }
+
+        return buscarDocumentoPorCampo('cedula', variantes);
+      })
+      .then(function (documentoPorCedula) {
+        if (!documentoPorCedula) return null;
+        return normalizarEstudiante(documentoPorCedula, cedulaIngresada);
       });
   }
 
-  function consultarEnvio(periodoId, cedula) {
-    return firebaseService.leerDocumento(
-      config.collections.titulos,
-      construirTituloId(periodoId, cedula)
-    );
+  function buscarDocumentoPorIds(variantes) {
+    var cadena = Promise.resolve(null);
+
+    variantes.forEach(function (cedula) {
+      cadena = cadena.then(function (encontrado) {
+        if (encontrado) return encontrado;
+        return firebaseService.leerDocumento(config.collections.estudiantes, cedula);
+      });
+    });
+
+    return cadena;
+  }
+
+  function buscarDocumentoPorCampo(campo, variantes) {
+    var cadena = Promise.resolve(null);
+
+    variantes.forEach(function (cedula) {
+      cadena = cadena.then(function (encontrado) {
+        if (encontrado) return encontrado;
+
+        return firebaseService.consultarPrimero(
+          config.collections.estudiantes,
+          campo,
+          '==',
+          cedula
+        );
+      });
+    });
+
+    return cadena;
+  }
+
+  function consultarEnvio(periodoId, cedulaIngresada) {
+    var variantes = construirVariantesCedula(cedulaIngresada);
+    var cadena = Promise.resolve(null);
+
+    variantes.forEach(function (cedula) {
+      cadena = cadena.then(function (encontrado) {
+        if (encontrado) return encontrado;
+
+        return firebaseService.leerDocumento(
+          config.collections.titulos,
+          construirTituloId(periodoId, cedula)
+        );
+      });
+    });
+
+    return cadena;
   }
 
   function validarAccesoEstudiante(estudiante, appConfig, envioExistente) {
@@ -60,10 +115,6 @@
       return error('Tu matrícula no consta como ACTIVO. Comunícate con coordinación.');
     }
 
-    if (appConfig.periodoActivo && estudiante.periodoId && appConfig.periodoActivo !== estudiante.periodoId) {
-      return error('Tu período no coincide con el período activo de titulación.');
-    }
-
     if (estudiante.puedeEnviarTitulo === false) {
       return error('Tu registro no está habilitado para enviar títulos. Comunícate con coordinación.');
     }
@@ -72,7 +123,7 @@
     var intentosUsados = Number(envioExistente && envioExistente.intentosUsados || 0);
 
     if (envioExistente && intentosUsados >= maxIntentos) {
-      return error('Ya utilizaste el máximo de intentos permitidos para enviar títulos.');
+      return error('Ya existe un envío registrado para esta cédula. Si necesitas cambios, comunícate con coordinación.');
     }
 
     return ok({
@@ -96,10 +147,11 @@
       })
       .then(function (estudiante) {
         estudianteLocal = estudiante;
+
         if (!estudianteLocal) return null;
 
-        var periodoId = estudianteLocal.periodoId || appConfigLocal.periodoActivo;
-        return consultarEnvio(periodoId, cedula);
+        var periodoId = estudianteLocal.periodoId || appConfigLocal.periodoActivo || 'SIN_PERIODO';
+        return consultarEnvio(periodoId, estudianteLocal.cedula || cedula);
       })
       .then(function (envioExistente) {
         return validarAccesoEstudiante(estudianteLocal, appConfigLocal, envioExistente);
@@ -107,60 +159,51 @@
   }
 
   function guardarEnvioFinal(payload) {
-    if (!payload || !payload.cedula || !payload.periodoId) {
-      return Promise.reject(new Error('No se puede guardar porque faltan cédula o período.'));
+    if (!payload || !payload.cedula) {
+      return Promise.reject(new Error('No se puede guardar porque falta la cédula.'));
     }
 
-    var docId = construirTituloId(payload.periodoId, payload.cedula);
-    var data = Object.assign({}, payload, {
-      id: docId,
+    if (!payload.periodoId) {
+      payload.periodoId = 'SIN_PERIODO';
+    }
+
+    var tituloId = construirTituloId(payload.periodoId, payload.cedula);
+    var payloadFinal = Object.assign({}, payload, {
+      id: tituloId,
       estado: 'ENVIADO',
-      enviadoEn: firebaseService.serverTimestamp(),
-      actualizadoEn: firebaseService.serverTimestamp(),
-      respaldoSheets: payload.respaldoSheets || {
-        ok: false,
-        pendiente: true,
-        mensaje: 'Pendiente de respaldo en Google Sheets.'
-      }
+      tituloPreferidoTexto: obtenerTituloPreferidoTexto(payload),
+      origenCaptura: payload.origenCaptura || 'estudiantes-web',
+      creadoEn: firebaseService.serverTimestamp(),
+      actualizadoEn: firebaseService.serverTimestamp()
     });
 
-    return firebaseService.guardarDocumento(config.collections.titulos, docId, data, { merge: false })
-      .then(function () {
-        return registrarLogEnvio(docId, data, 'ENVIO_ESTUDIANTE');
-      })
-      .then(function () {
-        return {
-          ok: true,
-          id: docId,
-          data: data,
-          mensaje: 'Propuestas enviadas correctamente.'
-        };
-      });
+    return firebaseService.guardarDocumento(
+      config.collections.titulos,
+      tituloId,
+      payloadFinal,
+      true
+    ).then(function () {
+      return registrarLogEnvio(tituloId, payloadFinal, 'ENVIO_ESTUDIANTE');
+    }).then(function () {
+      return {
+        ok: true,
+        id: tituloId,
+        data: payloadFinal,
+        mensaje: 'Envío registrado correctamente.'
+      };
+    });
   }
 
-  function actualizarRespaldoSheets(periodoId, cedula, resultadoSheets) {
-    var docId = construirTituloId(periodoId, cedula);
-    var respaldo = Object.assign({}, resultadoSheets || {}, {
-      actualizadoEnLocal: new Date().toISOString()
-    });
-
-    return firebaseService.actualizarDocumento(config.collections.titulos, docId, {
-      respaldoSheets: respaldo
-    }).then(function () {
-      return registrarLogEnvio(docId, {
-        cedula: cedula,
-        nombres: '',
-        carrera: '',
-        periodoId: periodoId,
-        estado: respaldo.ok ? 'RESPALDO_SHEETS_OK' : 'RESPALDO_SHEETS_PENDIENTE',
-        intentosUsados: 0,
-        maxIntentos: 0,
-        tituloPreferidoNumero: 0,
-        origenCaptura: 'google-sheets'
-      }, respaldo.ok ? 'RESPALDO_SHEETS_OK' : 'RESPALDO_SHEETS_PENDIENTE');
-    }).then(function () {
-      return respaldo;
-    });
+  function actualizarRespaldoSheets(periodoId, cedula, respaldo) {
+    return firebaseService.actualizarDocumento(
+      config.collections.titulos,
+      construirTituloId(periodoId, cedula),
+      {
+        respaldoSheets: respaldo,
+        respaldoSheetsEstado: respaldo && respaldo.ok ? 'OK' : 'PENDIENTE',
+        respaldoSheetsActualizadoEn: firebaseService.serverTimestamp()
+      }
+    );
   }
 
   function registrarLogEnvio(tituloId, payload, accion) {
@@ -172,6 +215,7 @@
       carrera: payload.carrera,
       periodoId: payload.periodoId,
       estado: payload.estado,
+      telegramUser: payload.telegramUser || '',
       intentosUsados: payload.intentosUsados,
       maxIntentos: payload.maxIntentos,
       tituloPreferidoNumero: payload.tituloPreferidoNumero,
@@ -187,25 +231,112 @@
   }
 
   function normalizarEstudiante(data, cedulaConsultada) {
+    var source = normalizarObjeto(data || {});
+    var cedulaOriginal = valor(source, ['numeroidentificacion', 'cedula', 'id']) || cedulaConsultada;
+    var cedulaNormalizada = normalizarCedulaParaMostrar(cedulaOriginal || cedulaConsultada);
+    var nombres = valor(source, ['nombres', 'nombrecompleto', 'estudiante', 'nombre']);
+    var carrera = valor(source, ['nombrecarrera', 'carrera', 'nombre_carrera']);
+    var periodoId = valor(source, ['periodoid', 'ultimoperiodoid', 'periodo', 'periodoactivo']);
+    var periodoLabel = valor(source, ['periodolabel', 'periodonombre', 'periodoetiqueta']);
+    var codigoCarrera = valor(source, ['codigocarrera', 'codigo_carrera']);
+    var estadoMatricula = valor(source, ['estadomatricula', 'matricula', 'estado']) || 'ACTIVO';
+
     return {
-      id: data.id || cedulaConsultada,
-      cedula: data.numeroIdentificacion || data.cedula || cedulaConsultada,
-      numeroIdentificacion: data.numeroIdentificacion || data.cedula || cedulaConsultada,
-      nombres: data.nombres || data.nombreCompleto || data.estudiante || 'Sin nombres registrados',
-      codigoCarrera: data.codigoCarrera || data.codigo_carrera || '',
-      carrera: data.nombreCarrera || data.carrera || data.nombre_carrera || 'Carrera no registrada',
-      nombreCarrera: data.nombreCarrera || data.carrera || data.nombre_carrera || 'Carrera no registrada',
-      periodoId: data.periodoId || data.periodo || data.periodoActivo || '',
-      estadoMatricula: data.estadoMatricula || data.matricula || data.estado || '',
+      id: data.id || cedulaNormalizada,
+      cedula: cedulaNormalizada,
+      numeroIdentificacion: cedulaNormalizada,
+      nombres: limpiarTexto(nombres) || 'Sin nombres registrados',
+      codigoCarrera: limpiarTexto(codigoCarrera),
+      carrera: limpiarTexto(carrera) || 'Carrera no registrada',
+      nombreCarrera: limpiarTexto(carrera) || 'Carrera no registrada',
+      periodoId: limpiarTexto(periodoId),
+      periodoLabel: limpiarTexto(periodoLabel),
+      estadoMatricula: limpiarTexto(estadoMatricula).toUpperCase(),
       puedeEnviarTitulo: data.puedeEnviarTitulo !== false,
-      correoPersonal: data.correoPersonal || data.correo || '',
-      celular: data.celular || data.telefono || '',
       raw: data
     };
   }
 
-  function normalizarTexto(valor) {
-    return String(valor || '').trim().toUpperCase();
+  function construirVariantesCedula(cedula) {
+    var limpia = limpiarSoloNumeros(cedula);
+    var variantes = [];
+
+    agregarUnico(variantes, limpia);
+
+    if (limpia.length === 9) {
+      agregarUnico(variantes, '0' + limpia);
+    }
+
+    if (limpia.length === 10 && limpia.charAt(0) === '0') {
+      agregarUnico(variantes, limpia.slice(1));
+    }
+
+    return variantes;
+  }
+
+  function normalizarCedulaParaMostrar(cedula) {
+    var limpia = limpiarSoloNumeros(cedula);
+    if (limpia.length === 9) return '0' + limpia;
+    return limpia;
+  }
+
+  function agregarUnico(lista, valor) {
+    if (!valor) return;
+    if (lista.indexOf(valor) === -1) lista.push(valor);
+  }
+
+  function normalizarObjeto(data) {
+    var normalizado = {};
+
+    Object.keys(data || {}).forEach(function (key) {
+      normalizado[normalizarKey(key)] = data[key];
+    });
+
+    return normalizado;
+  }
+
+  function normalizarKey(key) {
+    return String(key || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toLowerCase();
+  }
+
+  function valor(source, keys) {
+    for (var i = 0; i < keys.length; i += 1) {
+      var value = source[keys[i]];
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        return String(value).trim();
+      }
+    }
+
+    return '';
+  }
+
+  function obtenerTituloPreferidoTexto(payload) {
+    var numero = Number(payload.tituloPreferidoNumero || 1);
+    var propuestas = Array.isArray(payload.titulosEnviados) ? payload.titulosEnviados : [];
+
+    for (var i = 0; i < propuestas.length; i += 1) {
+      if (Number(propuestas[i].numero) === numero) {
+        return propuestas[i].tituloFinal || '';
+      }
+    }
+
+    return propuestas[0] && propuestas[0].tituloFinal ? propuestas[0].tituloFinal : '';
+  }
+
+  function normalizarTexto(valorTexto) {
+    return String(valorTexto || '').trim().toUpperCase();
+  }
+
+  function limpiarTexto(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function limpiarSoloNumeros(value) {
+    return String(value || '').replace(/\D/g, '').trim();
   }
 
   function ok(data) {
@@ -225,6 +356,7 @@
     actualizarRespaldoSheets: actualizarRespaldoSheets,
     registrarLogEnvio: registrarLogEnvio,
     construirTituloId: construirTituloId,
-    normalizarEstudiante: normalizarEstudiante
+    normalizarEstudiante: normalizarEstudiante,
+    construirVariantesCedula: construirVariantesCedula
   });
 })();

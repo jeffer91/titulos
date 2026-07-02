@@ -1,117 +1,153 @@
-/* Servicio de formulario del módulo estudiantes. */
+/* Servicio de formulario, payload y borradores del módulo estudiantes. */
 (function () {
   'use strict';
 
-  var STORAGE_PREFIX = 'TA_ESTUDIANTES_BORRADOR__';
+  var config = window.TA_ESTUDIANTES_CONFIG;
 
   function construirClaveBorrador(estudiante, appConfig) {
-    var cedula = estudiante && estudiante.cedula ? estudiante.cedula : 'SIN_CEDULA';
+    var cedula = estudiante && estudiante.cedula ? estudiante.cedula : 'sin-cedula';
     var periodo = obtenerPeriodo(estudiante, appConfig) || 'SIN_PERIODO';
-    return STORAGE_PREFIX + periodo + '__' + cedula;
+
+    return 'ta_titulos_borrador__' + periodo + '__' + cedula;
   }
 
   function construirPayload(estudiante, appConfig, formData, envioExistente) {
-    var periodoId = obtenerPeriodo(estudiante, appConfig);
-    var maxIntentos = Number(appConfig && appConfig.maxIntentos || 1);
-    var intentosUsadosPrevios = Number(envioExistente && envioExistente.intentosUsados || 0);
+    var periodoId = obtenerPeriodo(estudiante, appConfig) || 'SIN_PERIODO';
+    var maxIntentos = Number(appConfig && appConfig.maxIntentos || config.defaultAppConfig.maxIntentos || 1);
+    var intentosPrevios = Number(envioExistente && envioExistente.intentosUsados || 0);
     var tituloPreferidoNumero = Number(formData.tituloPreferidoNumero || 1);
+    var titulosEnviados = construirTitulosEnviados(formData.propuestas, tituloPreferidoNumero);
+    var tituloPreferidoTexto = obtenerTituloPreferidoTexto(titulosEnviados, tituloPreferidoNumero);
 
     return {
       cedula: estudiante.cedula,
       numeroIdentificacion: estudiante.numeroIdentificacion || estudiante.cedula,
-      nombres: estudiante.nombres,
+      nombres: estudiante.nombres || '',
       codigoCarrera: estudiante.codigoCarrera || '',
       carrera: estudiante.carrera || estudiante.nombreCarrera || '',
       nombreCarrera: estudiante.nombreCarrera || estudiante.carrera || '',
       periodoId: periodoId,
-      estado: 'PREPARADO',
-      intentosUsados: intentosUsadosPrevios + 1,
-      intentosPrevios: intentosUsadosPrevios,
-      maxIntentos: maxIntentos,
-      tituloPreferidoNumero: tituloPreferidoNumero,
+      periodoLabel: estudiante.periodoLabel || '',
+      estado: 'ENVIADO',
       contacto: {
-        telegram: formData.telegram || '',
-        celular: formData.celular || ''
+        telegram: formData.telegram || ''
       },
-      titulosEnviados: formData.propuestas.map(function (propuesta) {
-        return {
-          numero: propuesta.numero,
-          temaGeneral: propuesta.temaGeneral,
-          problemaNecesidad: propuesta.problemaNecesidad,
-          lugarContexto: propuesta.lugarContexto,
-          grupoEstudio: propuesta.grupoEstudio,
-          anioPeriodo: propuesta.anioPeriodo,
-          objetivo: propuesta.objetivo,
-          tituloFinal: propuesta.tituloFinal,
-          preferido: Number(propuesta.numero) === tituloPreferidoNumero
-        };
-      }),
-      actualizadoLocalEn: new Date().toISOString(),
-      origenCaptura: detectarOrigenCaptura()
+      telegramUser: formData.telegram || '',
+      tituloPreferidoNumero: tituloPreferidoNumero,
+      tituloPreferidoTexto: tituloPreferidoTexto,
+      titulosEnviados: titulosEnviados,
+      intentosUsados: intentosPrevios + 1,
+      maxIntentos: maxIntentos,
+      origenCaptura: detectarOrigenCaptura(),
+      actualizadoEnLocal: new Date().toISOString()
     };
   }
 
+  function construirTitulosEnviados(propuestas, tituloPreferidoNumero) {
+    if (!Array.isArray(propuestas)) return [];
+
+    return propuestas.map(function (propuesta) {
+      var numero = Number(propuesta.numero || 0);
+
+      return {
+        numero: numero,
+        temaGeneral: limpiarTexto(propuesta.temaGeneral),
+        problemaNecesidad: limpiarTexto(propuesta.problemaNecesidad),
+        lugarContexto: limpiarTexto(propuesta.lugarContexto),
+        grupoEstudio: limpiarTexto(propuesta.grupoEstudio),
+        anioPeriodo: limpiarTexto(propuesta.anioPeriodo),
+        objetivo: limpiarTexto(propuesta.objetivo),
+        tituloFinal: limpiarTexto(propuesta.tituloFinal),
+        preferido: numero === Number(tituloPreferidoNumero)
+      };
+    });
+  }
+
+  function obtenerTituloPreferidoTexto(propuestas, tituloPreferidoNumero) {
+    for (var i = 0; i < propuestas.length; i += 1) {
+      if (Number(propuestas[i].numero) === Number(tituloPreferidoNumero)) {
+        return propuestas[i].tituloFinal || '';
+      }
+    }
+
+    return propuestas[0] && propuestas[0].tituloFinal ? propuestas[0].tituloFinal : '';
+  }
+
   function guardarBorrador(estudiante, appConfig, formData) {
+    if (!config.borradorLocalActivo) {
+      return { ok: false, mensaje: 'El guardado local no está activo.' };
+    }
+
     if (!soportaLocalStorage()) {
       return { ok: false, mensaje: 'Este navegador no permite guardar borradores locales.' };
     }
 
-    if (!estudiante) {
-      return { ok: false, mensaje: 'Primero consulta la cédula del estudiante.' };
+    try {
+      var key = construirClaveBorrador(estudiante, appConfig);
+      var data = {
+        guardadoEn: new Date().toISOString(),
+        formData: formData
+      };
+
+      localStorage.setItem(key, JSON.stringify(data));
+
+      return {
+        ok: true,
+        mensaje: config.textos.borradorGuardado || 'Borrador local guardado.'
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        mensaje: 'No se pudo guardar el borrador local.'
+      };
     }
-
-    var key = construirClaveBorrador(estudiante, appConfig);
-    var payload = {
-      estudiante: {
-        cedula: estudiante.cedula,
-        nombres: estudiante.nombres,
-        carrera: estudiante.carrera,
-        periodoId: obtenerPeriodo(estudiante, appConfig)
-      },
-      formData: formData,
-      guardadoEn: new Date().toISOString()
-    };
-
-    localStorage.setItem(key, JSON.stringify(payload));
-    return { ok: true, mensaje: 'Borrador guardado en este equipo.', key: key, data: payload };
   }
 
   function leerBorrador(estudiante, appConfig) {
-    if (!soportaLocalStorage() || !estudiante) return null;
-
-    var key = construirClaveBorrador(estudiante, appConfig);
-    var raw = localStorage.getItem(key);
-    if (!raw) return null;
+    if (!config.borradorLocalActivo || !soportaLocalStorage()) return null;
 
     try {
-      var data = JSON.parse(raw);
-      data.key = key;
-      return data;
+      var key = construirClaveBorrador(estudiante, appConfig);
+      var raw = localStorage.getItem(key);
+
+      if (!raw) return null;
+
+      return JSON.parse(raw);
     } catch (error) {
-      localStorage.removeItem(key);
       return null;
     }
   }
 
   function eliminarBorrador(estudiante, appConfig) {
-    if (!soportaLocalStorage() || !estudiante) {
-      return { ok: false, mensaje: 'No hay un estudiante consultado para limpiar borrador.' };
+    if (!soportaLocalStorage()) {
+      return { ok: false, mensaje: 'Este navegador no permite limpiar borradores locales.' };
     }
 
-    var key = construirClaveBorrador(estudiante, appConfig);
-    localStorage.removeItem(key);
-    return { ok: true, mensaje: 'Borrador local eliminado.' };
+    try {
+      localStorage.removeItem(construirClaveBorrador(estudiante, appConfig));
+
+      return {
+        ok: true,
+        mensaje: 'Borrador local eliminado.'
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        mensaje: 'No se pudo eliminar el borrador.'
+      };
+    }
   }
 
-  function formDataDesdeEnvio(envioExistente, totalPropuestas) {
-    var total = totalPropuestas || 3;
-    var titulos = envioExistente && Array.isArray(envioExistente.titulosEnviados)
+  function formDataDesdeEnvio(envioExistente, propuestasObligatorias) {
+    var total = Number(propuestasObligatorias || 3);
+    var lista = Array.isArray(envioExistente && envioExistente.titulosEnviados)
       ? envioExistente.titulosEnviados
       : [];
-
     var propuestas = [];
+
     for (var i = 1; i <= total; i += 1) {
-      var original = buscarPorNumero(titulos, i) || {};
+      var original = buscarPorNumero(lista, i) || {};
+
       propuestas.push({
         numero: i,
         temaGeneral: original.temaGeneral || '',
@@ -125,8 +161,7 @@
     }
 
     return {
-      telegram: envioExistente && envioExistente.contacto ? envioExistente.contacto.telegram || '' : '',
-      celular: envioExistente && envioExistente.contacto ? envioExistente.contacto.celular || '' : '',
+      telegram: envioExistente && envioExistente.contacto ? envioExistente.contacto.telegram || '' : envioExistente && envioExistente.telegramUser || '',
       tituloPreferidoNumero: Number(envioExistente && envioExistente.tituloPreferidoNumero || 1),
       propuestas: propuestas
     };
@@ -136,15 +171,15 @@
     for (var i = 0; i < lista.length; i += 1) {
       if (Number(lista[i].numero) === Number(numero)) return lista[i];
     }
+
     return null;
   }
 
   function obtenerPeriodo(estudiante, appConfig) {
-    return estudiante && estudiante.periodoId
-      ? estudiante.periodoId
-      : appConfig && appConfig.periodoActivo
-        ? appConfig.periodoActivo
-        : '';
+    if (estudiante && estudiante.periodoId) return estudiante.periodoId;
+    if (estudiante && estudiante.ultimoPeriodoId) return estudiante.ultimoPeriodoId;
+    if (appConfig && appConfig.periodoActivo) return appConfig.periodoActivo;
+    return 'SIN_PERIODO';
   }
 
   function soportaLocalStorage() {
@@ -159,14 +194,19 @@
   }
 
   function detectarOrigenCaptura() {
-    if (window.location.protocol === 'file:') return 'doble-click-html';
+    if (window.location.protocol === 'file:') return 'electron-o-html-local';
     if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') return 'live-server-local';
     return 'hosting-web';
+  }
+
+  function limpiarTexto(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
   }
 
   window.TAEstudianteFormulario = Object.freeze({
     construirClaveBorrador: construirClaveBorrador,
     construirPayload: construirPayload,
+    construirTitulosEnviados: construirTitulosEnviados,
     guardarBorrador: guardarBorrador,
     leerBorrador: leerBorrador,
     eliminarBorrador: eliminarBorrador,

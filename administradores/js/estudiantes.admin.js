@@ -1,312 +1,293 @@
-/* Pantalla administrativa para carga, listado y limpieza de estudiantes. */
+/* Pantalla Estudiantes del administrador. */
 (function () {
   'use strict';
 
-  var repository = window.TAAdminRepository;
-  var firebaseService = window.TAAdminFirebaseService;
-  var importService = window.TAAdminEstudiantesImport;
+  var repository = window.TAAdministradorRepository;
+  var ui = window.TAAdminUI;
+  var config = window.TA_ADMINISTRADORES_CONFIG;
 
   var estado = {
-    estudiantesPreview: [],
-    erroresPreview: [],
-    ultimoPeriodo: ''
+    periodos: [],
+    estudiantes: [],
+    filtrados: []
   };
-
-  document.addEventListener('DOMContentLoaded', iniciar);
 
   function iniciar() {
     conectarEventos();
   }
 
   function conectarEventos() {
-    var btnLeer = qs('#btnLeerArchivoEstudiantes');
-    var btnGuardar = qs('#btnGuardarEstudiantes');
-    var btnListar = qs('#btnListarEstudiantes');
-    var btnLimpiar = qs('#btnLimpiarEstudiantesPeriodo');
-    var periodoInput = qs('#estudiantesPeriodoInput');
+    var btnActualizar = ui.qs('#btnActualizarEstudiantes');
+    var formFiltros = ui.qs('#formFiltrosEstudiantes');
+    var btnLimpiar = ui.qs('#btnLimpiarFiltrosEstudiantes');
 
-    if (btnLeer) btnLeer.addEventListener('click', leerArchivoEstudiantes);
-    if (btnGuardar) btnGuardar.addEventListener('click', guardarEstudiantes);
-    if (btnListar) btnListar.addEventListener('click', listarEstudiantes);
-    if (btnLimpiar) btnLimpiar.addEventListener('click', limpiarEstudiantesPeriodo);
-    if (periodoInput) periodoInput.addEventListener('change', listarEstudiantesSilencioso);
+    if (btnActualizar) {
+      btnActualizar.addEventListener('click', cargar);
+    }
+
+    if (formFiltros) {
+      formFiltros.addEventListener('submit', function (event) {
+        event.preventDefault();
+        aplicarFiltros();
+      });
+    }
+
+    if (btnLimpiar) {
+      btnLimpiar.addEventListener('click', limpiarFiltros);
+    }
   }
 
-  function leerArchivoEstudiantes() {
-    if (!firebaseListo()) return;
+  function cargar() {
+    ui.showStatus('#estudiantesMensaje', config.textos.cargando, 'info');
 
-    var fileInput = qs('#archivoEstudiantesInput');
-    var file = fileInput && fileInput.files ? fileInput.files[0] : null;
-    var periodo = value('#estudiantesPeriodoInput');
-
-    if (!periodo) {
-      showStatus('#estudiantesMensaje', 'Ingresa el período al que pertenecen los estudiantes.', 'error');
-      return;
-    }
-
-    if (!file) {
-      showStatus('#estudiantesMensaje', 'Selecciona un archivo CSV, TXT, JSON o Excel.', 'error');
-      return;
-    }
-
-    setLoading('#btnLeerArchivoEstudiantes', true, 'Leyendo...');
-    showStatus('#estudiantesMensaje', 'Leyendo y validando archivo...', 'info');
-
-    importService.leerArchivo(file, periodo)
-      .then(function (resultado) {
-        estado.estudiantesPreview = resultado.estudiantes;
-        estado.erroresPreview = resultado.errores;
-        estado.ultimoPeriodo = periodo;
-        renderResumen(resultado);
-        renderTablaEstudiantes(resultado.estudiantes, resultado.errores);
-
-        if (!resultado.estudiantes.length) {
-          showStatus('#estudiantesMensaje', 'No hay estudiantes válidos para guardar. Revisa los errores.', 'error');
-          return;
-        }
-
-        showStatus('#estudiantesMensaje', 'Archivo leído. Estudiantes válidos: ' + resultado.totalValidos + '. Errores: ' + resultado.totalErrores + '.', resultado.totalErrores ? 'warning' : 'success');
+    return repository.listarPeriodos()
+      .then(function (periodos) {
+        estado.periodos = periodos || [];
+        llenarFiltroPeriodos();
+        return cargarEstudiantes();
       })
       .catch(function (error) {
-        estado.estudiantesPreview = [];
-        estado.erroresPreview = [];
-        renderTablaEstudiantes([], [obtenerMensajeError(error)]);
-        showStatus('#estudiantesMensaje', 'No se pudo leer el archivo: ' + obtenerMensajeError(error), 'error');
-      })
-      .finally(function () {
-        setLoading('#btnLeerArchivoEstudiantes', false);
+        ui.showStatus('#estudiantesMensaje', obtenerMensaje(error, 'No se pudieron cargar los estudiantes.'), 'error');
       });
   }
 
-  function guardarEstudiantes() {
-    if (!firebaseListo()) return;
+  function cargarEstudiantes() {
+    var periodo = ui.value('#estFiltroPeriodo');
 
-    var periodo = value('#estudiantesPeriodoInput');
-
-    if (!periodo) {
-      showStatus('#estudiantesMensaje', 'Ingresa el período antes de guardar.', 'error');
-      return;
-    }
-
-    if (!estado.estudiantesPreview.length) {
-      showStatus('#estudiantesMensaje', 'Primero lee y valida un archivo de estudiantes.', 'warning');
-      return;
-    }
-
-    if (estado.ultimoPeriodo && estado.ultimoPeriodo !== periodo) {
-      showStatus('#estudiantesMensaje', 'El período cambió después de leer el archivo. Vuelve a leer el archivo para evitar errores.', 'error');
-      return;
-    }
-
-    setLoading('#btnGuardarEstudiantes', true, 'Guardando...');
-    showStatus('#estudiantesMensaje', 'Guardando estudiantes en Firebase...', 'info');
-
-    repository.guardarEstudiantes(estado.estudiantesPreview, periodo)
-      .then(function (respuesta) {
-        showStatus('#estudiantesMensaje', 'Estudiantes guardados correctamente: ' + respuesta.total + '.', 'success');
-        return listarEstudiantesSilencioso();
-      })
-      .catch(function (error) {
-        showStatus('#estudiantesMensaje', 'No se pudieron guardar estudiantes: ' + obtenerMensajeError(error), 'error');
-      })
-      .finally(function () {
-        setLoading('#btnGuardarEstudiantes', false);
-      });
-  }
-
-  function listarEstudiantes() {
-    if (!firebaseListo()) return;
-
-    var periodo = value('#estudiantesPeriodoInput');
-    if (!periodo) {
-      showStatus('#estudiantesMensaje', 'Ingresa el período para listar estudiantes.', 'error');
-      return;
-    }
-
-    setLoading('#btnListarEstudiantes', true, 'Listando...');
-    showStatus('#estudiantesMensaje', 'Consultando estudiantes del período...', 'info');
-
-    repository.listarEstudiantesPorPeriodo(periodo)
+    return repository.listarEstudiantesConTitulos(periodo)
       .then(function (estudiantes) {
-        renderResumen({ totalFilas: estudiantes.length, totalValidos: estudiantes.length, totalErrores: 0, errores: [] });
-        renderTablaEstudiantes(estudiantes, []);
-        showStatus('#estudiantesMensaje', 'Estudiantes encontrados: ' + estudiantes.length + '.', 'success');
-      })
-      .catch(function (error) {
-        showStatus('#estudiantesMensaje', 'No se pudieron listar estudiantes: ' + obtenerMensajeError(error), 'error');
-      })
-      .finally(function () {
-        setLoading('#btnListarEstudiantes', false);
+        estado.estudiantes = estudiantes || [];
+        llenarFiltroCarreras();
+        aplicarFiltros();
+        ui.showStatus('#estudiantesMensaje', 'Estudiantes actualizados correctamente.', 'success');
       });
   }
 
-  function listarEstudiantesSilencioso() {
-    var periodo = value('#estudiantesPeriodoInput');
-    if (!firebaseListo(false) || !periodo) return Promise.resolve();
-
-    return repository.listarEstudiantesPorPeriodo(periodo)
-      .then(function (estudiantes) {
-        renderTablaEstudiantes(estudiantes, []);
-        renderResumen({ totalFilas: estudiantes.length, totalValidos: estudiantes.length, totalErrores: 0, errores: [] });
-      })
-      .catch(function () {
-        return null;
-      });
-  }
-
-  function limpiarEstudiantesPeriodo() {
-    if (!firebaseListo()) return;
-
-    var periodo = value('#estudiantesPeriodoInput');
-    if (!periodo) {
-      showStatus('#estudiantesMensaje', 'Ingresa el período que deseas limpiar.', 'error');
-      return;
-    }
-
-    if (!confirm('¿Eliminar todos los estudiantes del período ' + periodo + '? Esta acción no elimina títulos enviados.')) return;
-
-    setLoading('#btnLimpiarEstudiantesPeriodo', true, 'Limpiando...');
-    showStatus('#estudiantesMensaje', 'Eliminando estudiantes del período...', 'info');
-
-    repository.limpiarEstudiantesPorPeriodo(periodo)
-      .then(function (respuesta) {
-        estado.estudiantesPreview = [];
-        estado.erroresPreview = [];
-        renderResumen({ totalFilas: 0, totalValidos: 0, totalErrores: 0, errores: [] });
-        renderTablaEstudiantes([], []);
-        showStatus('#estudiantesMensaje', 'Limpieza completada. Estudiantes eliminados: ' + respuesta.total + '.', 'success');
-      })
-      .catch(function (error) {
-        showStatus('#estudiantesMensaje', 'No se pudo limpiar estudiantes: ' + obtenerMensajeError(error), 'error');
-      })
-      .finally(function () {
-        setLoading('#btnLimpiarEstudiantesPeriodo', false);
-      });
-  }
-
-  function renderResumen(resultado) {
-    setText('#estudiantesTotalFilas', String(resultado.totalFilas || 0));
-    setText('#estudiantesTotalValidos', String(resultado.totalValidos || 0));
-    setText('#estudiantesTotalErrores', String(resultado.totalErrores || 0));
-  }
-
-  function renderTablaEstudiantes(estudiantes, errores) {
-    var container = qs('#estudiantesPreview');
-    if (!container) return;
-
-    container.innerHTML = '';
-
-    if (errores && errores.length) {
-      var errorBox = document.createElement('div');
-      errorBox.className = 'error-list';
-      errorBox.innerHTML = '<strong>Errores detectados</strong>';
-      var ul = document.createElement('ul');
-      errores.slice(0, 20).forEach(function (error) {
-        var li = document.createElement('li');
-        li.textContent = error;
-        ul.appendChild(li);
-      });
-      if (errores.length > 20) {
-        var extra = document.createElement('li');
-        extra.textContent = 'Y ' + (errores.length - 20) + ' errores más.';
-        ul.appendChild(extra);
-      }
-      errorBox.appendChild(ul);
-      container.appendChild(errorBox);
-    }
-
-    if (!estudiantes.length) {
-      var empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.textContent = 'No hay estudiantes para mostrar.';
-      container.appendChild(empty);
-      return;
-    }
-
-    var tableWrap = document.createElement('div');
-    tableWrap.className = 'table-wrap';
-
-    var table = document.createElement('table');
-    table.className = 'data-table';
-    table.innerHTML = '<thead><tr><th>Cédula</th><th>Nombres</th><th>Carrera</th><th>Período</th><th>Estado</th></tr></thead>';
-
-    var tbody = document.createElement('tbody');
-    estudiantes.slice(0, 120).forEach(function (estudiante) {
-      var tr = document.createElement('tr');
-      tr.appendChild(td(estudiante.numeroIdentificacion || estudiante.cedula));
-      tr.appendChild(td(estudiante.nombres || estudiante.nombreCompleto));
-      tr.appendChild(td(estudiante.nombreCarrera || estudiante.carrera));
-      tr.appendChild(td(estudiante.periodoId));
-      tr.appendChild(td(estudiante.estadoMatricula || estudiante.estado || 'ACTIVO'));
-      tbody.appendChild(tr);
+  function llenarFiltroPeriodos() {
+    var activos = estado.periodos.filter(function (periodo) {
+      return periodo.activo;
     });
 
-    table.appendChild(tbody);
-    tableWrap.appendChild(table);
-    container.appendChild(tableWrap);
+    var lista = activos.length ? activos : estado.periodos;
 
-    if (estudiantes.length > 120) {
-      var note = document.createElement('p');
-      note.className = 'muted';
-      note.textContent = 'Mostrando 120 de ' + estudiantes.length + ' estudiantes.';
-      container.appendChild(note);
-    }
+    ui.llenarSelect('#estFiltroPeriodo', lista.map(function (periodo) {
+      return {
+        value: periodo.id,
+        label: periodo.label + (periodo.activo ? ' · Activo' : '')
+      };
+    }), {
+      placeholderText: 'Todos los períodos activos',
+      placeholderValue: ''
+    });
   }
 
-  function td(value) {
-    var cell = document.createElement('td');
-    cell.textContent = value || '—';
-    return cell;
+  function llenarFiltroCarreras() {
+    var mapa = {};
+
+    estado.estudiantes.forEach(function (item) {
+      var carrera = item.carrera || item.nombreCarrera;
+      if (carrera) mapa[carrera] = true;
+    });
+
+    var carreras = Object.keys(mapa).sort().map(function (carrera) {
+      return {
+        value: carrera,
+        label: carrera
+      };
+    });
+
+    ui.llenarSelect('#estFiltroCarrera', carreras, {
+      placeholderText: 'Todas las carreras',
+      placeholderValue: ''
+    });
   }
 
-  function firebaseListo(mostrarMensaje) {
-    var shouldShow = mostrarMensaje !== false;
-    if (firebaseService && firebaseService.estaListo && firebaseService.estaListo()) return true;
-    if (shouldShow) showStatus('#estudiantesMensaje', 'Firebase no está conectado. Revisa la configuración del módulo administrador.', 'warning');
-    return false;
+  function aplicarFiltros() {
+    var periodo = ui.value('#estFiltroPeriodo');
+    var busqueda = normalizarTexto(ui.value('#estFiltroBusqueda'));
+    var carrera = ui.value('#estFiltroCarrera');
+    var estadoFiltro = ui.value('#estFiltroEstado');
+    var telegramFiltro = ui.value('#estFiltroTelegram');
+
+    estado.filtrados = estado.estudiantes.filter(function (item) {
+      var textoBusqueda = normalizarTexto([
+        item.cedula,
+        item.nombres,
+        item.carrera,
+        item.nombreCarrera
+      ].join(' '));
+
+      if (periodo && item.periodoId !== periodo) return false;
+
+      if (busqueda && textoBusqueda.indexOf(busqueda) === -1) return false;
+
+      if (carrera && item.carrera !== carrera && item.nombreCarrera !== carrera) return false;
+
+      if (estadoFiltro && !coincideEstado(item, estadoFiltro)) return false;
+
+      if (telegramFiltro === 'CON_TELEGRAM' && !tieneTelegram(item)) return false;
+
+      if (telegramFiltro === 'SIN_TELEGRAM' && tieneTelegram(item)) return false;
+
+      return true;
+    });
+
+    renderTabla();
   }
 
-  function qs(selector) {
-    return document.querySelector(selector);
+  function limpiarFiltros() {
+    ui.setValue('#estFiltroBusqueda', '');
+    ui.setValue('#estFiltroCarrera', '');
+    ui.setValue('#estFiltroEstado', '');
+    ui.setValue('#estFiltroTelegram', '');
+    aplicarFiltros();
   }
 
-  function value(selector) {
-    var element = qs(selector);
-    return element ? String(element.value || '').trim() : '';
-  }
+  function renderTabla() {
+    var body = ui.qs('#estudiantesTableBody');
 
-  function setText(selector, text) {
-    var element = qs(selector);
-    if (element) element.textContent = text || '0';
-  }
+    if (!body) return;
 
-  function showStatus(selector, message, type) {
-    var element = qs(selector);
-    if (!element) return;
-    element.classList.remove('is-info', 'is-success', 'is-warning', 'is-error');
-    if (type) element.classList.add('is-' + type);
-    element.textContent = message || '';
-  }
+    body.innerHTML = '';
 
-  function setLoading(selector, loading, text) {
-    var button = qs(selector);
-    if (!button) return;
-
-    if (loading) {
-      if (!button.dataset.originalText) button.dataset.originalText = button.textContent;
-      button.textContent = text || 'Cargando...';
-      button.disabled = true;
+    if (!estado.filtrados.length) {
+      ui.limpiarTabla('#estudiantesTableBody', 6, 'No se encontraron estudiantes con los filtros seleccionados.');
       return;
     }
 
-    button.disabled = false;
-    if (button.dataset.originalText) {
-      button.textContent = button.dataset.originalText;
-      delete button.dataset.originalText;
-    }
+    estado.filtrados.forEach(function (item) {
+      var tr = document.createElement('tr');
+
+      tr.innerHTML =
+        '<td>' + ui.escapeHtml(item.cedula) + '</td>' +
+        '<td><strong>' + ui.escapeHtml(item.nombres) + '</strong></td>' +
+        '<td>' + ui.escapeHtml(item.carrera || item.nombreCarrera) + '</td>' +
+        '<td>' + ui.escapeHtml(item.periodoLabel || item.periodoId) + '</td>' +
+        '<td></td>' +
+        '<td class="text-right"></td>';
+
+      var estadoCell = tr.children[4];
+      var actionCell = tr.children[5];
+      var button = document.createElement('button');
+
+      estadoCell.appendChild(ui.badgeEstadoTitulo(item.estado));
+
+      button.type = 'button';
+      button.className = 'btn btn--small btn--primary';
+      button.textContent = 'Ver más';
+      button.addEventListener('click', function () {
+        verMas(item);
+      });
+
+      actionCell.appendChild(button);
+      body.appendChild(tr);
+    });
   }
 
-  function obtenerMensajeError(error) {
-    return error && error.message ? error.message : String(error || 'Error desconocido');
+  function verMas(item) {
+    ui.setText('#modalDetalleTitulo', item.nombres || 'Detalle del estudiante');
+    ui.setText('#modalDetalleSubtitulo', (item.cedula || '') + ' · ' + (item.carrera || item.nombreCarrera || ''));
+
+    ui.abrirDetalleEstudiante(item);
+    agregarAccionesDetalle(item);
   }
+
+  function agregarAccionesDetalle(item) {
+    var container = ui.qs('#detalleEstudianteContenido');
+
+    if (!container) return;
+
+    var acciones = document.createElement('article');
+    acciones.className = 'detail-box';
+
+    var h3 = document.createElement('h3');
+    h3.textContent = 'Acciones administrativas';
+    acciones.appendChild(h3);
+
+    if (item.titulo && item.titulo.id) {
+      var p = document.createElement('p');
+      p.textContent = 'Puedes archivar el intento actual para permitir que el estudiante registre nuevamente sus títulos.';
+      acciones.appendChild(p);
+
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn--danger';
+      button.textContent = 'Archivar intento y permitir nuevo envío';
+      button.addEventListener('click', function () {
+        confirmarArchivarIntento(item);
+      });
+
+      acciones.appendChild(button);
+    } else {
+      var sinTitulo = document.createElement('p');
+      sinTitulo.textContent = 'El estudiante todavía no tiene un intento enviado para archivar.';
+      acciones.appendChild(sinTitulo);
+    }
+
+    container.appendChild(acciones);
+  }
+
+  function confirmarArchivarIntento(item) {
+    ui.confirmar({
+      titulo: 'Archivar intento',
+      mensaje: 'Se guardará una copia del intento en el historial y el estudiante podrá enviar nuevamente sus títulos. ¿Deseas continuar?',
+      onConfirm: function () {
+        archivarIntento(item);
+      }
+    });
+  }
+
+  function archivarIntento(item) {
+    if (!item.titulo || !item.titulo.id) {
+      ui.showStatus('#estudiantesMensaje', 'No se encontró un intento para archivar.', 'error');
+      return;
+    }
+
+    ui.showStatus('#estudiantesMensaje', 'Archivando intento...', 'info');
+
+    repository.archivarIntento(item.titulo.id)
+      .then(function () {
+        ui.cerrarDetalleEstudiante();
+        ui.showStatus('#estudiantesMensaje', 'Intento archivado. El estudiante podrá enviar nuevamente.', 'success');
+        return cargarEstudiantes();
+      })
+      .catch(function (error) {
+        ui.showStatus('#estudiantesMensaje', obtenerMensaje(error, 'No se pudo archivar el intento.'), 'error');
+      });
+  }
+
+  function coincideEstado(item, filtro) {
+    if (filtro === 'PENDIENTE') {
+      return item.estado === config.estadosTitulo.pendiente || item.estado === config.estadosTitulo.enviado;
+    }
+
+    if (filtro === 'ENVIADO') {
+      return Boolean(item.titulo);
+    }
+
+    return item.estado === filtro;
+  }
+
+  function tieneTelegram(item) {
+    return Boolean(String(item.telegram || item.telegramUser || '').trim());
+  }
+
+  function normalizarTexto(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+  }
+
+  function obtenerMensaje(error, fallback) {
+    return error && error.message ? error.message : fallback;
+  }
+
+  window.TAAdminEstudiantes = Object.freeze({
+    iniciar: iniciar,
+    cargar: cargar,
+    aplicarFiltros: aplicarFiltros
+  });
 })();

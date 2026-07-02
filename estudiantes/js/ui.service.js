@@ -1,6 +1,17 @@
-/* Servicio de interfaz para estudiantes. */
+/*
+  Archivo: ui.service.js
+  Ruta: estudiantes/js/ui.service.js
+  Funciones del archivo:
+  - Centralizar utilidades visuales simples del módulo estudiantes.
+  - Leer y escribir valores de campos.
+  - Mostrar/ocultar pasos, mensajes y secciones.
+  - Renderizar datos del estudiante, resumen y comprobante.
+  - Delegar alertas y modales al modal.service.js cuando esté disponible.
+*/
 (function () {
   'use strict';
+
+  var alertaCallback = null;
 
   function qs(selector, root) {
     return (root || document).querySelector(selector);
@@ -12,117 +23,324 @@
 
   function setText(selector, value) {
     var element = qs(selector);
-    if (element) element.textContent = value || '—';
+
+    if (!element) {
+      return;
+    }
+
+    element.textContent = normalizarTexto(value) || '—';
   }
 
   function setValue(selector, value) {
     var element = qs(selector);
-    if (element) element.value = value || '';
+
+    if (!element) {
+      return;
+    }
+
+    element.value = value || '';
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function value(selector) {
+    var element = qs(selector);
+    return element ? normalizarTexto(element.value) : '';
   }
 
   function show(elementOrSelector) {
-    var element = typeof elementOrSelector === 'string' ? qs(elementOrSelector) : elementOrSelector;
-    if (element) element.classList.remove('is-hidden');
+    var element = resolverElemento(elementOrSelector);
+
+    if (!element) {
+      return;
+    }
+
+    element.classList.remove('is-hidden');
+    element.removeAttribute('aria-hidden');
   }
 
   function hide(elementOrSelector) {
-    var element = typeof elementOrSelector === 'string' ? qs(elementOrSelector) : elementOrSelector;
-    if (element) element.classList.add('is-hidden');
+    var element = resolverElemento(elementOrSelector);
+
+    if (!element) {
+      return;
+    }
+
+    element.classList.add('is-hidden');
+    element.setAttribute('aria-hidden', 'true');
+  }
+
+  function resolverElemento(elementOrSelector) {
+    if (!elementOrSelector) {
+      return null;
+    }
+
+    if (typeof elementOrSelector === 'string') {
+      return qs(elementOrSelector);
+    }
+
+    return elementOrSelector;
   }
 
   function showStatus(selector, message, type) {
     var element = qs(selector);
-    if (!element) return;
 
-    element.classList.remove('is-info', 'is-success', 'is-warning', 'is-error');
-    if (type) element.classList.add('is-' + type);
-    element.textContent = message || '';
-  }
-
-  function setLoading(button, isLoading, loadingText) {
-    if (!button) return;
-
-    if (isLoading) {
-      if (!button.dataset.originalText) button.dataset.originalText = button.textContent;
-      button.textContent = loadingText || 'Cargando...';
-      button.disabled = true;
+    if (!element) {
       return;
     }
 
-    button.disabled = false;
-    if (button.dataset.originalText) {
-      button.textContent = button.dataset.originalText;
-      delete button.dataset.originalText;
+    element.textContent = message || '';
+    element.className = 'status-message';
+
+    if (type) {
+      element.classList.add('status-message--' + type);
     }
   }
 
-  function setButtonsDisabled(selectors, disabled) {
-    selectors.forEach(function (selector) {
-      var button = qs(selector);
-      if (button) button.disabled = Boolean(disabled);
+  function setLoading(button, loading, text) {
+    if (!button) {
+      return;
+    }
+
+    if (loading) {
+      button.dataset.originalText = button.dataset.originalText || button.textContent;
+      button.textContent = text || 'Procesando...';
+      button.disabled = true;
+      button.classList.add('is-loading');
+      return;
+    }
+
+    button.textContent = button.dataset.originalText || text || button.textContent;
+    button.disabled = false;
+    button.classList.remove('is-loading');
+  }
+
+  function clearFieldErrors() {
+    qsa('.field.has-error').forEach(function (field) {
+      field.classList.remove('has-error');
     });
   }
 
-  function setFormDisabled(formSelector, disabled) {
-    var form = qs(formSelector);
-    if (!form) return;
+  function markFieldError(selector) {
+    var element = qs(selector);
 
-    qsa('input, textarea, button, select', form).forEach(function (element) {
+    if (!element) {
+      return;
+    }
+
+    var field = element.closest ? element.closest('.field') : null;
+
+    if (field) {
+      field.classList.add('has-error');
+    }
+  }
+
+  function focusField(selector) {
+    var element = qs(selector);
+
+    if (!element) {
+      return;
+    }
+
+    window.setTimeout(function () {
+      if (element.scrollIntoView) {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+
+      element.focus();
+    }, 80);
+  }
+
+  function showAlert(message, selector, title) {
+    var modalService = window.TAEstudianteModal;
+
+    alertaCallback = function () {
+      if (!selector) {
+        return;
+      }
+
+      clearFieldErrors();
+      markFieldError(selector);
+      focusField(selector);
+    };
+
+    if (modalService && modalService.mostrarAlerta) {
+      modalService.mostrarAlerta(message || 'Revisa la información ingresada.', {
+        titulo: title || 'Revisa la información',
+        onCerrar: function () {
+          ejecutarAlertaCallback();
+        }
+      });
+
+      return;
+    }
+
+    mostrarAlertaLocal(message, selector, title);
+  }
+
+  function mostrarAlertaLocal(message, selector, title) {
+    var modal = qs('#modalAlerta');
+    var titleElement = qs('#tituloModalAlerta');
+    var messageElement = qs('#mensajeModalAlerta');
+
+    if (!modal || !messageElement) {
+      window.alert(message || 'Revisa la información.');
+
+      if (selector) {
+        focusField(selector);
+      }
+
+      return;
+    }
+
+    if (titleElement) {
+      titleElement.textContent = title || 'Revisa la información';
+    }
+
+    messageElement.textContent = message || 'Revisa la información ingresada.';
+    openModalBySelector('#modalAlerta');
+  }
+
+  function closeAlert() {
+    closeModalBySelector('#modalAlerta');
+    ejecutarAlertaCallback();
+  }
+
+  function ejecutarAlertaCallback() {
+    var callback = alertaCallback;
+    alertaCallback = null;
+
+    if (typeof callback === 'function') {
+      callback();
+    }
+  }
+
+  function openAdviceModal(onEntendido) {
+    var modalService = window.TAEstudianteModal;
+
+    if (modalService && modalService.abrirRecomendaciones) {
+      modalService.abrirRecomendaciones(onEntendido);
+      return;
+    }
+
+    openModalBySelector('#modalRecomendaciones');
+  }
+
+  function closeAdviceModal() {
+    var modalService = window.TAEstudianteModal;
+
+    if (modalService && modalService.cerrar) {
+      modalService.cerrar('#modalRecomendaciones');
+      return;
+    }
+
+    closeModalBySelector('#modalRecomendaciones');
+  }
+
+  function openModal() {
+    var modalService = window.TAEstudianteModal;
+
+    if (modalService && modalService.abrir) {
+      modalService.abrir('#modalResumen');
+      return;
+    }
+
+    openModalBySelector('#modalResumen');
+  }
+
+  function closeModal() {
+    var modalService = window.TAEstudianteModal;
+
+    if (modalService && modalService.cerrar) {
+      modalService.cerrar('#modalResumen');
+      return;
+    }
+
+    closeModalBySelector('#modalResumen');
+  }
+
+  function openModalBySelector(selector) {
+    var modal = qs(selector);
+
+    if (!modal) {
+      return;
+    }
+
+    modal.classList.remove('is-hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('has-open-modal');
+  }
+
+  function closeModalBySelector(selector) {
+    var modal = qs(selector);
+
+    if (!modal) {
+      return;
+    }
+
+    modal.classList.add('is-hidden');
+    modal.setAttribute('aria-hidden', 'true');
+
+    if (!hayModalAbierto()) {
+      document.body.classList.remove('has-open-modal');
+    }
+  }
+
+  function hayModalAbierto() {
+    return qsa('.modal').some(function (modal) {
+      return !modal.classList.contains('is-hidden');
+    });
+  }
+
+  function setFormDisabled(selector, disabled) {
+    var container = qs(selector);
+
+    if (!container) {
+      return;
+    }
+
+    qsa('input, textarea, select, button', container).forEach(function (element) {
       element.disabled = Boolean(disabled);
     });
-
-    form.classList.toggle('is-locked', Boolean(disabled));
   }
 
   function renderStudent(student) {
-    setText('#datoCedula', student.cedula);
-    setText('#datoNombres', student.nombres);
-    setText('#datoCarrera', student.carrera || student.nombreCarrera);
-    setText('#datoPeriodo', student.periodoId);
-    show('#seccionEstudiante');
-    show('#formPropuestas');
-    hide('#comprobanteFinal');
-  }
+    student = student || {};
 
-  function readProposal(numero) {
-    return {
-      numero: numero,
-      temaGeneral: value('#p' + numero + 'Tema'),
-      problemaNecesidad: value('#p' + numero + 'Problema'),
-      lugarContexto: value('#p' + numero + 'Contexto'),
-      grupoEstudio: value('#p' + numero + 'Grupo'),
-      anioPeriodo: value('#p' + numero + 'Periodo'),
-      objetivo: value('#p' + numero + 'Objetivo'),
-      tituloFinal: value('#p' + numero + 'Titulo')
-    };
-  }
+    var periodoTexto = student.periodoLabel ||
+      student.periodo ||
+      student.periodoId ||
+      student.ultimoPeriodoId ||
+      '';
 
-  function readFormData(totalPropuestas) {
-    var propuestas = [];
-    var total = totalPropuestas || 3;
-
-    for (var i = 1; i <= total; i += 1) {
-      propuestas.push(readProposal(i));
+    if (window.TAEstudiantePeriodo && window.TAEstudiantePeriodo.obtenerEtiquetaPeriodo) {
+      periodoTexto = window.TAEstudiantePeriodo.obtenerEtiquetaPeriodo(student) || periodoTexto;
     }
 
-    return {
-      telegram: value('#telegramInput'),
-      celular: value('#celularInput'),
-      tituloPreferidoNumero: Number((qs('input[name="tituloPreferido"]:checked') || {}).value || 1),
-      propuestas: propuestas
-    };
+    setText('#datoCedula', student.cedula || student.numeroIdentificacion || student.identificacion || '');
+    setText('#datoNombres', student.nombres || student.estudiante || student.nombre || '');
+    setText('#datoCarrera', student.carrera || student.nombreCarrera || '');
+    setText('#datoPeriodo', periodoTexto || '—');
   }
 
   function fillFormData(formData) {
-    if (!formData) return;
+    formData = formData || {};
 
-    setValue('#telegramInput', formData.telegram || '');
-    setValue('#celularInput', formData.celular || '');
+    if (typeof formData.telegram !== 'undefined') {
+      setValue('#telegramInput', formData.telegram || '');
+    }
 
     if (Array.isArray(formData.propuestas)) {
       formData.propuestas.forEach(function (propuesta) {
-        var numero = Number(propuesta.numero);
-        if (!numero) return;
+        var numero = Number(propuesta.numero || 0);
+
+        if (!numero) {
+          return;
+        }
+
         setValue('#p' + numero + 'Tema', propuesta.temaGeneral || '');
         setValue('#p' + numero + 'Problema', propuesta.problemaNecesidad || '');
         setValue('#p' + numero + 'Contexto', propuesta.lugarContexto || '');
@@ -133,166 +351,169 @@
       });
     }
 
-    marcarTituloPreferido(formData.tituloPreferidoNumero || 1);
+    if (formData.tituloPreferidoNumero) {
+      var radio = qs('input[name="tituloPreferido"][value="' + formData.tituloPreferidoNumero + '"]');
+
+      if (radio) {
+        radio.checked = true;
+      }
+    }
   }
 
-  function marcarTituloPreferido(numero) {
-    var radio = qs('input[name="tituloPreferido"][value="' + Number(numero || 1) + '"]');
-    if (radio) radio.checked = true;
-  }
+  function readFormData(totalPropuestas) {
+    var total = Number(totalPropuestas || 3);
+    var telegram = value('#telegramInput');
 
-  function value(selector) {
-    var element = qs(selector);
-    return element ? String(element.value || '').trim() : '';
+    if (window.TAEstudianteTelegram && window.TAEstudianteTelegram.normalizarUsuario) {
+      telegram = window.TAEstudianteTelegram.normalizarUsuario(telegram);
+    }
+
+    var propuestas = [];
+
+    for (var i = 1; i <= total; i += 1) {
+      propuestas.push({
+        numero: i,
+        temaGeneral: value('#p' + i + 'Tema'),
+        problemaNecesidad: value('#p' + i + 'Problema'),
+        lugarContexto: value('#p' + i + 'Contexto'),
+        grupoEstudio: value('#p' + i + 'Grupo'),
+        anioPeriodo: value('#p' + i + 'Periodo'),
+        objetivo: value('#p' + i + 'Objetivo'),
+        tituloFinal: value('#p' + i + 'Titulo')
+      });
+    }
+
+    var preferido = qs('input[name="tituloPreferido"]:checked');
+
+    return {
+      telegram: telegram,
+      tituloPreferidoNumero: preferido ? Number(preferido.value) : 0,
+      propuestas: propuestas
+    };
   }
 
   function renderSuggestions(numero, sugerencias) {
-    var container = qs('#sugerencias' + numero);
-    if (!container) return;
-
-    container.innerHTML = '';
-    sugerencias.forEach(function (titulo, index) {
-      var item = document.createElement('div');
-      item.className = 'suggestion-item';
-
-      var label = document.createElement('strong');
-      label.textContent = 'Sugerencia ' + (index + 1);
-
-      var text = document.createElement('p');
-      text.textContent = titulo;
-
-      var button = document.createElement('button');
-      button.className = 'btn btn--secondary';
-      button.type = 'button';
-      button.textContent = 'Usar este título';
-      button.addEventListener('click', function () {
-        setValue('#p' + numero + 'Titulo', titulo);
-        showStatus('#envioMensaje', 'Título copiado en la propuesta ' + numero + '.', 'success');
+    if (window.TAEstudianteSugerencias && window.TAEstudianteSugerencias.renderizar) {
+      window.TAEstudianteSugerencias.renderizar(numero, sugerencias, {
+        autoseleccionar: false
       });
-
-      item.appendChild(label);
-      item.appendChild(text);
-      item.appendChild(button);
-      container.appendChild(item);
-    });
+    }
   }
 
   function clearSuggestions() {
-    qsa('.suggestions').forEach(function (container) {
-      container.innerHTML = '';
-    });
+    if (window.TAEstudianteSugerencias && window.TAEstudianteSugerencias.limpiarTodo) {
+      window.TAEstudianteSugerencias.limpiarTodo();
+      return;
+    }
+
+    if (window.TAEstudianteSugerencias && window.TAEstudianteSugerencias.limpiar) {
+      window.TAEstudianteSugerencias.limpiar();
+    }
   }
 
-  function renderSummary(estudiante, formData, payload) {
-    var container = qs('#resumenContenido');
-    if (!container) return;
+  function renderResumenTitulos(formData) {
+    var container = qs('#resumenEnvio');
 
-    var html = '';
-    html += '<div class="summary-alert">';
-    html += '<strong>Revisa antes de confirmar.</strong> Al confirmar se registrará tu envío oficialmente.';
-    html += '</div>';
-
-    html += '<div class="summary-block">';
-    html += '<h3>Estudiante</h3>';
-    html += '<p><strong>Cédula:</strong> ' + escapeHtml(estudiante.cedula) + '</p>';
-    html += '<p><strong>Nombres:</strong> ' + escapeHtml(estudiante.nombres) + '</p>';
-    html += '<p><strong>Carrera:</strong> ' + escapeHtml(estudiante.carrera || estudiante.nombreCarrera) + '</p>';
-    html += '<p><strong>Período:</strong> ' + escapeHtml(estudiante.periodoId) + '</p>';
-    if (payload) {
-      html += '<p><strong>Intento:</strong> ' + escapeHtml(payload.intentosUsados) + ' de ' + escapeHtml(payload.maxIntentos) + '</p>';
+    if (!container) {
+      return;
     }
-    html += '</div>';
 
-    formData.propuestas.forEach(function (propuesta) {
-      var preferido = Number(propuesta.numero) === Number(formData.tituloPreferidoNumero) ? 'Sí' : 'No';
-      html += '<div class="summary-block">';
-      html += '<h3>Propuesta ' + propuesta.numero + '</h3>';
-      html += '<p><strong>Título final:</strong> ' + escapeHtml(propuesta.tituloFinal) + '</p>';
-      html += '<p><strong>Tema:</strong> ' + escapeHtml(propuesta.temaGeneral) + '</p>';
-      html += '<p><strong>Problema:</strong> ' + escapeHtml(propuesta.problemaNecesidad) + '</p>';
-      html += '<p><strong>Contexto:</strong> ' + escapeHtml(propuesta.lugarContexto) + '</p>';
-      html += '<p><strong>Preferido:</strong> ' + preferido + '</p>';
-      html += '</div>';
-    });
+    formData = formData || {};
 
-    container.innerHTML = html;
+    var propuestas = Array.isArray(formData.propuestas) ? formData.propuestas : [];
+    var preferidoActual = Number(formData.tituloPreferidoNumero || 1);
+
+    container.innerHTML = propuestas.map(function (propuesta) {
+      var numero = Number(propuesta.numero || 0);
+      var checked = numero === preferidoActual || (!preferidoActual && numero === 1);
+
+      return [
+        '<label class="summary-title-option">',
+        '<input type="radio" name="tituloPreferido" value="' + numero + '"' + (checked ? ' checked' : '') + ' />',
+        '<span>',
+        '<strong>Propuesta ' + numero + '</strong>',
+        '<em>' + escapeHtml(propuesta.tituloFinal || 'Sin título final') + '</em>',
+        '</span>',
+        '</label>'
+      ].join('');
+    }).join('');
+  }
+
+  function renderSummary(student, formData, payload) {
+    var resumen = qs('#resumenTitulo');
+    var modal = qs('#modalConsulta');
+
+    student = student || {};
+    formData = formData || {};
+    payload = payload || {};
+
+    var propuestas = Array.isArray(formData.propuestas) ? formData.propuestas : [];
+    var preferidoNumero = Number(formData.tituloPreferidoNumero || payload.tituloPreferidoNumero || 0);
+    var preferida = buscarPropuesta(propuestas, preferidoNumero);
+
+    var html = [
+      '<div class="summary-block">',
+      '<h3>Datos del estudiante</h3>',
+      '<p><strong>Cédula:</strong> ' + escapeHtml(student.cedula || payload.cedula || '') + '</p>',
+      '<p><strong>Estudiante:</strong> ' + escapeHtml(student.nombres || payload.nombres || payload.estudiante || '') + '</p>',
+      '<p><strong>Carrera:</strong> ' + escapeHtml(student.carrera || payload.carrera || '') + '</p>',
+      '</div>',
+      '<div class="summary-block summary-block--highlight">',
+      '<h3>Título preferido</h3>',
+      '<p>' + escapeHtml(preferida ? preferida.tituloFinal : '') + '</p>',
+      '</div>',
+      '<div class="summary-block">',
+      '<h3>Propuestas registradas</h3>',
+      propuestas.map(function (propuesta) {
+        return '<p><strong>Propuesta ' + propuesta.numero + ':</strong> ' + escapeHtml(propuesta.tituloFinal || '') + '</p>';
+      }).join(''),
+      '</div>'
+    ].join('');
+
+    if (resumen) {
+      resumen.innerHTML = html;
+    }
+
+    if (modal) {
+      modal.innerHTML = html;
+    }
   }
 
   function renderComprobante(resultadoFinal) {
-    var section = qs('#comprobanteFinal');
-    var container = qs('#comprobanteContenido');
-    var code = qs('#codigoRegistroTexto');
-    if (!section || !container || !resultadoFinal) return;
+    resultadoFinal = resultadoFinal || {};
 
-    var id = resultadoFinal.id || '—';
-    var firebaseData = resultadoFinal.firebase && resultadoFinal.firebase.data ? resultadoFinal.firebase.data : {};
-    var sheets = resultadoFinal.sheets || {};
+    var firebase = resultadoFinal.firebase || {};
+    var payload = firebase.payload || firebase.data || resultadoFinal.payload || {};
+    var id = resultadoFinal.id || firebase.id || payload.id || payload.idRegistro || '—';
 
-    if (code) code.textContent = id;
+    setText('#codigoRegistroTexto', id);
+    setText('#reciboEstudiante', payload.nombres || payload.estudiante || '');
+    setText('#reciboCedula', payload.cedula || '');
+    setText('#reciboCarrera', payload.carrera || payload.nombreCarrera || '');
+    setText('#reciboTituloPreferido', payload.tituloPreferidoTexto || payload.tituloElegido || '');
 
-    var sheetsText = sheets.ok
-      ? 'Respaldado en Google Sheets'
-      : sheets.omitido
-        ? 'Respaldo Sheets no configurado'
-        : 'Respaldo Sheets pendiente';
-
-    container.innerHTML = '';
-    container.appendChild(receiptItem('Código de registro', id));
-    container.appendChild(receiptItem('Estudiante', firebaseData.nombres || '—'));
-    container.appendChild(receiptItem('Cédula', firebaseData.cedula || '—'));
-    container.appendChild(receiptItem('Carrera', firebaseData.carrera || firebaseData.nombreCarrera || '—'));
-    container.appendChild(receiptItem('Período', firebaseData.periodoId || '—'));
-    container.appendChild(receiptItem('Estado', firebaseData.estado || 'ENVIADO'));
-    container.appendChild(receiptItem('Título preferido', 'Propuesta ' + (firebaseData.tituloPreferidoNumero || '—')));
-    container.appendChild(receiptItem('Google Sheets', sheetsText));
-
-    show(section);
-    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    hide('#wizardSteps');
+    hide('#formPropuestas');
+    hide('#seccionEstudiante');
+    hide('#pasoConsulta');
+    hide('#pasoEnvio');
+    show('#comprobanteFinal');
   }
 
-  function receiptItem(label, valueToShow) {
-    var item = document.createElement('div');
-    item.className = 'receipt-item';
+  function buscarPropuesta(propuestas, numero) {
+    propuestas = Array.isArray(propuestas) ? propuestas : [];
 
-    var span = document.createElement('span');
-    span.textContent = label;
+    for (var i = 0; i < propuestas.length; i += 1) {
+      if (Number(propuestas[i].numero) === Number(numero)) {
+        return propuestas[i];
+      }
+    }
 
-    var strong = document.createElement('strong');
-    strong.textContent = valueToShow || '—';
-
-    item.appendChild(span);
-    item.appendChild(strong);
-    return item;
+    return null;
   }
 
-  function openModal() {
-    show('#modalResumen');
-  }
-
-  function closeModal() {
-    hide('#modalResumen');
-  }
-
-  function clearFieldErrors() {
-    qsa('.is-invalid').forEach(function (element) {
-      element.classList.remove('is-invalid');
-      element.removeAttribute('aria-invalid');
-    });
-  }
-
-  function markFieldError(selector) {
-    clearFieldErrors();
-    var element = qs(selector);
-    if (!element) return;
-
-    element.classList.add('is-invalid');
-    element.setAttribute('aria-invalid', 'true');
-    element.focus();
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-
-  function escapeHtml(valueToEscape) {
-    return String(valueToEscape || '')
+  function escapeHtml(value) {
+    return String(value || '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -300,30 +521,39 @@
       .replace(/'/g, '&#039;');
   }
 
+  function normalizarTexto(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
   window.TAEstudianteUI = Object.freeze({
     qs: qs,
     qsa: qsa,
-    show: show,
-    hide: hide,
-    value: value,
     setText: setText,
     setValue: setValue,
+    value: value,
+    show: show,
+    hide: hide,
     showStatus: showStatus,
     setLoading: setLoading,
-    setButtonsDisabled: setButtonsDisabled,
-    setFormDisabled: setFormDisabled,
-    renderStudent: renderStudent,
-    readFormData: readFormData,
-    fillFormData: fillFormData,
-    marcarTituloPreferido: marcarTituloPreferido,
-    renderSuggestions: renderSuggestions,
-    clearSuggestions: clearSuggestions,
-    renderSummary: renderSummary,
-    renderComprobante: renderComprobante,
-    openModal: openModal,
-    closeModal: closeModal,
     clearFieldErrors: clearFieldErrors,
     markFieldError: markFieldError,
-    escapeHtml: escapeHtml
+    focusField: focusField,
+    showAlert: showAlert,
+    closeAlert: closeAlert,
+    openAdviceModal: openAdviceModal,
+    closeAdviceModal: closeAdviceModal,
+    openModal: openModal,
+    closeModal: closeModal,
+    setFormDisabled: setFormDisabled,
+    renderStudent: renderStudent,
+    fillFormData: fillFormData,
+    readFormData: readFormData,
+    renderSuggestions: renderSuggestions,
+    clearSuggestions: clearSuggestions,
+    renderResumenTitulos: renderResumenTitulos,
+    renderSummary: renderSummary,
+    renderComprobante: renderComprobante,
+    escapeHtml: escapeHtml,
+    normalizarTexto: normalizarTexto
   });
 })();

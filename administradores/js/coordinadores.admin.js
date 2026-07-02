@@ -1,280 +1,274 @@
-/* Pantalla administrativa para gestión de coordinadores. */
+/* Pantalla Coordinadores del administrador. */
 (function () {
   'use strict';
 
-  var repository = window.TAAdminRepository;
-  var firebaseService = window.TAAdminFirebaseService;
+  var repository = window.TAAdministradorRepository;
+  var ui = window.TAAdminUI;
+  var config = window.TA_ADMINISTRADORES_CONFIG;
 
   var estado = {
-    coordinadores: []
+    coordinadores: [],
+    carreras: []
   };
-
-  document.addEventListener('DOMContentLoaded', iniciar);
 
   function iniciar() {
     conectarEventos();
   }
 
   function conectarEventos() {
-    var form = qs('#formCoordinador');
-    var btnCargar = qs('#btnCargarCoordinadores');
-    var btnLimpiar = qs('#btnLimpiarCoordinador');
-    var lista = qs('#coordinadoresLista');
+    var btnActualizar = ui.qs('#btnActualizarCoordinadores');
+    var formCrear = ui.qs('#formCrearCoordinador');
+    var formEliminar = ui.qs('#formEliminarCoordinador');
 
-    if (form) form.addEventListener('submit', guardarCoordinador);
-    if (btnCargar) btnCargar.addEventListener('click', cargarCoordinadores);
-    if (btnLimpiar) btnLimpiar.addEventListener('click', limpiarFormulario);
-    if (lista) lista.addEventListener('click', manejarAccionCoordinador);
+    if (btnActualizar) {
+      btnActualizar.addEventListener('click', cargar);
+    }
+
+    if (formCrear) {
+      formCrear.addEventListener('submit', manejarCrearCoordinador);
+    }
+
+    if (formEliminar) {
+      formEliminar.addEventListener('submit', manejarEliminarCoordinador);
+    }
   }
 
-  function cargarCoordinadores() {
-    if (!firebaseListo()) return;
+  function cargar() {
+    ui.showStatus('#coordinadoresMensaje', config.textos.cargando, 'info');
 
-    setLoading('#btnCargarCoordinadores', true, 'Cargando...');
-    showStatus('#coordinadoresMensaje', 'Cargando coordinadores...', 'info');
+    return Promise.all([
+      repository.listarCoordinadores(),
+      repository.obtenerCarreras()
+    ]).then(function (resultados) {
+      estado.coordinadores = resultados[0] || [];
+      estado.carreras = resultados[1] || [];
 
-    repository.listarCoordinadores()
-      .then(function (coordinadores) {
-        estado.coordinadores = coordinadores;
-        renderCoordinadores(coordinadores);
-        showStatus('#coordinadoresMensaje', 'Coordinadores cargados: ' + coordinadores.length + '.', 'success');
-      })
-      .catch(function (error) {
-        showStatus('#coordinadoresMensaje', 'No se pudieron cargar coordinadores: ' + obtenerMensajeError(error), 'error');
-      })
-      .finally(function () {
-        setLoading('#btnCargarCoordinadores', false);
-      });
+      llenarSelectEliminar();
+      renderCarreras();
+
+      ui.showStatus('#coordinadoresMensaje', 'Coordinadores actualizados correctamente.', 'success');
+    }).catch(function (error) {
+      ui.showStatus('#coordinadoresMensaje', obtenerMensaje(error, 'No se pudieron cargar los coordinadores.'), 'error');
+    });
   }
 
-  function guardarCoordinador(event) {
+  function manejarCrearCoordinador(event) {
     event.preventDefault();
-    if (!firebaseListo()) return;
 
-    var data = leerFormulario();
-    var validacion = validarCoordinador(data);
-    if (!validacion.ok) {
-      showStatus('#coordinadoresMensaje', validacion.mensaje, 'error');
+    var button = ui.qs('#btnCrearCoordinador');
+    var nombre = ui.value('#coordNombreInput');
+
+    if (!nombre) {
+      ui.showStatus('#coordinadoresMensaje', 'Ingresa el nombre del coordinador.', 'error');
       return;
     }
 
-    setLoading('#btnGuardarCoordinador', true, 'Guardando...');
-    showStatus('#coordinadoresMensaje', 'Guardando coordinador...', 'info');
+    ui.setLoading(button, true, 'Creando...');
+    ui.showStatus('#coordinadoresMensaje', 'Creando coordinador...', 'info');
 
-    repository.guardarCoordinador(data)
+    repository.crearCoordinador(nombre)
       .then(function () {
-        showStatus('#coordinadoresMensaje', 'Coordinador guardado correctamente.', 'success');
-        limpiarFormulario();
-        cargarCoordinadores();
+        ui.setValue('#coordNombreInput', '');
+        ui.showStatus('#coordinadoresMensaje', 'Coordinador creado correctamente.', 'success');
+        return cargar();
       })
       .catch(function (error) {
-        showStatus('#coordinadoresMensaje', 'No se pudo guardar coordinador: ' + obtenerMensajeError(error), 'error');
+        ui.showStatus('#coordinadoresMensaje', obtenerMensaje(error, 'No se pudo crear el coordinador.'), 'error');
       })
       .finally(function () {
-        setLoading('#btnGuardarCoordinador', false);
+        ui.setLoading(button, false);
       });
   }
 
-  function manejarAccionCoordinador(event) {
-    var button = event.target.closest('button[data-action]');
-    if (!button) return;
+  function manejarEliminarCoordinador(event) {
+    event.preventDefault();
 
-    var action = button.dataset.action;
-    var id = button.dataset.id;
+    var coordinadorId = ui.value('#coordEliminarSelect');
 
-    if (action === 'editar') editarCoordinador(id);
-    if (action === 'eliminar') eliminarCoordinador(id, button);
-  }
-
-  function editarCoordinador(id) {
-    var coordinador = buscarCoordinador(id);
-    if (!coordinador) {
-      showStatus('#coordinadoresMensaje', 'No se encontró el coordinador seleccionado.', 'error');
+    if (!coordinadorId) {
+      ui.showStatus('#coordinadoresMensaje', 'Selecciona un coordinador para eliminar.', 'error');
       return;
     }
 
-    pintarFormulario(coordinador);
-    showStatus('#coordinadoresMensaje', 'Coordinador cargado para edición.', 'info');
-    qs('#coordEmailInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    var coordinador = buscarCoordinador(coordinadorId);
+
+    ui.confirmar({
+      titulo: 'Eliminar coordinador',
+      mensaje: 'Se desactivará el coordinador "' + (coordinador ? coordinador.nombre : coordinadorId) + '" y se retirarán sus carreras asignadas. ¿Deseas continuar?',
+      onConfirm: function () {
+        eliminarCoordinadorConfirmado(coordinadorId);
+      }
+    });
   }
 
-  function eliminarCoordinador(id, button) {
-    if (!firebaseListo()) return;
-    if (!confirm('¿Eliminar este coordinador? Esta acción no elimina títulos ni estudiantes.')) return;
+  function eliminarCoordinadorConfirmado(coordinadorId) {
+    var button = ui.qs('#btnEliminarCoordinador');
 
-    setLoadingElement(button, true, 'Eliminando...');
-    showStatus('#coordinadoresMensaje', 'Eliminando coordinador...', 'info');
+    ui.setLoading(button, true, 'Eliminando...');
+    ui.showStatus('#coordinadoresMensaje', 'Actualizando coordinador...', 'info');
 
-    repository.eliminarCoordinador(id)
+    repository.eliminarCoordinador(coordinadorId)
       .then(function () {
-        showStatus('#coordinadoresMensaje', 'Coordinador eliminado correctamente.', 'success');
-        cargarCoordinadores();
+        ui.showStatus('#coordinadoresMensaje', 'Coordinador eliminado correctamente.', 'success');
+        return cargar();
       })
       .catch(function (error) {
-        showStatus('#coordinadoresMensaje', 'No se pudo eliminar coordinador: ' + obtenerMensajeError(error), 'error');
+        ui.showStatus('#coordinadoresMensaje', obtenerMensaje(error, 'No se pudo eliminar el coordinador.'), 'error');
       })
       .finally(function () {
-        setLoadingElement(button, false);
+        ui.setLoading(button, false);
       });
   }
 
-  function renderCoordinadores(coordinadores) {
-    var container = qs('#coordinadoresLista');
-    if (!container) return;
+  function llenarSelectEliminar() {
+    var activos = estado.coordinadores.filter(function (coordinador) {
+      return coordinador.activo;
+    });
 
-    container.innerHTML = '';
+    ui.llenarSelect('#coordEliminarSelect', activos.map(function (coordinador) {
+      return {
+        value: coordinador.id,
+        label: coordinador.nombre
+      };
+    }), {
+      placeholderText: 'Selecciona un coordinador'
+    });
+  }
 
-    if (!coordinadores.length) {
-      var empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.textContent = 'Todavía no hay coordinadores creados.';
-      container.appendChild(empty);
+  function renderCarreras() {
+    var body = ui.qs('#coordinadoresCarrerasBody');
+
+    if (!body) return;
+
+    body.innerHTML = '';
+
+    if (!estado.carreras.length) {
+      ui.limpiarTabla('#coordinadoresCarrerasBody', 4, 'No se encontraron carreras.');
       return;
     }
 
-    var tableWrap = document.createElement('div');
-    tableWrap.className = 'table-wrap';
-
-    var table = document.createElement('table');
-    table.className = 'data-table';
-    table.innerHTML = '<thead><tr><th>Nombre</th><th>Email</th><th>Carreras</th><th>Estado</th><th>Acciones</th></tr></thead>';
-
-    var tbody = document.createElement('tbody');
-    coordinadores.forEach(function (coordinador) {
+    estado.carreras.forEach(function (carrera) {
+      var nombreCarrera = carrera.nombreCarrera;
+      var asignado = buscarCoordinadorPorCarrera(nombreCarrera);
       var tr = document.createElement('tr');
-      tr.appendChild(td(coordinador.nombres));
-      tr.appendChild(td(coordinador.email));
-      tr.appendChild(td((coordinador.carreras || []).join(', ')));
-      tr.appendChild(td(coordinador.activo ? 'ACTIVO' : 'INACTIVO'));
 
-      var actions = document.createElement('td');
-      var edit = document.createElement('button');
-      edit.type = 'button';
-      edit.className = 'btn btn--ghost';
-      edit.textContent = 'Editar';
-      edit.dataset.action = 'editar';
-      edit.dataset.id = coordinador.id;
+      tr.innerHTML =
+        '<td><strong>' + ui.escapeHtml(nombreCarrera) + '</strong></td>' +
+        '<td></td>' +
+        '<td></td>' +
+        '<td class="text-right"></td>';
 
-      var remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'btn btn--danger';
-      remove.textContent = 'Eliminar';
-      remove.dataset.action = 'eliminar';
-      remove.dataset.id = coordinador.id;
+      var selectCell = tr.children[1];
+      var estadoCell = tr.children[2];
+      var actionCell = tr.children[3];
 
-      var group = document.createElement('div');
-      group.className = 'table-actions';
-      group.appendChild(edit);
-      group.appendChild(remove);
-      actions.appendChild(group);
-      tr.appendChild(actions);
+      var select = crearSelectCoordinadores(asignado ? asignado.id : '');
+      var button = document.createElement('button');
 
-      tbody.appendChild(tr);
-    });
+      button.type = 'button';
+      button.className = 'btn btn--small btn--primary';
+      button.textContent = 'Guardar';
+      button.addEventListener('click', function () {
+        asignarCarrera(nombreCarrera, select.value, button);
+      });
 
-    table.appendChild(tbody);
-    tableWrap.appendChild(table);
-    container.appendChild(tableWrap);
-  }
+      if (asignado) {
+        estadoCell.appendChild(ui.crearBadge('Asignado', 'success'));
+      } else {
+        estadoCell.appendChild(ui.crearBadge('Sin coordinador', 'warning'));
+      }
 
-  function leerFormulario() {
-    return {
-      email: value('#coordEmailInput'),
-      nombres: value('#coordNombresInput'),
-      carreras: value('#coordCarrerasInput'),
-      activo: value('#coordActivoInput'),
-      observacion: value('#coordObservacionInput')
-    };
-  }
-
-  function pintarFormulario(coordinador) {
-    setValue('#coordEmailInput', coordinador.email || '');
-    setValue('#coordNombresInput', coordinador.nombres || '');
-    setValue('#coordCarrerasInput', Array.isArray(coordinador.carreras) ? coordinador.carreras.join(', ') : '');
-    setValue('#coordActivoInput', String(Boolean(coordinador.activo)));
-    setValue('#coordObservacionInput', coordinador.observacion || '');
-  }
-
-  function limpiarFormulario() {
-    pintarFormulario({
-      email: '',
-      nombres: '',
-      carreras: [],
-      activo: true,
-      observacion: ''
+      selectCell.appendChild(select);
+      actionCell.appendChild(button);
+      body.appendChild(tr);
     });
   }
 
-  function validarCoordinador(data) {
-    if (!data.email) return { ok: false, mensaje: 'Ingresa el correo del coordinador.' };
-    if (data.email.indexOf('@') === -1) return { ok: false, mensaje: 'Ingresa un correo válido.' };
-    if (!data.nombres) return { ok: false, mensaje: 'Ingresa los nombres del coordinador.' };
-    if (!data.carreras) return { ok: false, mensaje: 'Ingresa al menos una carrera asignada.' };
-    return { ok: true, mensaje: '' };
+  function crearSelectCoordinadores(selectedId) {
+    var select = document.createElement('select');
+    var placeholder = document.createElement('option');
+
+    placeholder.value = '';
+    placeholder.textContent = 'Sin coordinador';
+    select.appendChild(placeholder);
+
+    estado.coordinadores.filter(function (coordinador) {
+      return coordinador.activo;
+    }).forEach(function (coordinador) {
+      var option = document.createElement('option');
+      option.value = coordinador.id;
+      option.textContent = coordinador.nombre;
+
+      if (selectedId && selectedId === coordinador.id) {
+        option.selected = true;
+      }
+
+      select.appendChild(option);
+    });
+
+    return select;
+  }
+
+  function asignarCarrera(nombreCarrera, coordinadorId, button) {
+    ui.setLoading(button, true, 'Guardando...');
+    ui.showStatus('#coordinadoresMensaje', 'Guardando asignación...', 'info');
+
+    repository.asignarCarreraACoordinador(nombreCarrera, coordinadorId)
+      .then(function () {
+        ui.showStatus('#coordinadoresMensaje', 'Carrera asignada correctamente.', 'success');
+        return cargar();
+      })
+      .catch(function (error) {
+        ui.showStatus('#coordinadoresMensaje', obtenerMensaje(error, 'No se pudo guardar la asignación.'), 'error');
+      })
+      .finally(function () {
+        ui.setLoading(button, false);
+      });
   }
 
   function buscarCoordinador(id) {
-    return estado.coordinadores.filter(function (coordinador) {
-      return coordinador.id === id;
-    })[0] || null;
-  }
-
-  function td(valueToShow) {
-    var cell = document.createElement('td');
-    cell.textContent = valueToShow || '—';
-    return cell;
-  }
-
-  function firebaseListo() {
-    if (firebaseService && firebaseService.estaListo && firebaseService.estaListo()) return true;
-    showStatus('#coordinadoresMensaje', 'Firebase no está conectado. Revisa la configuración del módulo administrador.', 'warning');
-    return false;
-  }
-
-  function qs(selector) {
-    return document.querySelector(selector);
-  }
-
-  function value(selector) {
-    var element = qs(selector);
-    return element ? String(element.value || '').trim() : '';
-  }
-
-  function setValue(selector, valueToSet) {
-    var element = qs(selector);
-    if (element) element.value = valueToSet == null ? '' : String(valueToSet);
-  }
-
-  function showStatus(selector, message, type) {
-    var element = qs(selector);
-    if (!element) return;
-    element.classList.remove('is-info', 'is-success', 'is-warning', 'is-error');
-    if (type) element.classList.add('is-' + type);
-    element.textContent = message || '';
-  }
-
-  function setLoading(selector, loading, text) {
-    setLoadingElement(qs(selector), loading, text);
-  }
-
-  function setLoadingElement(button, loading, text) {
-    if (!button) return;
-
-    if (loading) {
-      if (!button.dataset.originalText) button.dataset.originalText = button.textContent;
-      button.textContent = text || 'Cargando...';
-      button.disabled = true;
-      return;
+    for (var i = 0; i < estado.coordinadores.length; i += 1) {
+      if (estado.coordinadores[i].id === id) return estado.coordinadores[i];
     }
 
-    button.disabled = false;
-    if (button.dataset.originalText) {
-      button.textContent = button.dataset.originalText;
-      delete button.dataset.originalText;
-    }
+    return null;
   }
 
-  function obtenerMensajeError(error) {
-    return error && error.message ? error.message : String(error || 'Error desconocido');
+  function buscarCoordinadorPorCarrera(nombreCarrera) {
+    var carreraKey = normalizarTexto(nombreCarrera);
+
+    for (var i = 0; i < estado.coordinadores.length; i += 1) {
+      var coordinador = estado.coordinadores[i];
+      var carreras = coordinador.carreras || [];
+      var carrerasAsignadas = coordinador.carrerasAsignadas || [];
+
+      for (var j = 0; j < carreras.length; j += 1) {
+        if (normalizarTexto(carreras[j]) === carreraKey) return coordinador;
+      }
+
+      for (var k = 0; k < carrerasAsignadas.length; k += 1) {
+        if (normalizarTexto(carrerasAsignadas[k].nombreCarrera) === carreraKey) return coordinador;
+      }
+    }
+
+    return null;
   }
+
+  function normalizarTexto(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+  }
+
+  function obtenerMensaje(error, fallback) {
+    return error && error.message ? error.message : fallback;
+  }
+
+  window.TAAdminCoordinadores = Object.freeze({
+    iniciar: iniciar,
+    cargar: cargar
+  });
 })();
