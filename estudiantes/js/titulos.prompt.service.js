@@ -5,8 +5,9 @@
   - Construir prompts académicos estrictos para títulos de artículos científicos.
   - Generar prompts separados para diagnóstico, propuesta/mejora y evaluación/impacto.
   - Enviar títulos generados previamente para evitar repeticiones entre sugerencias.
+  - Construir prompts de corrección cuando una IA omite grupo, contexto, período o enfoque.
   - Extraer y limpiar títulos aunque la IA responda con texto adicional.
-  - Crear títulos de respaldo cuando la respuesta de IA llega incompleta o inutilizable.
+  - Mantener funciones de respaldo por compatibilidad, sin usarlas como sustituto del flujo IA.
 */
 (function () {
   'use strict';
@@ -96,7 +97,8 @@
       'REGLA OBLIGATORIA DE EXTENSIÓN:',
       'Cada título debe tener entre 10 y 25 palabras, contando artículos, conectores y preposiciones.',
       'El rango ideal es de 12 a 18 palabras.',
-      'No generes títulos menores a 10 palabras ni mayores a 25 palabras.',
+      'Si para cerrar académicamente la idea necesitas 26 a 29 palabras, puedes hacerlo.',
+      'Nunca generes títulos de 30 palabras o más.',
       '',
       'ESTRUCTURA OBLIGATORIA:',
       '[Enfoque académico] + [problema o variable principal] + [población o unidad de estudio] + [contexto o lugar] + [año o período obligatorio si fue proporcionado]',
@@ -173,7 +175,8 @@
       'REGLA OBLIGATORIA DE EXTENSIÓN:',
       'Cada título debe tener entre 10 y 25 palabras, contando artículos, conectores y preposiciones.',
       'El rango ideal es de 12 a 18 palabras.',
-      'No generes títulos menores a 10 palabras ni mayores a 25 palabras.',
+      'Si para cerrar académicamente la idea necesitas 26 a 29 palabras, puedes hacerlo.',
+      'Nunca generes títulos de 30 palabras o más.',
       '',
       'PREGUNTA QUE DEBE RESPONDER EL TÍTULO:',
       '¿Qué se estudia, en quién o en qué contexto, dónde y con qué enfoque?',
@@ -241,6 +244,94 @@
     ].join('\n');
   }
 
+  function construirPromptCorreccionAcademica(estudiante, propuesta, opciones) {
+    estudiante = estudiante || {};
+    propuesta = propuesta || {};
+    opciones = opciones || {};
+
+    if (typeof opciones === 'string') {
+      opciones = {
+        enfoque: opciones,
+        tituloFallido: arguments[3],
+        errores: arguments[4],
+        titulosPrevios: arguments[5]
+      };
+    }
+
+    var datos = obtenerDatosBase(estudiante, propuesta);
+    var config = obtenerEnfoque(opciones.enfoque || 'diagnostico');
+    var tituloFallido = limpiarTexto(opciones.tituloFallido || opciones.tituloAnterior || '');
+    var erroresTexto = construirListaErrores(opciones.errores || opciones.problemas || opciones.advertencias);
+    var titulosPrevios = Array.isArray(opciones.titulosPrevios) ? opciones.titulosPrevios : [];
+    var titulosPreviosTexto = titulosPrevios.length
+      ? titulosPrevios.map(function (titulo, index) {
+        return (index + 1) + '. ' + limpiarTexto(typeof titulo === 'string' ? titulo : titulo && titulo.texto);
+      }).join('\n')
+      : 'Ninguno.';
+
+    return [
+      'Actúa como corrector académico estricto de títulos para artículos científicos de nivel tecnológico superior.',
+      '',
+      'Tu tarea es corregir o reescribir completamente el título fallido.',
+      'No conserves una redacción incompleta. Si el título anterior está mal, escribe uno nuevo completo.',
+      '',
+      'TÍTULO FALLIDO:',
+      tituloFallido || 'No disponible.',
+      '',
+      'ERRORES DETECTADOS:',
+      erroresTexto,
+      '',
+      'REGLA PRINCIPAL OBLIGATORIA:',
+      'El título debe responder en una sola frase: qué se estudia, en quién o en qué contexto, dónde y con qué enfoque.',
+      'La carrera manda el enfoque técnico del título. Si la información del estudiante es informal, ambigua o poco académica, transfórmala en lenguaje técnico propio de la carrera.',
+      '',
+      'REGLA OBLIGATORIA DE EXTENSIÓN:',
+      'El título debe tener entre 10 y 25 palabras.',
+      'Si para cerrar académicamente la idea necesitas 26 a 29 palabras, puedes hacerlo.',
+      'Nunca generes títulos de 30 palabras o más.',
+      'No cortes el título: reescríbelo completo.',
+      '',
+      'ESTRUCTURA OBLIGATORIA:',
+      '[Enfoque académico] + [problema o variable principal] + [unidad de estudio o población] + [contexto o lugar] + [año o período si fue proporcionado]',
+      '',
+      'ENFOQUE OBLIGATORIO:',
+      config.etiqueta,
+      'Finalidad: ' + config.finalidad,
+      'Estructura recomendada: ' + config.estructura,
+      '',
+      'DATOS DEL ESTUDIANTE:',
+      'Carrera: ' + datos.carrera,
+      'Tema general: ' + datos.temaGeneral,
+      'Grupo de estudio: ' + datos.grupoEstudio,
+      'Lugar o contexto: ' + datos.lugarContexto,
+      'Año o período: ' + datos.anioPeriodo,
+      'Problema o necesidad: ' + datos.problemaNecesidad,
+      'Objetivo simple: ' + datos.objetivo,
+      '',
+      'CAMPOS OBLIGATORIOS SI FUERON PROPORCIONADOS:',
+      '- El grupo de estudio debe aparecer como población o unidad de estudio.',
+      '- El lugar o contexto debe aparecer de forma natural.',
+      '- El año o período debe aparecer de forma explícita.',
+      '',
+      'TÍTULOS YA APROBADOS QUE NO DEBES REPETIR:',
+      titulosPreviosTexto,
+      '',
+      'EVITA:',
+      '- lenguaje informal;',
+      '- títulos demasiado generales;',
+      '- títulos sin relación directa con la carrera;',
+      '- títulos sin población, contexto o período cuando esos datos existan;',
+      '- títulos que terminen con ideas incompletas como “vehículos atendidos”, “motores”, “usuarios” o “servicios”;',
+      '- frases imprecisas como “corrección de ruidos”; usa “corrección de fallas asociadas a ruidos” o una formulación académica completa;',
+      '- explicaciones, justificaciones, numeraciones largas, tablas, markdown o títulos alternativos.',
+      '',
+      'FORMATO DE RESPUESTA:',
+      'Devuelve únicamente el título académico corregido.',
+      'No escribas la palabra Título.',
+      'No incluyas explicaciones, justificaciones, numeraciones largas ni texto adicional.'
+    ].join('\n');
+  }
+
   function limpiarSugerencias(texto) {
     var vistas = {};
 
@@ -293,7 +384,6 @@
 
     return limpiarTexto(valor)
       .replace(/^[-*•]\s*/g, '')
-      .slice(0, 280)
       .trim();
   }
 
@@ -519,6 +609,18 @@
       .trim();
   }
 
+  function construirListaErrores(lista) {
+    lista = Array.isArray(lista) ? lista : [];
+
+    if (!lista.length) {
+      return '- El título no cumplió la validación académica obligatoria.';
+    }
+
+    return lista.map(function (item) {
+      return '- ' + limpiarTexto(item);
+    }).join('\n');
+  }
+
   function limpiarTitulo(valor) {
     var validator = window.TATitulosAcademicValidator;
 
@@ -563,6 +665,7 @@
     construirPrompt: construirPrompt,
     construirPromptGeneral: construirPromptGeneral,
     construirPromptPorEnfoque: construirPromptPorEnfoque,
+    construirPromptCorreccionAcademica: construirPromptCorreccionAcademica,
     limpiarSugerencias: limpiarSugerencias,
     extraerTitulo: extraerTitulo,
     extraerJustificacion: extraerJustificacion,

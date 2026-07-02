@@ -1,3 +1,14 @@
+/*
+  Archivo: estudiante.css
+  Ruta: estudiantes/css/estudiante.css
+  Funciones del archivo:
+  - Definir estilos principales de la pantalla pública de estudiantes.
+  - Controlar encabezado, logo institucional, tarjetas, formularios, botones y modales.
+  - Mantener compatibilidad entre clases antiguas app-* y clases nuevas student-*.
+  - Evitar que el logo institucional se agrande fuera de su contenedor.
+  - Adaptar la interfaz a escritorio, tablet y móvil.
+*/
+
 :root {
   --bg: #f4f7fb;
   --card: #ffffff;
@@ -25,12 +36,24 @@
   box-sizing: border-box;
 }
 
+html {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   font-family: Arial, Helvetica, sans-serif;
   color: var(--text);
   background: var(--bg);
   line-height: 1.5;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
 }
 
 button,
@@ -47,53 +70,118 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.app-header {
+.app-header,
+.student-hero {
   background: linear-gradient(135deg, #061325, #0b1f3a);
   color: #ffffff;
   padding: 24px 18px 30px;
+  overflow: hidden;
 }
 
-.app-header__content {
+.app-header__content,
+.student-hero__content {
   width: min(1180px, 100%);
   margin: 0 auto;
-}
-
-.app-brand {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 22px;
-}
-
-.app-logo {
-  width: 132px;
-  height: auto;
-  max-height: 82px;
-  object-fit: contain;
-  display: block;
-  flex: 0 0 auto;
-}
-
-.app-title-block {
   min-width: 0;
 }
 
-.app-header h1 {
+.app-brand,
+.student-hero__brand {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  min-width: 0;
+}
+
+.app-logo,
+.student-hero__logo {
+  width: 132px !important;
+  height: auto !important;
+  max-width: 132px !important;
+  max-height: 82px !important;
+  min-width: 0 !important;
+  object-fit: contain;
+  display: block;
+  flex: 0 0 132px;
+}
+
+.app-title-block,
+.student-hero__text {
+  min-width: 0;
+}
+
+.student-hero__badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  padding: 5px 10px;
+  margin-bottom: 10px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-header h1,
+.student-hero h1 {
   margin: 0 0 8px;
   font-size: clamp(1.55rem, 3vw, 2.25rem);
   line-height: 1.12;
   letter-spacing: 0.01em;
 }
 
-.app-header p {
+.app-header p,
+.student-hero p {
   margin: 0;
   color: rgba(255, 255, 255, 0.84);
   max-width: 780px;
 }
 
-.app-container {
+.student-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.status-pill--info {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.status-pill--muted {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.app-container,
+.student-shell {
   width: min(1180px, 100%);
   margin: 18px auto 54px;
   padding: 0 18px;
+  min-width: 0;
 }
 
 .wizard-steps {
@@ -176,10 +264,16 @@ button:disabled {
   box-shadow: var(--shadow);
   padding: 24px;
   margin-bottom: 18px;
+  min-width: 0;
+}
+
+.card--intro {
+  margin-top: 0;
 }
 
 .card__header,
 .proposal-card__top,
+.proposal-card__header,
 .receipt-card__header,
 .modal__header {
   display: flex;
@@ -192,6 +286,21 @@ button:disabled {
 .card h3,
 .modal h2 {
   margin: 0;
+}
+
+.section-heading {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.section-heading h2 {
+  margin: 0;
+}
+
+.section-heading p:not(.section-kicker) {
+  margin: 0;
+  color: var(--muted);
 }
 
 .section-kicker {
@@ -220,7 +329,8 @@ button:disabled {
   display: block;
 }
 
-.consulta-form {
+.consulta-form,
+.search-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
@@ -228,10 +338,15 @@ button:disabled {
   margin-top: 18px;
 }
 
-.form-grid {
+.form-grid,
+.proposal-card__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  margin-top: 18px;
+}
+
+.proposal-card__grid.form-grid {
   margin-top: 18px;
 }
 
@@ -239,6 +354,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 7px;
+  min-width: 0;
 }
 
 .field--full {
@@ -247,6 +363,14 @@ button:disabled {
 
 .field--wide {
   min-width: 0;
+}
+
+.field--inline {
+  max-width: 520px;
+}
+
+.field--title-final {
+  margin-top: 16px;
 }
 
 label {
@@ -295,6 +419,7 @@ small {
   align-items: center;
   justify-content: center;
   min-height: 46px;
+  text-decoration: none;
 }
 
 .btn:disabled {
@@ -359,28 +484,33 @@ small {
   color: var(--danger);
 }
 
-.student-grid {
+.student-grid,
+.student-data__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-top: 18px;
 }
 
-.info-box {
+.info-box,
+.student-data__grid > div {
   border: 1px solid var(--line);
   background: #f8fafc;
   border-radius: 14px;
   padding: 14px;
+  min-width: 0;
 }
 
-.info-box span {
+.info-box span,
+.student-data__grid > div span {
   display: block;
   color: var(--muted);
   font-size: 0.84rem;
   margin-bottom: 6px;
 }
 
-.info-box strong {
+.info-box strong,
+.student-data__grid > div strong {
   display: block;
   overflow-wrap: anywhere;
 }
@@ -409,9 +539,46 @@ small {
   color: var(--success);
 }
 
+.proposal-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.proposal-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fbfdff;
+  padding: 20px;
+  box-shadow: 0 10px 28px rgba(11, 31, 58, 0.05);
+  min-width: 0;
+}
+
+.proposal-card__header {
+  margin-bottom: 16px;
+}
+
+.proposal-card__header h3 {
+  margin: 5px 0 0;
+}
+
+.proposal-card__badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  background: var(--soft-primary);
+  color: var(--primary);
+  padding: 5px 10px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .proposal-actions,
 .final-actions,
 .step-actions,
+.form-actions,
 .modal__actions {
   display: flex;
   justify-content: flex-end;
@@ -420,7 +587,8 @@ small {
   flex-wrap: wrap;
 }
 
-.suggestions {
+.suggestions,
+.suggestions-container {
   display: grid;
   gap: 10px;
   margin-top: 14px;
@@ -440,6 +608,15 @@ small {
 
 .suggestion-item button {
   margin-top: 10px;
+}
+
+.summary-box {
+  border: 1px solid var(--line);
+  background: #fbfdff;
+  border-radius: 16px;
+  padding: 16px;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .summary-titles {
@@ -578,6 +755,10 @@ small {
   width: min(520px, 100%);
 }
 
+.modal__panel--wide {
+  width: min(980px, 100%);
+}
+
 .modal__close {
   position: absolute;
   top: 14px;
@@ -610,6 +791,19 @@ small {
   display: grid;
   gap: 12px;
   margin-top: 16px;
+}
+
+.recommendation-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  color: var(--text);
+}
+
+.suggestion-modal-list {
+  display: grid;
+  gap: 12px;
 }
 
 .summary-block {
@@ -674,40 +868,195 @@ small {
   overflow-wrap: anywhere;
 }
 
+.ia-loading-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.ia-loading-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 31, 58, 0.58);
+  backdrop-filter: blur(5px);
+}
+
+.ia-loading-modal__panel {
+  position: relative;
+  width: min(700px, 100%);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.2);
+  padding: 34px;
+  text-align: center;
+}
+
+.ia-loading-modal__spinner {
+  width: 66px;
+  height: 66px;
+  margin: 0 auto 18px;
+  border-radius: 999px;
+  border: 6px solid #e6edf7;
+  border-top-color: var(--primary);
+  animation: ia-spin 0.9s linear infinite;
+}
+
+.ia-loading-modal h2 {
+  margin: 0 0 8px;
+  font-size: 1.7rem;
+}
+
+.ia-loading-modal p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.ia-loading-modal__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 20px auto 16px;
+  border-radius: 999px;
+  background: #f3f7ff;
+  border: 1px solid #cddbf2;
+  color: var(--primary);
+  padding: 9px 16px;
+  font-weight: 900;
+}
+
+.ia-loading-progress {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: #e5ebf3;
+  overflow: hidden;
+  margin: 8px 0 20px;
+}
+
+.ia-loading-progress__bar {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 0.25s ease;
+}
+
+.ia-loading-steps {
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+
+.ia-loading-step {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.ia-loading-step span {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.ia-loading-step strong {
+  color: var(--text);
+}
+
+.ia-loading-step em {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.ia-loading-step.is-active {
+  border-color: #bcd1f5;
+  background: #f7faff;
+}
+
+.ia-loading-step.is-active span {
+  background: var(--primary);
+}
+
+.ia-loading-step.is-complete span {
+  background: var(--success);
+}
+
+.ia-loading-modal__hint {
+  margin-top: 18px !important;
+  font-size: 0.92rem;
+}
+
+@keyframes ia-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 1100px) {
   .wizard-steps {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .app-header__content,
+  .student-hero__content {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .student-hero__meta {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 980px) {
-  .student-grid {
+  .student-grid,
+  .student-data__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 760px) {
-  .app-header {
+  .app-header,
+  .student-hero {
     padding: 22px 16px 28px;
   }
 
   .app-brand,
+  .student-hero__brand,
   .card__header,
+  .proposal-card__header,
   .receipt-card__header,
   .modal__header {
     flex-direction: column;
   }
 
-  .app-logo {
-    width: 110px;
-    max-height: 72px;
+  .app-logo,
+  .student-hero__logo {
+    width: 110px !important;
+    max-width: 110px !important;
+    max-height: 72px !important;
+    flex-basis: 110px;
   }
 
-  .app-header h1 {
+  .app-header h1,
+  .student-hero h1 {
     font-size: 1.55rem;
   }
 
-  .app-container {
+  .app-container,
+  .student-shell {
     margin-top: 14px;
     padding: 0 14px;
   }
@@ -722,8 +1071,11 @@ small {
   }
 
   .consulta-form,
+  .search-form,
   .form-grid,
+  .proposal-card__grid,
   .student-grid,
+  .student-data__grid,
   .telegram-row,
   .receipt-grid,
   .summary-choice-card {
@@ -737,6 +1089,7 @@ small {
   .proposal-actions,
   .final-actions,
   .step-actions,
+  .form-actions,
   .modal__actions {
     width: 100%;
     flex-direction: column;
@@ -753,5 +1106,32 @@ small {
 
   .modal-advice {
     padding-right: 34px;
+  }
+
+  .ia-loading-modal__panel {
+    padding: 26px 20px;
+  }
+
+  .ia-loading-step {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .ia-loading-step em {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 430px) {
+  .app-logo,
+  .student-hero__logo {
+    width: 96px !important;
+    max-width: 96px !important;
+    max-height: 64px !important;
+    flex-basis: 96px;
+  }
+
+  .card,
+  .proposal-card {
+    padding: 18px;
   }
 }

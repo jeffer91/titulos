@@ -4,53 +4,72 @@
   Funciones principales del archivo:
   - Evaluar la calidad académica de títulos generados por IA.
   - Detectar títulos incompletos, vagos, informales o poco relacionados con la carrera.
-  - Clasificar cada título por calidad: buena, revisar o mala.
-  - Generar advertencias comprensibles para mostrarlas en el modal de sugerencias.
+  - Validar que el título incluya grupo de estudio, contexto/lugar y período cuando fueron llenados.
+  - Aplicar la regla: 10 a 25 palabras correcto, 26 a 29 con advertencia y 30 o más bloqueado.
   - Mantener utilidades reutilizables para prompt, IA, modal y sugerencias.
 */
 (function () {
   'use strict';
 
+  var MIN_PALABRAS = 10;
+  var MAX_PALABRAS_CORRECTAS = 25;
+  var MAX_PALABRAS_ADVERTENCIA = 29;
+  var BLOQUEO_PALABRAS = 30;
+
   var CONECTORES_FINALES = [
     'a', 'al', 'ante', 'bajo', 'cabe', 'con', 'contra', 'de', 'del', 'desde',
     'durante', 'e', 'el', 'en', 'entre', 'hacia', 'hasta', 'la', 'las', 'lo',
-    'los', 'mediante', 'o', 'para', 'por', 'según', 'sin', 'sobre', 'tras',
-    'un', 'una', 'unos', 'unas', 'y'
+    'los', 'mediante', 'o', 'para', 'por', 'segun', 'según', 'sin', 'sobre',
+    'tras', 'un', 'una', 'unos', 'unas', 'y'
   ];
 
   var PALABRAS_VACIAS = [
     'a', 'al', 'ante', 'bajo', 'con', 'contra', 'de', 'del', 'desde', 'durante',
     'e', 'el', 'en', 'entre', 'es', 'la', 'las', 'lo', 'los', 'mediante', 'o',
     'para', 'por', 'que', 'se', 'sin', 'sobre', 'su', 'sus', 'un', 'una', 'unos',
-    'unas', 'y'
+    'unas', 'y', 'como', 'hacia', 'hasta', 'este', 'esta', 'estos', 'estas'
   ];
 
   var ACCIONES_ACADEMICAS = [
-    'analisis', 'diagnostico', 'caracterizacion', 'identificacion', 'evaluacion',
-    'medicion', 'impacto', 'incidencia', 'influencia', 'relacion', 'propuesta',
-    'diseno', 'estrategia', 'plan', 'implementacion', 'optimizacion', 'mejora',
-    'efectividad', 'factores', 'riesgos', 'calidad', 'control', 'gestion'
+    'analisis', 'análisis', 'diagnostico', 'diagnóstico', 'caracterizacion',
+    'caracterización', 'identificacion', 'identificación', 'evaluacion',
+    'evaluación', 'medicion', 'medición', 'impacto', 'incidencia', 'influencia',
+    'relacion', 'relación', 'propuesta', 'diseno', 'diseño', 'estrategia',
+    'plan', 'implementacion', 'implementación', 'optimizacion', 'optimización',
+    'mejora', 'efectividad', 'factores', 'riesgos', 'calidad', 'control',
+    'gestion', 'gestión', 'procedimiento', 'protocolo', 'modelo'
   ];
 
   var ACCIONES_POR_ENFOQUE = {
     diagnostico: [
-      'diagnostico', 'analisis', 'caracterizacion', 'identificacion', 'factores',
-      'causas', 'situacion', 'necesidades', 'problemas', 'riesgos'
+      'diagnostico', 'diagnóstico', 'analisis', 'análisis', 'caracterizacion',
+      'caracterización', 'identificacion', 'identificación', 'factores',
+      'causas', 'situacion', 'situación', 'necesidades', 'problemas',
+      'riesgos'
     ],
     propuesta: [
-      'propuesta', 'diseno', 'estrategia', 'plan', 'procedimiento', 'protocolo',
-      'metodo', 'implementacion', 'mejora', 'optimizacion', 'intervencion'
+      'propuesta', 'diseno', 'diseño', 'estrategia', 'plan', 'procedimiento',
+      'protocolo', 'metodo', 'método', 'implementacion', 'implementación',
+      'mejora', 'optimizacion', 'optimización', 'intervencion', 'intervención'
     ],
     evaluacion: [
-      'evaluacion', 'medicion', 'impacto', 'efectividad', 'resultados',
-      'incidencia', 'seguimiento', 'comparacion', 'valoracion'
+      'evaluacion', 'evaluación', 'medicion', 'medición', 'impacto',
+      'efectividad', 'resultados', 'incidencia', 'seguimiento', 'comparacion',
+      'comparación', 'valoracion', 'valoración'
     ]
   };
 
   var TERMINOS_INFORMALES = [
-    'cosa', 'cosas', 'arreglar', 'arreglos', 'raro', 'raros', 'gente', 'por ahi',
-    'alguna vez', 'bien', 'mal', 'que se quejen', 'carros', 'chamba', 'chance',
-    'full', 'súper', 'super', 'nomás', 'nomas'
+    'cosa', 'cosas', 'arreglar', 'arreglos', 'raro', 'raros', 'por ahi',
+    'por ahí', 'alguna vez', 'que se quejen', 'chamba', 'chance', 'full',
+    'súper', 'super', 'nomás', 'nomas'
+  ];
+
+  var FINALES_INCOMPLETOS = [
+    'vehiculos atendidos', 'vehículos atendidos', 'vehiculos', 'vehículos',
+    'motores', 'clientes', 'usuarios', 'estudiantes', 'pacientes',
+    'unidad de estudio', 'poblacion', 'población', 'procesos', 'servicios',
+    'fallas', 'ruidos'
   ];
 
   function evaluarTitulo(titulo, contexto) {
@@ -58,93 +77,157 @@
 
     var texto = limpiarTitulo(titulo);
     var advertencias = [];
+    var errores = [];
+    var bloqueos = [];
     var puntos = 100;
     var palabras = contarPalabras(texto);
     var ultima = obtenerUltimaPalabra(texto);
     var clave = normalizarClave(texto);
     var enfoque = normalizarClave(contexto.enfoque || '');
     var tieneAccion = contieneAlguna(clave, ACCIONES_ACADEMICAS);
-    var tieneContexto = detectarContexto(texto, contexto);
     var relacion = medirRelacionConDatos(texto, contexto);
     var informal = contieneAlgunaFrase(clave, TERMINOS_INFORMALES);
     var incompleto = false;
+    var propuesta = contexto.propuesta || {};
+    var estudiante = contexto.estudiante || {};
+    var tieneContexto = detectarContexto(texto, contexto);
 
     if (!texto) {
-      advertencias.push('No se recibió texto para evaluar.');
+      agregarUnico(bloqueos, 'No se recibió texto para evaluar.');
       puntos -= 100;
       incompleto = true;
     }
 
-    if (texto && texto.length < 25) {
-      advertencias.push('El título es demasiado corto para un artículo académico.');
-      puntos -= 35;
+    if (texto && palabras < MIN_PALABRAS) {
+      agregarUnico(bloqueos, 'El título debe tener al menos 10 palabras.');
+      puntos -= 45;
     }
 
-    if (palabras < 8) {
-      advertencias.push('El título tiene pocas palabras y puede quedar demasiado general.');
-      puntos -= 30;
-    }
-
-    if (palabras > 26) {
-      advertencias.push('El título es muy largo; conviene hacerlo más directo.');
-      puntos -= 12;
+    if (palabras >= BLOQUEO_PALABRAS) {
+      agregarUnico(bloqueos, 'El título tiene 30 palabras o más y debe reescribirse completo.');
+      puntos -= 45;
+    } else if (palabras > MAX_PALABRAS_CORRECTAS && palabras <= MAX_PALABRAS_ADVERTENCIA) {
+      agregarUnico(advertencias, 'El título supera 25 palabras; puede mostrarse, pero conviene hacerlo más directo.');
+      puntos -= 8;
     }
 
     if (ultima && CONECTORES_FINALES.indexOf(ultima) !== -1) {
-      advertencias.push('El título parece incompleto porque termina en una palabra conectora.');
+      agregarUnico(bloqueos, 'El título parece incompleto porque termina en una palabra conectora.');
+      puntos -= 55;
+      incompleto = true;
+    }
+
+    if (terminaEnFragmentoCortado(ultima)) {
+      agregarUnico(bloqueos, 'El título termina con una palabra cortada o incompleta.');
       puntos -= 55;
       incompleto = true;
     }
 
     if (/[,:;\-–—]$/.test(texto)) {
-      advertencias.push('El título termina con puntuación que sugiere una frase incompleta.');
+      agregarUnico(bloqueos, 'El título termina con puntuación que sugiere una frase incompleta.');
       puntos -= 25;
       incompleto = true;
     }
 
     if (!tieneAccion) {
-      advertencias.push('No se reconoce un enfoque académico claro como análisis, diagnóstico, propuesta o evaluación.');
+      agregarUnico(errores, 'No se reconoce un enfoque académico claro como análisis, diagnóstico, propuesta o evaluación.');
       puntos -= 14;
     }
 
     if (enfoque && ACCIONES_POR_ENFOQUE[enfoque] && !contieneAlguna(clave, ACCIONES_POR_ENFOQUE[enfoque])) {
-      advertencias.push('El título no refleja con claridad el enfoque esperado: ' + obtenerEtiquetaEnfoque(enfoque) + '.');
+      agregarUnico(errores, 'El título no refleja con claridad el enfoque esperado: ' + obtenerEtiquetaEnfoque(enfoque) + '.');
       puntos -= 13;
     }
 
     if (!tieneContexto) {
-      advertencias.push('Falta población, unidad de estudio, contexto o lugar suficientemente claro.');
+      agregarUnico(errores, 'Falta población, unidad de estudio, contexto o lugar suficientemente claro.');
       puntos -= 16;
     }
 
+    validarCampoObligatorio(texto, propuesta.grupoEstudio, 'grupo de estudio o población', 'grupo', errores, bloqueos);
+    validarCampoObligatorio(texto, propuesta.lugarContexto, 'lugar o contexto', 'lugar', errores, bloqueos);
+    validarCampoObligatorio(texto, propuesta.anioPeriodo, 'año o período', 'periodo', errores, bloqueos);
+
+    if (usaCorreccionDeRuidosImprecisa(texto)) {
+      agregarUnico(errores, 'La frase “corrección de ruidos” es imprecisa; debe indicar fallas asociadas a ruidos o causas vinculadas.');
+      puntos -= 16;
+    }
+
+    if (terminaConIdeaAcademicaIncompleta(texto, propuesta)) {
+      agregarUnico(bloqueos, 'El título cierra con una idea incompleta; debe indicar contexto, lugar o período.');
+      puntos -= 32;
+      incompleto = true;
+    }
+
     if (relacion < 2) {
-      advertencias.push('El título usa pocos elementos de la propuesta del estudiante.');
-      puntos -= 18;
+      agregarUnico(advertencias, 'El título usa pocos elementos de la propuesta del estudiante.');
+      puntos -= 10;
     }
 
     if (informal) {
-      advertencias.push('El título conserva lenguaje informal; debe transformarse a lenguaje técnico.');
-      puntos -= 18;
+      agregarUnico(advertencias, 'El título conserva lenguaje informal; debe transformarse a lenguaje técnico.');
+      puntos -= 14;
     }
 
     if (esTituloGenerico(clave)) {
-      advertencias.push('El título es demasiado genérico para identificar un artículo académico específico.');
+      agregarUnico(errores, 'El título es demasiado genérico para identificar un artículo académico específico.');
       puntos -= 22;
+    }
+
+    if (estudiante && estudiante.carrera && relacion < 1) {
+      agregarUnico(advertencias, 'No se reconoce una relación suficiente con la carrera del estudiante.');
+      puntos -= 8;
     }
 
     puntos = limitarNumero(puntos, 0, 100);
 
-    return {
+    return construirResultado({
       texto: texto,
-      calidad: clasificarCalidad(puntos, incompleto),
+      calidad: clasificarCalidad(puntos, incompleto, errores.length, bloqueos.length),
       puntos: puntos,
       advertencias: advertencias,
-      esMostrable: Boolean(texto && !incompleto && texto.length >= 25 && palabras >= 6),
+      errores: errores,
+      bloqueos: bloqueos,
       incompleto: incompleto,
       palabras: palabras,
       enfoque: enfoque || '',
-      etiquetaEnfoque: obtenerEtiquetaEnfoque(enfoque),
       relacion: relacion
+    });
+  }
+
+  function construirResultado(datos) {
+    var bloqueado = datos.bloqueos.length > 0;
+    var tieneErrores = datos.errores.length > 0;
+    var esMostrable = Boolean(datos.texto && !bloqueado && datos.palabras >= MIN_PALABRAS && datos.palabras < BLOQUEO_PALABRAS);
+    var esValido = Boolean(esMostrable && !tieneErrores && !datos.incompleto);
+    var longitudEstado = 'correcta';
+    var problemas = unirAdvertencias(datos.bloqueos, datos.errores).concat(datos.advertencias);
+
+    if (datos.palabras < MIN_PALABRAS || datos.palabras >= BLOQUEO_PALABRAS) {
+      longitudEstado = 'bloqueado';
+    } else if (datos.palabras > MAX_PALABRAS_CORRECTAS) {
+      longitudEstado = 'advertencia';
+    }
+
+    return {
+      texto: datos.texto,
+      calidad: datos.calidad,
+      calidadLabel: obtenerEtiquetaCalidad(datos.calidad),
+      puntos: datos.puntos,
+      advertencias: datos.advertencias,
+      errores: datos.errores,
+      bloqueos: datos.bloqueos,
+      problemas: problemas,
+      esMostrable: esMostrable,
+      esValido: esValido,
+      requiereCorreccion: !esValido,
+      incompleto: Boolean(datos.incompleto || bloqueado),
+      bloqueado: bloqueado,
+      palabras: datos.palabras,
+      longitudEstado: longitudEstado,
+      enfoque: datos.enfoque || '',
+      etiquetaEnfoque: obtenerEtiquetaEnfoque(datos.enfoque),
+      relacion: datos.relacion
     };
   }
 
@@ -161,11 +244,19 @@
         return Object.assign({}, item, {
           texto: evaluacion.texto,
           calidad: item.calidad || evaluacion.calidad,
+          calidadLabel: item.calidadLabel || evaluacion.calidadLabel,
           puntos: typeof item.puntos === 'number' ? item.puntos : evaluacion.puntos,
           advertencias: unirAdvertencias(item.advertencias, evaluacion.advertencias),
+          errores: unirAdvertencias(item.errores, evaluacion.errores),
+          bloqueos: unirAdvertencias(item.bloqueos, evaluacion.bloqueos),
+          problemas: unirAdvertencias(item.problemas, evaluacion.problemas),
           esMostrable: evaluacion.esMostrable,
+          esValido: evaluacion.esValido,
+          requiereCorreccion: evaluacion.requiereCorreccion,
           incompleto: evaluacion.incompleto,
-          palabras: evaluacion.palabras
+          bloqueado: evaluacion.bloqueado,
+          palabras: evaluacion.palabras,
+          longitudEstado: evaluacion.longitudEstado
         });
       }
 
@@ -173,11 +264,141 @@
     });
   }
 
+  function validarCampoObligatorio(titulo, valorCampo, etiqueta, tipo, errores, bloqueos) {
+    if (!campoFueProporcionado(valorCampo)) {
+      return;
+    }
+
+    if (tipo === 'periodo') {
+      if (!contienePeriodoNatural(titulo, valorCampo)) {
+        agregarUnico(bloqueos, 'Debe incluir el ' + etiqueta + ' proporcionado por el estudiante.');
+      }
+      return;
+    }
+
+    if (!contieneDatoNatural(titulo, valorCampo, tipo)) {
+      agregarUnico(errores, 'Debe incluir el ' + etiqueta + ' proporcionado por el estudiante de forma natural.');
+    }
+  }
+
+  function contieneDatoNatural(titulo, valorCampo, tipo) {
+    var claveTitulo = normalizarClave(titulo);
+    var claveCampo = normalizarClave(valorCampo);
+    var tokensCampo = obtenerTokensSignificativos(claveCampo);
+    var coincidencias;
+
+    if (!claveCampo) {
+      return true;
+    }
+
+    if (claveTitulo.indexOf(claveCampo) !== -1) {
+      return true;
+    }
+
+    coincidencias = coincidenciasDeTokens(claveTitulo, claveCampo);
+
+    if (tokensCampo.length <= 2 && coincidencias >= 1) {
+      return true;
+    }
+
+    if (tokensCampo.length >= 3 && coincidencias >= 2) {
+      return true;
+    }
+
+    return coincidePorSinonimos(claveTitulo, claveCampo, tipo);
+  }
+
+  function contienePeriodoNatural(titulo, valorCampo) {
+    var claveTitulo = normalizarClave(titulo);
+    var claveCampo = normalizarClave(valorCampo);
+    var anios = String(valorCampo || '').match(/20\d{2}|19\d{2}/g) || [];
+    var vistos = {};
+    var aniosUnicos = anios.filter(function (anio) {
+      if (vistos[anio]) {
+        return false;
+      }
+
+      vistos[anio] = true;
+      return true;
+    });
+
+    if (!claveCampo) {
+      return true;
+    }
+
+    if (claveTitulo.indexOf(claveCampo) !== -1) {
+      return true;
+    }
+
+    if (aniosUnicos.length) {
+      return aniosUnicos.every(function (anio) {
+        return claveTitulo.indexOf(anio) !== -1;
+      });
+    }
+
+    return coincidenciasDeTokens(claveTitulo, claveCampo) >= 1;
+  }
+
+  function coincidePorSinonimos(claveTitulo, claveCampo, tipo) {
+    if (tipo === 'grupo') {
+      if (/(gente|persona|personas|cliente|clientes|usuario|usuarios|trabaja|trabajan|trabajador|trabajadores|colaborador|colaboradores|empleado|empleados)/.test(claveCampo)) {
+        return /(usuarios|personas|clientes|trabajadores|colaboradores|empleados|poblacion|población)/.test(claveTitulo);
+      }
+
+      if (/(vehiculo|vehículo|vehiculos|vehículos|carro|carros|auto|autos|motor|motores)/.test(claveCampo)) {
+        return /(vehiculo|vehículo|vehiculos|vehículos|automotriz|motores|unidades|automotores)/.test(claveTitulo);
+      }
+
+      if (/(estudiante|estudiantes|alumno|alumnos)/.test(claveCampo)) {
+        return /(estudiantes|alumnos|aprendices|poblacion estudiantil|población estudiantil)/.test(claveTitulo);
+      }
+    }
+
+    if (tipo === 'lugar') {
+      if (/(taller|mecanica|mecánica|automotriz|concesionario)/.test(claveCampo)) {
+        return /(taller|talleres|mecanica|mecánica|automotriz|concesionario|servicio tecnico|servicio técnico)/.test(claveTitulo);
+      }
+
+      if (/(instituto|universidad|escuela|colegio|empresa|clinica|clínica|hospital|sede|area|área|departamento)/.test(claveCampo)) {
+        return coincidenciasDeTokens(claveTitulo, claveCampo) >= 1;
+      }
+    }
+
+    return false;
+  }
+
+  function campoFueProporcionado(valor) {
+    var texto = normalizarClave(valor);
+
+    if (!texto) {
+      return false;
+    }
+
+    return [
+      'no especificado',
+      'sin especificar',
+      'no aplica',
+      'ninguno',
+      'n/a',
+      'na',
+      'contexto no especificado',
+      'poblacion o unidad de estudio no especificada',
+      'población o unidad de estudio no especificada',
+      'ano o periodo no especificado',
+      'año o período no especificado',
+      'periodo no especificado'
+    ].indexOf(texto) === -1;
+  }
+
   function limpiarTitulo(valor) {
     return String(valor || '')
+      .replace(/```[a-z]*\s*/ig, '')
+      .replace(/```/g, '')
       .replace(/^\s*[-*•]\s*/g, '')
       .replace(/^\s*\d+[).:-]\s*/g, '')
       .replace(/^\s*(Título|Titulo|Opción|Opcion|Sugerencia)\s*\d*\s*[:.-]\s*/i, '')
+      .replace(/^\s*(Diagnóstico|Diagnostico|Propuesta|Evaluación|Evaluacion)\s*[:.-]\s*/i, '')
+      .replace(/\s*(?:Justificaci[oó]n(?:\s+breve)?|Explicaci[oó]n|Nota)\s*:\s*[\s\S]*$/i, '')
       .replace(/^\s*["“”'«»]+|["“”'«»]+\s*$/g, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -208,15 +429,66 @@
     return partes.length ? partes[partes.length - 1] : '';
   }
 
+  function terminaEnFragmentoCortado(ultima) {
+    var fragmentos = [
+      'mec', 'intermit', 'an', 'automot', 'diagnost', 'identific',
+      'reparaci', 'reducci', 'eficien', 'evalua', 'caracteriz',
+      'propuest', 'implementaci', 'estandariz', 'optimizaci', 'correcci'
+    ];
+
+    if (!ultima) {
+      return false;
+    }
+
+    if (/^\d{4}$/.test(ultima)) {
+      return false;
+    }
+
+    if (ultima.length <= 3 && ['ia', 'tic', 'web', 'gps', 'app'].indexOf(ultima) === -1) {
+      return true;
+    }
+
+    return fragmentos.indexOf(ultima) !== -1;
+  }
+
+  function terminaConIdeaAcademicaIncompleta(texto, propuesta) {
+    var clave = normalizarClave(texto);
+    var requiereCierre = campoFueProporcionado(propuesta && propuesta.lugarContexto) ||
+      campoFueProporcionado(propuesta && propuesta.anioPeriodo);
+
+    if (!requiereCierre) {
+      return false;
+    }
+
+    return FINALES_INCOMPLETOS.some(function (finalIncompleto) {
+      return clave.endsWith(normalizarClave(finalIncompleto));
+    });
+  }
+
+  function usaCorreccionDeRuidosImprecisa(texto) {
+    var clave = normalizarClave(texto);
+
+    if (clave.indexOf('correccion de ruidos') === -1 && clave.indexOf('corrección de ruidos') === -1) {
+      return false;
+    }
+
+    return clave.indexOf('fallas asociadas a ruidos') === -1 &&
+      clave.indexOf('fallas vinculadas a ruidos') === -1 &&
+      clave.indexOf('causas de ruidos') === -1 &&
+      clave.indexOf('causas asociadas a ruidos') === -1;
+  }
+
   function contieneAlguna(textoNormalizado, lista) {
     return lista.some(function (palabra) {
-      return new RegExp('(^|\\s)' + escaparRegex(normalizarClave(palabra)) + '(\\s|$)').test(textoNormalizado);
+      var normal = normalizarClave(palabra);
+      return normal && new RegExp('(^|\\s)' + escaparRegex(normal) + '(\\s|$)').test(textoNormalizado);
     });
   }
 
   function contieneAlgunaFrase(textoNormalizado, lista) {
     return lista.some(function (frase) {
-      return textoNormalizado.indexOf(normalizarClave(frase)) !== -1;
+      var normal = normalizarClave(frase);
+      return normal && textoNormalizado.indexOf(normal) !== -1;
     });
   }
 
@@ -227,19 +499,19 @@
     var lugar = normalizarClave(propuesta.lugarContexto);
     var anio = normalizarClave(propuesta.anioPeriodo);
 
-    if (grupo && coincidenciasDeTokens(clave, grupo) >= 1) {
+    if (campoFueProporcionado(propuesta.grupoEstudio) && contieneDatoNatural(titulo, grupo, 'grupo')) {
       return true;
     }
 
-    if (lugar && coincidenciasDeTokens(clave, lugar) >= 1) {
+    if (campoFueProporcionado(propuesta.lugarContexto) && contieneDatoNatural(titulo, lugar, 'lugar')) {
       return true;
     }
 
-    if (anio && coincidenciasDeTokens(clave, anio) >= 1) {
+    if (campoFueProporcionado(propuesta.anioPeriodo) && contienePeriodoNatural(titulo, anio)) {
       return true;
     }
 
-    return /\b(en|de|para|durante|del|con)\b/.test(clave) && contarPalabras(titulo) >= 10;
+    return /\b(en|de|para|durante|del|con)\b/.test(clave) && contarPalabras(titulo) >= MIN_PALABRAS;
   }
 
   function medirRelacionConDatos(titulo, contexto) {
@@ -293,25 +565,29 @@
   function esTituloGenerico(clave) {
     var patrones = [
       'analisis de problemas',
+      'análisis de problemas',
       'mejora de procesos',
       'evaluacion de resultados',
+      'evaluación de resultados',
       'estrategias para mejorar',
       'estudio sobre algunas estrategias',
       'impacto del marketing digital',
-      'educacion digital en estudiantes'
+      'educacion digital en estudiantes',
+      'educación digital en estudiantes'
     ];
 
     return patrones.some(function (patron) {
-      return clave === normalizarClave(patron) || clave.indexOf(normalizarClave(patron)) === 0 && contarPalabras(clave) < 8;
+      var normal = normalizarClave(patron);
+      return clave === normal || (clave.indexOf(normal) === 0 && contarPalabras(clave) < MIN_PALABRAS);
     });
   }
 
-  function clasificarCalidad(puntos, incompleto) {
-    if (incompleto || puntos < 50) {
+  function clasificarCalidad(puntos, incompleto, totalErrores, totalBloqueos) {
+    if (incompleto || totalBloqueos > 0 || puntos < 50) {
       return 'mala';
     }
 
-    if (puntos < 78) {
+    if (totalErrores > 0 || puntos < 82) {
       return 'revisar';
     }
 
@@ -367,6 +643,19 @@
     return resultado;
   }
 
+  function agregarUnico(lista, mensaje) {
+    var texto = String(mensaje || '').trim();
+    var clave = normalizarClave(texto);
+
+    if (!texto) {
+      return;
+    }
+
+    if (!lista.some(function (item) { return normalizarClave(item) === clave; })) {
+      lista.push(texto);
+    }
+  }
+
   function limitarNumero(valor, min, max) {
     valor = Number(valor || 0);
 
@@ -393,6 +682,9 @@
     contarPalabras: contarPalabras,
     obtenerEtiquetaCalidad: obtenerEtiquetaCalidad,
     obtenerEtiquetaEnfoque: obtenerEtiquetaEnfoque,
-    unirAdvertencias: unirAdvertencias
+    unirAdvertencias: unirAdvertencias,
+    campoFueProporcionado: campoFueProporcionado,
+    contieneDatoNatural: contieneDatoNatural,
+    contienePeriodoNatural: contienePeriodoNatural
   });
 })();

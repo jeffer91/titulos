@@ -239,7 +239,13 @@
     var periodoId = valor(source, ['periodoid', 'ultimoperiodoid', 'periodo', 'periodoactivo']);
     var periodoLabel = valor(source, ['periodolabel', 'periodonombre', 'periodoetiqueta']);
     var codigoCarrera = valor(source, ['codigocarrera', 'codigo_carrera']);
+    var sede = valor(source, ['sede']);
+    var modalidad = valor(source, ['modalidad', 'horariocomplexivo', 'jornada']);
     var estadoMatricula = valor(source, ['estadomatricula', 'matricula', 'estado']) || 'ACTIVO';
+
+    var periodoTexto = limpiarTexto(periodoLabel) || limpiarTexto(periodoId);
+    var estadoTexto = limpiarTexto(estadoMatricula).toUpperCase();
+    var modalidadTexto = limpiarTexto(modalidad);
 
     return {
       id: data.id || cedulaNormalizada,
@@ -249,9 +255,19 @@
       codigoCarrera: limpiarTexto(codigoCarrera),
       carrera: limpiarTexto(carrera) || 'Carrera no registrada',
       nombreCarrera: limpiarTexto(carrera) || 'Carrera no registrada',
+
+      sede: limpiarTexto(sede),
+
+      modalidad: modalidadTexto,
+      horarioComplexivo: modalidadTexto,
+
       periodoId: limpiarTexto(periodoId),
       periodoLabel: limpiarTexto(periodoLabel),
-      estadoMatricula: limpiarTexto(estadoMatricula).toUpperCase(),
+      periodo: periodoTexto,
+
+      estadoMatricula: estadoTexto,
+      estado: estadoTexto,
+
       puedeEnviarTitulo: data.puedeEnviarTitulo !== false,
       raw: data
     };
