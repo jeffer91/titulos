@@ -1,4 +1,14 @@
-/* Repositorio de datos del módulo estudiantes. */
+/*
+  Archivo: estudiante.repository.js
+  Ruta: estudiantes/js/estudiante.repository.js
+  Funciones principales:
+  - Consultar configuración activa de la app desde Firebase.
+  - Buscar estudiantes por cédula con soporte para cero inicial.
+  - Consultar si el estudiante ya tiene envío registrado.
+  - Validar acceso del estudiante al proceso de titulación.
+  - Guardar el envío final de propuestas de título.
+  - Normalizar datos provenientes de Firebase para usarlos en la interfaz.
+*/
 (function () {
   'use strict';
 
@@ -6,6 +16,13 @@
   var firebaseService = window.TAFirebaseService;
 
   function cargarConfiguracionApp() {
+    if (!firebaseService || typeof firebaseService.leerDocumento !== 'function') {
+      return Promise.resolve(Object.assign({}, config.defaultAppConfig, {
+        id: config.documents.appConfig,
+        origen: 'default-local-sin-firebase'
+      }));
+    }
+
     return firebaseService.leerDocumento(
       config.collections.config,
       config.documents.appConfig
@@ -31,6 +48,10 @@
   function buscarEstudiantePorCedula(cedulaIngresada) {
     var variantes = construirVariantesCedula(cedulaIngresada);
 
+    if (!variantes.length) {
+      return Promise.resolve(null);
+    }
+
     return buscarDocumentoPorIds(variantes)
       .then(function (documentoDirecto) {
         if (documentoDirecto) {
@@ -47,8 +68,15 @@
         return buscarDocumentoPorCampo('cedula', variantes);
       })
       .then(function (documentoPorCedula) {
-        if (!documentoPorCedula) return null;
-        return normalizarEstudiante(documentoPorCedula, cedulaIngresada);
+        if (documentoPorCedula) {
+          return normalizarEstudiante(documentoPorCedula, cedulaIngresada);
+        }
+
+        return buscarEstudiantePorComparacionFlexible(cedulaIngresada, variantes);
+      })
+      .then(function (documentoFlexible) {
+        if (!documentoFlexible) return null;
+        return normalizarEstudiante(documentoFlexible, cedulaIngresada);
       });
   }
 
@@ -58,7 +86,11 @@
     variantes.forEach(function (cedula) {
       cadena = cadena.then(function (encontrado) {
         if (encontrado) return encontrado;
-        return firebaseService.leerDocumento(config.collections.estudiantes, cedula);
+
+        return firebaseService.leerDocumento(config.collections.estudiantes, cedula)
+          .catch(function () {
+            return null;
+          });
       });
     });
 
@@ -77,15 +109,76 @@
           campo,
           '==',
           cedula
-        );
+        ).catch(function () {
+          return null;
+        });
       });
     });
 
     return cadena;
   }
 
+  function buscarEstudiantePorComparacionFlexible(cedulaIngresada, variantes) {
+    if (!firebaseService || typeof firebaseService.listarColeccion !== 'function') {
+      return Promise.resolve(null);
+    }
+
+    var objetivoExacto = limpiarSoloNumeros(cedulaIngresada);
+    var objetivoSinCeros = normalizarCedulaComparacion(cedulaIngresada);
+    var mapaVariantes = {};
+
+    variantes.forEach(function (cedula) {
+      mapaVariantes[limpiarSoloNumeros(cedula)] = true;
+      mapaVariantes[normalizarCedulaComparacion(cedula)] = true;
+    });
+
+    return firebaseService.listarColeccion(config.collections.estudiantes)
+      .then(function (estudiantes) {
+        var lista = Array.isArray(estudiantes) ? estudiantes : [];
+
+        for (var i = 0; i < lista.length; i += 1) {
+          if (coincideCedulaEstudiante(lista[i], objetivoExacto, objetivoSinCeros, mapaVariantes)) {
+            return lista[i];
+          }
+        }
+
+        return null;
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  function coincideCedulaEstudiante(estudiante, objetivoExacto, objetivoSinCeros, mapaVariantes) {
+    var source = normalizarObjeto(estudiante || {});
+    var posibles = [
+      estudiante && estudiante.id,
+      estudiante && estudiante._docId,
+      valor(source, ['numeroidentificacion']),
+      valor(source, ['cedula']),
+      valor(source, ['identificacion']),
+      valor(source, ['documento']),
+      valor(source, ['dni'])
+    ];
+
+    for (var i = 0; i < posibles.length; i += 1) {
+      var actual = limpiarSoloNumeros(posibles[i]);
+      var actualSinCeros = normalizarCedulaComparacion(posibles[i]);
+
+      if (!actual && !actualSinCeros) continue;
+
+      if (actual && actual === objetivoExacto) return true;
+      if (actualSinCeros && actualSinCeros === objetivoSinCeros) return true;
+      if (actual && mapaVariantes[actual]) return true;
+      if (actualSinCeros && mapaVariantes[actualSinCeros]) return true;
+    }
+
+    return false;
+  }
+
   function consultarEnvio(periodoId, cedulaIngresada) {
     var variantes = construirVariantesCedula(cedulaIngresada);
+    var periodoNormalizado = obtenerPeriodoIdDesdeValor(periodoId);
     var cadena = Promise.resolve(null);
 
     variantes.forEach(function (cedula) {
@@ -94,8 +187,10 @@
 
         return firebaseService.leerDocumento(
           config.collections.titulos,
-          construirTituloId(periodoId, cedula)
-        );
+          construirTituloId(periodoNormalizado, cedula)
+        ).catch(function () {
+          return null;
+        });
       });
     });
 
@@ -150,7 +245,7 @@
 
         if (!estudianteLocal) return null;
 
-        var periodoId = estudianteLocal.periodoId || appConfigLocal.periodoActivo || 'SIN_PERIODO';
+        var periodoId = estudianteLocal.periodoId || obtenerPeriodoActivoDesdeConfig(appConfigLocal) || 'SIN_PERIODO';
         return consultarEnvio(periodoId, estudianteLocal.cedula || cedula);
       })
       .then(function (envioExistente) {
@@ -167,6 +262,8 @@
       payload.periodoId = 'SIN_PERIODO';
     }
 
+    payload.periodoId = obtenerPeriodoIdDesdeValor(payload.periodoId);
+
     var tituloId = construirTituloId(payload.periodoId, payload.cedula);
     var payloadFinal = Object.assign({}, payload, {
       id: tituloId,
@@ -181,7 +278,7 @@
       config.collections.titulos,
       tituloId,
       payloadFinal,
-      true
+      { merge: true }
     ).then(function () {
       return registrarLogEnvio(tituloId, payloadFinal, 'ENVIO_ESTUDIANTE');
     }).then(function () {
@@ -197,7 +294,7 @@
   function actualizarRespaldoSheets(periodoId, cedula, respaldo) {
     return firebaseService.actualizarDocumento(
       config.collections.titulos,
-      construirTituloId(periodoId, cedula),
+      construirTituloId(obtenerPeriodoIdDesdeValor(periodoId), cedula),
       {
         respaldoSheets: respaldo,
         respaldoSheetsEstado: respaldo && respaldo.ok ? 'OK' : 'PENDIENTE',
@@ -227,12 +324,12 @@
   }
 
   function construirTituloId(periodoId, cedula) {
-    return String(periodoId || 'SIN_PERIODO') + '__' + String(cedula || 'SIN_CEDULA');
+    return String(obtenerPeriodoIdDesdeValor(periodoId) || 'SIN_PERIODO') + '__' + String(cedula || 'SIN_CEDULA');
   }
 
   function normalizarEstudiante(data, cedulaConsultada) {
     var source = normalizarObjeto(data || {});
-    var cedulaOriginal = valor(source, ['numeroidentificacion', 'cedula', 'id']) || cedulaConsultada;
+    var cedulaOriginal = valor(source, ['numeroidentificacion', 'cedula', 'identificacion', 'documento', 'dni', 'id']) || data.id || data._docId || cedulaConsultada;
     var cedulaNormalizada = normalizarCedulaParaMostrar(cedulaOriginal || cedulaConsultada);
     var nombres = valor(source, ['nombres', 'nombrecompleto', 'estudiante', 'nombre']);
     var carrera = valor(source, ['nombrecarrera', 'carrera', 'nombre_carrera']);
@@ -248,7 +345,7 @@
     var modalidadTexto = limpiarTexto(modalidad);
 
     return {
-      id: data.id || cedulaNormalizada,
+      id: data.id || data._docId || cedulaNormalizada,
       cedula: cedulaNormalizada,
       numeroIdentificacion: cedulaNormalizada,
       nombres: limpiarTexto(nombres) || 'Sin nombres registrados',
@@ -287,18 +384,75 @@
       agregarUnico(variantes, limpia.slice(1));
     }
 
+    if (limpia.length > 10 && limpia.charAt(0) === '0') {
+      agregarUnico(variantes, quitarCerosIniciales(limpia));
+    }
+
+    agregarUnico(variantes, normalizarCedulaComparacion(limpia));
+
     return variantes;
   }
 
   function normalizarCedulaParaMostrar(cedula) {
     var limpia = limpiarSoloNumeros(cedula);
-    if (limpia.length === 9) return '0' + limpia;
+
+    if (limpia.length === 9) {
+      return '0' + limpia;
+    }
+
     return limpia;
   }
 
+  function normalizarCedulaComparacion(cedula) {
+    return quitarCerosIniciales(limpiarSoloNumeros(cedula));
+  }
+
+  function quitarCerosIniciales(value) {
+    var texto = String(value || '').replace(/^0+/, '');
+    return texto || '0';
+  }
+
+  function obtenerPeriodoActivoDesdeConfig(appConfig) {
+    if (!appConfig) return '';
+
+    if (appConfig.periodoActivoId) {
+      return limpiarTexto(appConfig.periodoActivoId);
+    }
+
+    if (typeof appConfig.periodoActivo === 'string') {
+      return limpiarTexto(appConfig.periodoActivo);
+    }
+
+    if (appConfig.periodoActivo && typeof appConfig.periodoActivo === 'object') {
+      return limpiarTexto(appConfig.periodoActivo.id || appConfig.periodoActivo.periodoId || '');
+    }
+
+    if (Array.isArray(appConfig.periodosActivos) && appConfig.periodosActivos.length) {
+      return limpiarTexto(appConfig.periodosActivos[0]);
+    }
+
+    return '';
+  }
+
+  function obtenerPeriodoIdDesdeValor(value) {
+    if (!value) return '';
+
+    if (typeof value === 'string') {
+      return limpiarTexto(value);
+    }
+
+    if (typeof value === 'object') {
+      return limpiarTexto(value.id || value.periodoId || value.value || '');
+    }
+
+    return limpiarTexto(value);
+  }
+
   function agregarUnico(lista, valor) {
-    if (!valor) return;
-    if (lista.indexOf(valor) === -1) lista.push(valor);
+    var limpio = limpiarTexto(valor);
+
+    if (!limpio) return;
+    if (lista.indexOf(limpio) === -1) lista.push(limpio);
   }
 
   function normalizarObjeto(data) {
@@ -322,6 +476,7 @@
   function valor(source, keys) {
     for (var i = 0; i < keys.length; i += 1) {
       var value = source[keys[i]];
+
       if (value !== undefined && value !== null && String(value).trim() !== '') {
         return String(value).trim();
       }

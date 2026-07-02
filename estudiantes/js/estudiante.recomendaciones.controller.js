@@ -2,68 +2,57 @@
   Archivo: estudiante.recomendaciones.controller.js
   Ruta: estudiantes/js/estudiante.recomendaciones.controller.js
   Funciones principales del archivo:
-  - Controlar el modal inicial obligatorio de recomendaciones.
-  - Marcar cuándo el estudiante ya cerró o aceptó las recomendaciones.
-  - Mostrar los datos y permitir avance solo después de consulta válida y modal cerrado.
-  - Coordinar el inicio del formulario después de aceptar las recomendaciones.
-  - Mantener separada la lógica del modal inicial respecto a estudiante.app.js.
+  - Mantener compatibilidad con estudiante.events.js, que llama a mostrarModalRecomendaciones().
+  - Evitar que el flujo quede detenido en un modal de recomendaciones después de consultar.
+  - Mostrar los datos académicos inmediatamente después de una consulta válida.
+  - Inicializar el formulario después de encontrar al estudiante.
+  - Habilitar correctamente el paso "datos" en la paginación.
+  - Dejar listo el siguiente paso del flujo: Telegram obligatorio.
 */
 (function () {
   'use strict';
 
+  var cierreEnProceso = false;
+
   function mostrarModalRecomendaciones(opciones) {
-    var modalService = window.TAEstudianteModal;
+    /*
+      En el flujo nuevo ya no debe aparecer un modal de recomendaciones después de consultar.
+      estudiante.events.js sigue llamando a esta función por compatibilidad.
+      Por eso esta función ahora continúa directamente hacia "datos académicos".
+    */
+    return continuarDespuesDeConsulta(opciones);
+  }
+
+  function cerrarRecomendaciones(opciones) {
+    return continuarDespuesDeConsulta(opciones);
+  }
+
+  function continuarDespuesDeConsulta(opciones) {
     var ui = window.TAEstudianteUI;
     var state = window.TAEstudianteState;
     var estado = state ? state.obtener() : {};
 
     opciones = opciones || {};
 
+    if (cierreEnProceso) {
+      return false;
+    }
+
     if (!estado.estudiante) {
       if (ui && ui.showAlert) {
         ui.showAlert('Primero consulta la cédula del estudiante.', '#cedulaInput');
       }
 
-      return;
+      return false;
     }
 
-    if (state) {
-      state.marcarRecomendacionesCerradas(false);
-    }
+    cierreEnProceso = true;
 
-    if (modalService && modalService.abrirRecomendaciones) {
-      modalService.abrirRecomendaciones(function () {
-        cerrarRecomendaciones(opciones);
-      });
-      return;
-    }
-
-    if (ui && ui.openAdviceModal) {
-      ui.openAdviceModal(function () {
-        cerrarRecomendaciones(opciones);
-      });
-      return;
-    }
-
-    abrirModalFallback('#modalRecomendaciones');
-    conectarFallbackUnaVez('#btnEntendidoRecomendaciones', function () {
-      cerrarModalFallback('#modalRecomendaciones');
-      cerrarRecomendaciones(opciones);
-    });
-    conectarFallbackUnaVez('#btnCerrarRecomendaciones', function () {
-      cerrarModalFallback('#modalRecomendaciones');
-      cerrarRecomendaciones(opciones);
-    });
-  }
-
-  function cerrarRecomendaciones(opciones) {
-    var state = window.TAEstudianteState;
-
-    opciones = opciones || {};
-
-    if (state) {
+    if (state && state.marcarRecomendacionesCerradas) {
       state.marcarRecomendacionesCerradas(true);
     }
+
+    cerrarModalRecomendacionesSiExiste();
 
     mostrarDatosSiCorresponde();
 
@@ -74,6 +63,10 @@
     if (typeof opciones.onContinuar === 'function') {
       opciones.onContinuar();
     }
+
+    cierreEnProceso = false;
+
+    return true;
   }
 
   function mostrarDatosSiCorresponde() {
@@ -81,16 +74,20 @@
     var paginacion = window.TAEstudiantePaginacion;
     var state = window.TAEstudianteState;
     var estado = state ? state.obtener() : {};
+    var pasoMostrado = false;
 
-    if (!estado.consultaCompletada || !estado.recomendacionesCerradas) {
+    if (!estado.consultaCompletada || !estado.estudiante) {
       return false;
     }
 
-    if (!estado.estudiante) {
-      return false;
+    if (state && state.marcarRecomendacionesCerradas) {
+      state.marcarRecomendacionesCerradas(true);
     }
 
-    if (window.TAEstudianteFormularioController && window.TAEstudianteFormularioController.inicializarFormularioTrasConsulta) {
+    if (
+      window.TAEstudianteFormularioController &&
+      typeof window.TAEstudianteFormularioController.inicializarFormularioTrasConsulta === 'function'
+    ) {
       window.TAEstudianteFormularioController.inicializarFormularioTrasConsulta({
         estudiante: estado.estudiante,
         appConfig: estado.appConfig,
@@ -98,38 +95,60 @@
       });
     }
 
-    if (paginacion && paginacion.irA) {
-      paginacion.irA('datos', true);
+    if (paginacion) {
+      if (typeof paginacion.habilitarHasta === 'function') {
+        paginacion.habilitarHasta('datos');
+      } else if (typeof paginacion.habilitarPaso === 'function') {
+        paginacion.habilitarPaso('datos');
+      }
+
+      if (typeof paginacion.irA === 'function') {
+        pasoMostrado = paginacion.irA('datos', true);
+      }
     }
 
     if (ui) {
-      ui.show('#wizardSteps');
-      ui.show('#seccionEstudiante');
-      ui.show('#formPropuestas');
-      ui.showStatus('#consultaMensaje', '', 'success');
+      if (typeof ui.show === 'function') {
+        ui.show('#wizardSteps');
+        ui.show('#seccionEstudiante');
+        ui.show('#formPropuestas');
+      }
+
+      if (typeof ui.showStatus === 'function') {
+        ui.showStatus('#consultaMensaje', '', 'success');
+      }
     }
 
-    return true;
+    enfocarDatosAcademicos();
+
+    return pasoMostrado || true;
   }
 
   function reiniciar() {
     var state = window.TAEstudianteState;
 
-    if (state) {
+    cierreEnProceso = false;
+
+    if (state && state.marcarRecomendacionesCerradas) {
       state.marcarRecomendacionesCerradas(false);
     }
+
+    cerrarModalRecomendacionesSiExiste();
   }
 
-  function abrirModalFallback(selector) {
-    var modal = document.querySelector(selector);
+  function cerrarModalRecomendacionesSiExiste() {
+    var modalService = window.TAEstudianteModal;
+    var ui = window.TAEstudianteUI;
 
-    if (!modal) {
-      return;
+    if (modalService && typeof modalService.cerrar === 'function') {
+      modalService.cerrar('#modalRecomendaciones');
     }
 
-    modal.classList.remove('is-hidden');
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('has-open-modal');
+    if (ui && typeof ui.closeAdviceModal === 'function') {
+      ui.closeAdviceModal();
+    }
+
+    cerrarModalFallback('#modalRecomendaciones');
   }
 
   function cerrarModalFallback(selector) {
@@ -147,25 +166,36 @@
     }
   }
 
-  function conectarFallbackUnaVez(selector, callback) {
-    var boton = document.querySelector(selector);
+  function enfocarDatosAcademicos() {
+    var titulo = document.querySelector('#datoNombres');
+    var seccion = document.querySelector('#seccionEstudiante');
 
-    if (!boton || boton.dataset.recomendacionesFallbackConectado === 'true') {
-      return;
-    }
+    window.setTimeout(function () {
+      if (titulo && typeof titulo.focus === 'function') {
+        if (!titulo.hasAttribute('tabindex')) {
+          titulo.setAttribute('tabindex', '-1');
+        }
 
-    boton.dataset.recomendacionesFallbackConectado = 'true';
-
-    boton.addEventListener('click', function () {
-      if (typeof callback === 'function') {
-        callback();
+        titulo.focus();
+        return;
       }
-    });
+
+      if (seccion && typeof seccion.scrollIntoView === 'function') {
+        seccion.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    }, 80);
   }
 
   function hayModalAbierto() {
-    return Array.prototype.slice.call(document.querySelectorAll('.modal'))
+    return Array.prototype.slice.call(document.querySelectorAll('.modal, .ia-loading-modal'))
       .some(function (modal) {
+        if (modal.id === 'modalRecomendaciones') {
+          return false;
+        }
+
         return !modal.classList.contains('is-hidden');
       });
   }

@@ -5,6 +5,7 @@
   - Controlar la vista previa del resumen antes del envío.
   - Validar el formulario final antes de guardar.
   - Construir el payload final usando formulario.service.js.
+  - Exigir que el estudiante elija el título preferido en el resumen.
   - Guardar el envío final en Firebase.
   - Respaldar el envío en Google Sheets si el servicio está disponible.
   - Renderizar el comprobante final y bloquear el formulario.
@@ -12,6 +13,8 @@
 */
 (function () {
   'use strict';
+
+  var envioEnProceso = false;
 
   function mostrarVistaPrevia(event) {
     if (event && event.preventDefault) {
@@ -53,19 +56,20 @@
       return null;
     }
 
-    if (!formularioService || !formularioService.construirPayload) {
+    if (!formularioService || typeof formularioService.construirPayload !== 'function') {
       ui.showAlert('No se pudo preparar el envío porque el servicio de formulario no está disponible.', '');
       return null;
     }
 
+    if (ui.clearFieldErrors) {
+      ui.clearFieldErrors();
+    }
+
     formData = ui.readFormData(obtenerTotalPropuestas());
+    formData = normalizarFormulario(formData);
 
-    if (validaciones && validaciones.validarEnvio) {
+    if (validaciones && typeof validaciones.validarEnvio === 'function') {
       resultado = validaciones.validarEnvio(formData, obtenerTotalPropuestas());
-
-      if (ui.clearFieldErrors) {
-        ui.clearFieldErrors();
-      }
 
       if (!resultado.ok) {
         ui.showAlert(resultado.mensaje, resultado.selector);
@@ -80,18 +84,25 @@
       estado.envioExistente
     );
 
-    if (state && state.guardarPayloadFinal) {
+    if (!payload || !payload.cedula) {
+      ui.showAlert('No se pudo preparar el envío porque falta información del estudiante.', '');
+      return null;
+    }
+
+    if (state && typeof state.guardarPayloadFinal === 'function') {
       state.guardarPayloadFinal(formData, payload);
     }
 
-    if (ui.renderSummary) {
+    if (typeof ui.renderSummary === 'function') {
       ui.renderSummary(estado.estudiante, formData, payload);
     }
 
-    abrirModalResumen();
-
     if (!abrirComoEnvio) {
-      ui.showStatus('#envioMensaje', 'Vista previa generada correctamente.', 'success');
+      abrirModalResumen();
+    }
+
+    if (!abrirComoEnvio && typeof ui.showStatus === 'function') {
+      ui.showStatus('#envioMensaje', 'Resumen generado correctamente. Revisa antes de confirmar.', 'success');
     }
 
     return {
@@ -104,78 +115,80 @@
     var state = window.TAEstudianteState;
     var ui = window.TAEstudianteUI;
     var repository = window.TAEstudianteRepository;
-    var formularioController = window.TAEstudianteFormularioController;
-    var consultaController = window.TAEstudianteConsultaController;
     var estado = state ? state.obtener() : {};
+    var preparado;
     var btnConfirmar = qs('#btnConfirmarEnvio');
     var btnConfirmarModal = qs('#btnConfirmarEnvioModal');
+    var payload;
 
     if (!ui) {
       return Promise.resolve(null);
     }
 
-    if (estado.enviadoFinal) {
-      cerrarModalResumen();
-      ui.showAlert('El envío ya fue registrado.', '');
+    if (envioEnProceso) {
       return Promise.resolve(null);
     }
 
-    if (!repository || !repository.guardarEnvioFinal) {
-      cerrarModalResumen();
+    if (!repository || typeof repository.guardarEnvioFinal !== 'function') {
       ui.showAlert('No se pudo guardar el envío porque el repositorio no está disponible.', '');
       return Promise.resolve(null);
     }
 
-    if (!estado.firebaseListo && consultaController && consultaController.asegurarFirebase) {
-      return consultaController.asegurarFirebase()
-        .then(function () {
-          return confirmarEnvioFinal();
-        })
-        .catch(function () {
-          cerrarModalResumen();
-          ui.showAlert('No se pudo guardar el envío. Revisa tu conexión e intenta nuevamente.', '');
-          return null;
-        });
+    if (!estado.estudiante) {
+      ui.showAlert('Primero consulta la cédula del estudiante.', '#cedulaInput');
+      return Promise.resolve(null);
     }
 
-    if (!estado.estudiante || !estado.ultimoFormulario || !estado.ultimoPayload) {
-      if (formularioController && formularioController.prepararPayloadFinalSinModal) {
-        formularioController.prepararPayloadFinalSinModal();
-        estado = state ? state.obtener() : estado;
-      }
-
-      if (!estado.ultimoPayload) {
-        cerrarModalResumen();
-        ui.showAlert('No hay información lista para enviar.', '');
-        return Promise.resolve(null);
-      }
+    if (estado.enviadoFinal) {
+      ui.showAlert('Este formulario ya fue enviado y registrado.', '');
+      return Promise.resolve(null);
     }
 
-    ui.setLoading(btnConfirmar, true, 'Enviando...');
-    ui.setLoading(btnConfirmarModal, true, 'Enviando...');
-    ui.showStatus('#envioMensaje', 'Registrando propuestas.', 'info');
+    preparado = prepararResumen(true);
 
-    return repository.guardarEnvioFinal(estado.ultimoPayload)
+    if (!preparado || !preparado.payload) {
+      return Promise.resolve(null);
+    }
+
+    payload = preparado.payload;
+    envioEnProceso = true;
+
+    if (ui.setLoading) {
+      ui.setLoading(btnConfirmar, true, 'Enviando...');
+      ui.setLoading(btnConfirmarModal, true, 'Enviando...');
+    }
+
+    if (ui.showStatus) {
+      ui.showStatus('#envioMensaje', 'Guardando envío final...', 'info');
+    }
+
+    return repository.guardarEnvioFinal(payload)
       .then(function (respuesta) {
         var data = respuesta && respuesta.data ? respuesta.data : respuesta;
 
-        if (state) {
+        if (state && typeof state.actualizar === 'function') {
           state.actualizar({
             envioExistente: data || null,
-            ultimoPayload: data || estado.ultimoPayload
+            ultimoPayload: data || payload
           });
         }
 
         eliminarBorradorFinal();
-
         cerrarModalResumen();
-        ui.showStatus('#envioMensaje', 'Propuestas registradas. Generando respaldo...', 'info');
+
+        if (ui.showStatus) {
+          ui.showStatus('#envioMensaje', 'Propuestas registradas. Generando respaldo...', 'info');
+        }
 
         return respaldarEnSheets(respuesta);
       })
       .then(function (resultadoFinal) {
-        if (state && state.guardarResultadoFinal) {
+        if (state && typeof state.guardarResultadoFinal === 'function') {
           state.guardarResultadoFinal(resultadoFinal);
+        }
+
+        if (state && typeof state.marcarEnvioFinal === 'function') {
+          state.marcarEnvioFinal(true);
         }
 
         if (ui.setFormDisabled) {
@@ -187,19 +200,7 @@
           ui.renderComprobante(resultadoFinal);
         }
 
-        if (resultadoFinal && resultadoFinal.sheets && resultadoFinal.sheets.ok) {
-          ui.showStatus(
-            '#envioMensaje',
-            'Propuestas enviadas correctamente y respaldadas. Código de registro: ' + obtenerIdResultado(resultadoFinal) + '.',
-            'success'
-          );
-        } else {
-          ui.showStatus(
-            '#envioMensaje',
-            'Propuestas enviadas correctamente. Código de registro: ' + obtenerIdResultado(resultadoFinal) + '.',
-            'success'
-          );
-        }
+        mostrarMensajeFinal(resultadoFinal);
 
         return resultadoFinal;
       })
@@ -209,6 +210,8 @@
         return null;
       })
       .finally(function () {
+        envioEnProceso = false;
+
         if (ui.setLoading) {
           ui.setLoading(btnConfirmar, false);
           ui.setLoading(btnConfirmarModal, false);
@@ -225,10 +228,11 @@
       ? respuestaFirebase.data
       : respuestaFirebase || {};
 
-    if (!sheetsService || !sheetsService.respaldarEnvio) {
+    if (!sheetsService || typeof sheetsService.respaldarEnvio !== 'function') {
       return Promise.resolve({
-        id: respuestaFirebase && respuestaFirebase.id ? respuestaFirebase.id : envio.id || '',
+        id: obtenerIdResultado(respuestaFirebase),
         firebase: respuestaFirebase,
+        payload: envio,
         sheets: {
           ok: false,
           mensaje: 'Servicio de respaldo no disponible.'
@@ -238,7 +242,7 @@
 
     return sheetsService.respaldarEnvio(envio, estado.appConfig)
       .then(function (resultadoSheets) {
-        if (!repository || !repository.actualizarRespaldoSheets) {
+        if (!repository || typeof repository.actualizarRespaldoSheets !== 'function') {
           return resultadoSheets;
         }
 
@@ -246,14 +250,17 @@
           envio.periodoId,
           envio.cedula,
           resultadoSheets
-        ).catch(function () {
+        ).then(function () {
+          return resultadoSheets;
+        }).catch(function () {
           return resultadoSheets;
         });
       })
       .then(function (resultadoSheetsFinal) {
         return {
-          id: respuestaFirebase && respuestaFirebase.id ? respuestaFirebase.id : envio.id || '',
+          id: obtenerIdResultado(respuestaFirebase),
           firebase: respuestaFirebase,
+          payload: envio,
           sheets: resultadoSheetsFinal
         };
       })
@@ -261,8 +268,9 @@
         console.warn('[Estudiantes] Respaldo Sheets no completado:', error);
 
         return {
-          id: respuestaFirebase && respuestaFirebase.id ? respuestaFirebase.id : envio.id || '',
+          id: obtenerIdResultado(respuestaFirebase),
           firebase: respuestaFirebase,
+          payload: envio,
           sheets: {
             ok: false,
             mensaje: error && error.message ? error.message : 'No se pudo generar respaldo.'
@@ -327,7 +335,7 @@
   function eliminarBorradorFinal() {
     var borradorController = window.TAEstudianteBorradorController;
 
-    if (borradorController && borradorController.limpiarBorradorSilencioso) {
+    if (borradorController && typeof borradorController.limpiarBorradorSilencioso === 'function') {
       borradorController.limpiarBorradorSilencioso();
     }
   }
@@ -336,12 +344,12 @@
     var ui = window.TAEstudianteUI;
     var modalService = window.TAEstudianteModal;
 
-    if (ui && ui.openModal) {
+    if (ui && typeof ui.openModal === 'function') {
       ui.openModal();
       return;
     }
 
-    if (modalService && modalService.abrir) {
+    if (modalService && typeof modalService.abrir === 'function') {
       modalService.abrir('#modalResumen');
       return;
     }
@@ -353,12 +361,12 @@
     var ui = window.TAEstudianteUI;
     var modalService = window.TAEstudianteModal;
 
-    if (ui && ui.closeModal) {
+    if (ui && typeof ui.closeModal === 'function') {
       ui.closeModal();
       return;
     }
 
-    if (modalService && modalService.cerrar) {
+    if (modalService && typeof modalService.cerrar === 'function') {
       modalService.cerrar('#modalResumen');
       return;
     }
@@ -399,16 +407,56 @@
     });
   }
 
+  function mostrarMensajeFinal(resultadoFinal) {
+    var ui = window.TAEstudianteUI;
+    var codigo = obtenerIdResultado(resultadoFinal);
+
+    if (!ui || !ui.showStatus) {
+      return;
+    }
+
+    if (resultadoFinal && resultadoFinal.sheets && resultadoFinal.sheets.ok) {
+      ui.showStatus(
+        '#envioMensaje',
+        'Propuestas enviadas correctamente y respaldadas. Código de registro: ' + codigo + '.',
+        'success'
+      );
+      return;
+    }
+
+    ui.showStatus(
+      '#envioMensaje',
+      'Propuestas enviadas correctamente. Código de registro: ' + codigo + '.',
+      'success'
+    );
+  }
+
   function obtenerIdResultado(resultadoFinal) {
+    var firebase;
+    var payload;
+
     if (!resultadoFinal) {
       return '';
     }
 
+    firebase = resultadoFinal.firebase || {};
+    payload = resultadoFinal.payload || firebase.payload || firebase.data || resultadoFinal.data || {};
+
     return resultadoFinal.id ||
-      resultadoFinal.codigoRegistro ||
-      resultadoFinal.firebase && resultadoFinal.firebase.id ||
-      resultadoFinal.firebase && resultadoFinal.firebase.data && resultadoFinal.firebase.data.id ||
+      firebase.id ||
+      payload.id ||
+      payload.idRegistro ||
       '';
+  }
+
+  function normalizarFormulario(formData) {
+    var formularioController = window.TAEstudianteFormularioController;
+
+    if (formularioController && typeof formularioController.normalizarFormulario === 'function') {
+      return formularioController.normalizarFormulario(formData);
+    }
+
+    return formData || {};
   }
 
   function obtenerTotalPropuestas() {
@@ -431,6 +479,7 @@
     confirmarEnvioFinal: confirmarEnvioFinal,
     respaldarEnSheets: respaldarEnSheets,
     copiarCodigoRegistro: copiarCodigoRegistro,
-    copiarTexto: copiarTexto
+    copiarTexto: copiarTexto,
+    cerrarModalResumen: cerrarModalResumen
   });
 })();

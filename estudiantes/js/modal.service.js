@@ -5,6 +5,8 @@
   - Centralizar apertura y cierre de modales del módulo estudiantes.
   - Mostrar el modal inicial obligatorio de recomendaciones.
   - Mostrar el modal de sugerencias generadas por IA sin etiquetas técnicas.
+  - Mostrar únicamente alertas de carrera cuando vengan marcadas como alertaCarrera.
+  - Evitar que se muestren advertencias internas como longitud, respaldo académico o warnings técnicos.
   - Mostrar alertas generales y errores sin depender de window.alert.
   - Gestionar callbacks de botones Entendido, Cancelar y Usar sugerencia.
 */
@@ -85,8 +87,10 @@
     var article = document.createElement('article');
     var titulo = document.createElement('h3');
     var parrafo = document.createElement('p');
+    var alerta = document.createElement('p');
     var actions = document.createElement('div');
     var boton = document.createElement('button');
+    var alertasCarrera = obtenerAlertasCarrera(item, sugerencia);
 
     article.className = 'suggestion-modal-card';
 
@@ -94,6 +98,18 @@
 
     parrafo.className = 'suggestion-modal-card__text';
     parrafo.textContent = item.texto || 'No se pudo leer esta sugerencia.';
+
+    if (alertasCarrera.length) {
+      alerta.className = 'suggestion-modal-card__warning';
+      alerta.textContent = alertasCarrera.join(' ');
+      alerta.style.margin = '10px 0 0';
+      alerta.style.padding = '10px 12px';
+      alerta.style.borderRadius = '12px';
+      alerta.style.background = '#fff7ed';
+      alerta.style.color = '#9a3412';
+      alerta.style.fontWeight = '800';
+      alerta.style.lineHeight = '1.45';
+    }
 
     actions.className = 'suggestion-modal-card__actions';
 
@@ -120,6 +136,11 @@
 
     article.appendChild(titulo);
     article.appendChild(parrafo);
+
+    if (alertasCarrera.length) {
+      article.appendChild(alerta);
+    }
+
     article.appendChild(actions);
 
     return article;
@@ -143,8 +164,8 @@
   function mostrarAlerta(mensaje, opciones) {
     opciones = opciones || {};
 
-    var titulo = qs('#tituloModalAlerta');
-    var texto = qs('#mensajeModalAlerta');
+    var titulo = qs('#tituloModalAlerta') || qs('#modalAlertaTitulo');
+    var texto = qs('#mensajeModalAlerta') || qs('#modalAlertaMensaje');
 
     callbacks.alertaCerrada = typeof opciones.onCerrar === 'function'
       ? opciones.onCerrar
@@ -161,6 +182,114 @@
     abrir('#modalAlerta');
   }
 
+  function ejecutarCallbackRecomendaciones() {
+    var callback = callbacks.recomendaciones;
+
+    callbacks.recomendaciones = null;
+
+    if (callback) {
+      callback();
+    }
+  }
+
+  function ejecutarCallbackAlerta() {
+    var callback = callbacks.alertaCerrada;
+
+    callbacks.alertaCerrada = null;
+
+    if (callback) {
+      callback();
+    }
+  }
+
+  function conectarCierreModal(selectorBoton, selectorModal, callback) {
+    var boton = qs(selectorBoton);
+
+    if (!boton || boton.dataset.modalBound === 'true') {
+      return;
+    }
+
+    boton.dataset.modalBound = 'true';
+
+    boton.addEventListener('click', function (event) {
+      if (event && event.preventDefault) {
+        event.preventDefault();
+      }
+
+      cerrar(selectorModal);
+
+      if (typeof callback === 'function') {
+        callback();
+      }
+    });
+  }
+
+  function conectarBackdrops() {
+    qsa('[data-close-modal]').forEach(function (element) {
+      if (element.dataset.modalBackdropBound === 'true') {
+        return;
+      }
+
+      element.dataset.modalBackdropBound = 'true';
+
+      element.addEventListener('click', function (event) {
+        var selector = element.getAttribute('data-close-modal');
+
+        if (event && event.preventDefault) {
+          event.preventDefault();
+        }
+
+        if (selector) {
+          cerrar(selector);
+        }
+      });
+    });
+
+    qsa('.modal__backdrop').forEach(function (backdrop) {
+      if (backdrop.dataset.modalBackdropBound === 'true') {
+        return;
+      }
+
+      backdrop.dataset.modalBackdropBound = 'true';
+
+      backdrop.addEventListener('click', function () {
+        var modal = backdrop.closest('.modal');
+
+        if (modal && modal.id) {
+          cerrar('#' + modal.id);
+        }
+      });
+    });
+  }
+
+  function conectarEscape() {
+    if (document.body.dataset.taModalEscapeBound === 'true') {
+      return;
+    }
+
+    document.body.dataset.taModalEscapeBound = 'true';
+
+    document.addEventListener('keydown', function (event) {
+      if (!event || event.key !== 'Escape') {
+        return;
+      }
+
+      cerrarUltimoModalAbierto();
+    });
+  }
+
+  function cerrarUltimoModalAbierto() {
+    var abiertos = qsa('.modal, .ia-loading-modal').filter(function (modal) {
+      return !modal.classList.contains('is-hidden');
+    });
+
+    var ultimo = abiertos[abiertos.length - 1];
+
+    if (ultimo && ultimo.id) {
+      cerrar('#' + ultimo.id);
+    }
+  }
+
   function abrir(selector) {
     var modal = qs(selector);
 
@@ -171,8 +300,6 @@
     modal.classList.remove('is-hidden');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('has-open-modal');
-
-    enfocarPrimerBoton(modal);
   }
 
   function cerrar(selector) {
@@ -191,7 +318,7 @@
   }
 
   function cerrarTodos() {
-    qsa('.modal').forEach(function (modal) {
+    qsa('.modal, .ia-loading-modal').forEach(function (modal) {
       modal.classList.add('is-hidden');
       modal.setAttribute('aria-hidden', 'true');
     });
@@ -199,104 +326,74 @@
     document.body.classList.remove('has-open-modal');
   }
 
-  function conectarCierreModal(botonSelector, modalSelector, despuesDeCerrar) {
-    var boton = qs(botonSelector);
-
-    if (!boton) {
-      return;
-    }
-
-    boton.addEventListener('click', function () {
-      cerrar(modalSelector);
-
-      if (typeof despuesDeCerrar === 'function') {
-        despuesDeCerrar();
-      }
-    });
-  }
-
-  function conectarBackdrops() {
-    qsa('.modal__backdrop').forEach(function (backdrop) {
-      backdrop.addEventListener('click', function () {
-        var modal = backdrop.closest ? backdrop.closest('.modal') : null;
-
-        if (!modal) {
-          return;
-        }
-
-        if (modal.id === 'modalRecomendaciones') {
-          return;
-        }
-
-        cerrar('#' + modal.id);
-      });
-    });
-  }
-
-  function conectarEscape() {
-    document.addEventListener('keydown', function (event) {
-      if (event.key !== 'Escape') {
-        return;
-      }
-
-      var modalRecomendaciones = qs('#modalRecomendaciones');
-
-      if (modalRecomendaciones && !modalRecomendaciones.classList.contains('is-hidden')) {
-        return;
-      }
-
-      cerrarTodos();
-    });
-  }
-
-  function ejecutarCallbackRecomendaciones() {
-    var callback = callbacks.recomendaciones;
-    callbacks.recomendaciones = null;
-
-    if (typeof callback === 'function') {
-      callback();
-    }
-  }
-
-  function ejecutarCallbackAlerta() {
-    var callback = callbacks.alertaCerrada;
-    callbacks.alertaCerrada = null;
-
-    if (typeof callback === 'function') {
-      callback();
-    }
-  }
-
   function hayModalAbierto() {
-    return qsa('.modal').some(function (modal) {
+    return qsa('.modal, .ia-loading-modal').some(function (modal) {
       return !modal.classList.contains('is-hidden');
     });
   }
 
-  function enfocarPrimerBoton(modal) {
-    window.setTimeout(function () {
-      var boton = modal.querySelector('button:not([disabled])');
+  function actualizarEncabezadoSugerencias() {
+    var tituloModal = qs('#tituloModalSugerencias') ||
+      qs('#modalSugerenciasTitulo') ||
+      qs('#modalSugerencias h2');
 
-      if (boton) {
-        boton.focus();
+    var subtituloModal = qs('#subtituloModalSugerencias') ||
+      qs('#modalSugerenciasSubtitulo') ||
+      qs('#modalSugerencias .modal__subtitle');
+
+    if (tituloModal) {
+      tituloModal.textContent = 'Elige una sugerencia';
+    }
+
+    if (subtituloModal) {
+      subtituloModal.textContent = '';
+      subtituloModal.style.display = 'none';
+    }
+  }
+
+  function obtenerAlertasCarrera(item, original) {
+    var alertas = [];
+
+    agregarAlertasDesdeValor(alertas, item && item.alertaCarrera);
+    agregarAlertasDesdeValor(alertas, item && item.alertasCarrera);
+    agregarAlertasDesdeValor(alertas, original && original.alertaCarrera);
+    agregarAlertasDesdeValor(alertas, original && original.alertasCarrera);
+
+    if (item && item.original) {
+      agregarAlertasDesdeValor(alertas, item.original.alertaCarrera);
+      agregarAlertasDesdeValor(alertas, item.original.alertasCarrera);
+
+      if (item.original.original) {
+        agregarAlertasDesdeValor(alertas, item.original.original.alertaCarrera);
+        agregarAlertasDesdeValor(alertas, item.original.original.alertasCarrera);
       }
-    }, 60);
+    }
+
+    if (original && original.original) {
+      agregarAlertasDesdeValor(alertas, original.original.alertaCarrera);
+      agregarAlertasDesdeValor(alertas, original.original.alertasCarrera);
+    }
+
+    return alertas;
   }
 
-function actualizarEncabezadoSugerencias() {
-  var tituloModal = qs('#modalSugerenciasTitulo');
-  var subtituloModal = qs('#modalSugerenciasSubtitulo');
+  function agregarAlertasDesdeValor(destino, valor) {
+    if (typeof valor === 'string') {
+      valor = [valor];
+    }
 
-  if (tituloModal) {
-    tituloModal.textContent = '';
-    tituloModal.style.display = 'none';
-  }
+    if (!Array.isArray(valor)) {
+      return;
+    }
 
-  if (subtituloModal) {
-    subtituloModal.textContent = '';
-    subtituloModal.style.display = 'none';
+    valor.forEach(function (mensaje) {
+      mensaje = normalizarTexto(mensaje);
+
+      if (mensaje && destino.indexOf(mensaje) === -1) {
+        destino.push(mensaje);
+      }
+    });
   }
-}
 
   function normalizarSugerencia(sugerencia) {
     var texto = '';

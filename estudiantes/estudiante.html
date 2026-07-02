@@ -2,12 +2,13 @@
 <!--
   Archivo: estudiante.html
   Ruta: estudiantes/estudiante.html
-  Funciones del archivo:
+  Funciones principales del archivo:
   - Renderizar la pantalla pública de estudiantes para registro de títulos académicos.
   - Consultar estudiante por número de identificación.
   - Mostrar datos académicos del estudiante encontrado.
-  - Capturar Telegram y tres propuestas de título.
-  - Mostrar modal inicial obligatorio con reglas del proceso.
+  - Capturar Telegram obligatorio en una página independiente.
+  - Capturar tres propuestas de título en pasos separados.
+  - Guiar el flujo: consulta, carga, datos, Telegram, propuestas, sugerencias, resumen, envío y comprobante.
   - Mostrar animación de generación mientras la IA de Titulación trabaja.
   - Mostrar modal de sugerencias para que el estudiante elija una opción.
   - Mostrar resumen previo, comprobante final y código de registro.
@@ -24,6 +25,7 @@
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
   <link rel="stylesheet" href="css/estudiante.css" />
   <link rel="stylesheet" href="css/propuestas.css" />
+  <link rel="stylesheet" href="css/resumen.css" />
 </head>
 
 <body>
@@ -40,7 +42,7 @@
           <span class="student-hero__badge">Titulación académica</span>
           <h1>Registro de propuestas de título</h1>
           <p>
-            Consulta tus datos, completa tus propuestas y envía el título final para revisión.
+            Consulta tus datos académicos, registra tu Telegram obligatorio, genera tres propuestas y confirma el envío final.
           </p>
         </div>
       </div>
@@ -57,13 +59,13 @@
       <section class="card card--intro" id="consultaCard" data-step="consulta">
         <div class="section-heading">
           <p class="section-kicker">Paso 1</p>
-          <h2>Consulta tus datos</h2>
+          <h2>Consulta tus datos académicos</h2>
           <p>
-            Ingresa tu número de cédula para verificar si estás habilitado para registrar propuestas.
+            Ingresa tu número de cédula y consulta tus datos académicos. Mientras se valida la información verás una pantalla de carga.
           </p>
         </div>
 
-        <form class="search-form consulta-form" id="consultaForm" autocomplete="off">
+    <form class="search-form consulta-form" id="consultaForm" autocomplete="off" novalidate>
           <div class="field">
             <label for="cedulaInput">Número de identificación</label>
             <input
@@ -79,7 +81,7 @@
           </div>
 
           <button class="btn btn--primary" type="submit" id="btnConsultar">
-            Consultar
+            Consultar datos académicos
           </button>
         </form>
 
@@ -88,9 +90,9 @@
 
       <section class="card student-data is-hidden" id="seccionEstudiante" data-step="datos">
         <div class="section-heading">
-          <p class="section-kicker">Datos encontrados</p>
-          <h2 id="datoNombres">Estudiante</h2>
-          <p id="detalleEstudiante">Revisa que tu información académica sea correcta.</p>
+          <p class="section-kicker">Paso 2</p>
+          <h2 id="datoNombres">Datos académicos del estudiante</h2>
+          <p id="detalleEstudiante">Revisa que tu información académica sea correcta antes de continuar.</p>
         </div>
 
         <div class="student-data__grid student-grid">
@@ -118,31 +120,60 @@
       </section>
 
       <form id="formPropuestas" class="is-hidden" autocomplete="off">
-        <section class="card" data-step="propuesta1">
+        <section class="card is-hidden" data-step="contacto">
           <div class="section-heading">
-            <p class="section-kicker">Paso 2</p>
-            <h2>Contacto opcional</h2>
+            <p class="section-kicker">Paso 3</p>
+            <h2>Telegram obligatorio</h2>
             <p>
-              Puedes registrar tu usuario de Telegram para recibir avisos del proceso.
+              Completa tu usuario de Telegram. Este dato es obligatorio para continuar con las propuestas.
             </p>
           </div>
 
           <div class="field field--inline">
             <label for="telegramInput">Usuario de Telegram</label>
+
             <input
               id="telegramInput"
               name="telegram"
               type="text"
               placeholder="@usuario"
+              autocomplete="off"
+              required
+              aria-describedby="telegramAyuda telegramEstado"
             />
-            <small>Opcional. Si lo escribes, usa el formato @usuario.</small>
+
+            <small id="telegramAyuda">Obligatorio. Usa el formato @usuario o pega tu enlace de t.me.</small>
+
+            <div
+              class="status-message"
+              id="telegramEstado"
+              data-validado="false"
+              role="status"
+              aria-live="polite"
+            ></div>
           </div>
 
+          <div class="form-actions step-actions">
+            <button class="btn btn--ghost" type="button" data-action="prev">
+              Regresar
+            </button>
+
+            <button class="btn btn--secondary" type="button" id="btnValidarTelegram">
+              Validar Telegram
+            </button>
+
+            <button class="btn btn--primary" type="button" data-action="next">
+              Continuar
+            </button>
+          </div>
+        </section>
+
+        <section class="card is-hidden" data-step="propuesta1">
           <div class="section-heading">
-            <p class="section-kicker">Paso 3</p>
+            <p class="section-kicker">Paso 4</p>
             <h2>Propuesta 1</h2>
             <p>
-              Completa la primera propuesta. La IA de Titulación puede ayudarte a redactar opciones académicas.
+              Completa los campos base, genera sugerencias, espera la carga de IA y elige una opción para llenar el título final.
             </p>
           </div>
 
@@ -192,14 +223,18 @@
 
             <div class="field field--title-final">
               <label for="p1Titulo">Título final de la propuesta 1</label>
-              <textarea id="p1Titulo" name="p1Titulo" rows="3" placeholder="Puedes escribirlo manualmente o usar una sugerencia."></textarea>
-              <small>Debe ser un título académico completo, claro y relacionado con tu carrera.</small>
+              <textarea id="p1Titulo" name="p1Titulo" rows="3" placeholder="Se llenará automáticamente al elegir una sugerencia." readonly></textarea>
+              <small>Debes elegir una sugerencia generada para llenar este título final.</small>
             </div>
 
             <div class="suggestions-container suggestions" id="p1Sugerencias"></div>
           </article>
 
           <div class="form-actions step-actions">
+            <button class="btn btn--ghost" type="button" data-action="prev">
+              Regresar
+            </button>
+
             <button class="btn btn--primary" type="button" data-action="next">
               Continuar
             </button>
@@ -208,10 +243,10 @@
 
         <section class="card is-hidden" data-step="propuesta2">
           <div class="section-heading">
-            <p class="section-kicker">Paso 4</p>
+            <p class="section-kicker">Paso 5</p>
             <h2>Propuesta 2</h2>
             <p>
-              Registra una segunda alternativa académica.
+              Repite el proceso: completa los campos, genera sugerencias, elige una opción y continúa.
             </p>
           </div>
 
@@ -261,8 +296,8 @@
 
             <div class="field field--title-final">
               <label for="p2Titulo">Título final de la propuesta 2</label>
-              <textarea id="p2Titulo" name="p2Titulo" rows="3" placeholder="Puedes escribirlo manualmente o usar una sugerencia."></textarea>
-              <small>Debe ser un título académico completo, claro y relacionado con tu carrera.</small>
+              <textarea id="p2Titulo" name="p2Titulo" rows="3" placeholder="Se llenará automáticamente al elegir una sugerencia." readonly></textarea>
+              <small>Debes elegir una sugerencia generada para llenar este título final.</small>
             </div>
 
             <div class="suggestions-container suggestions" id="p2Sugerencias"></div>
@@ -281,10 +316,10 @@
 
         <section class="card is-hidden" data-step="propuesta3">
           <div class="section-heading">
-            <p class="section-kicker">Paso 5</p>
+            <p class="section-kicker">Paso 6</p>
             <h2>Propuesta 3</h2>
             <p>
-              Registra la tercera propuesta obligatoria.
+              Completa la tercera propuesta obligatoria, genera sugerencias y selecciona una para el título final.
             </p>
           </div>
 
@@ -334,8 +369,8 @@
 
             <div class="field field--title-final">
               <label for="p3Titulo">Título final de la propuesta 3</label>
-              <textarea id="p3Titulo" name="p3Titulo" rows="3" placeholder="Puedes escribirlo manualmente o usar una sugerencia."></textarea>
-              <small>Debe ser un título académico completo, claro y relacionado con tu carrera.</small>
+              <textarea id="p3Titulo" name="p3Titulo" rows="3" placeholder="Se llenará automáticamente al elegir una sugerencia." readonly></textarea>
+              <small>Debes elegir una sugerencia generada para llenar este título final.</small>
             </div>
 
             <div class="suggestions-container suggestions" id="p3Sugerencias"></div>
@@ -354,15 +389,15 @@
 
         <section class="card card--summary is-hidden" data-step="resumen">
           <div class="section-heading">
-            <p class="section-kicker">Paso 6</p>
-            <h2>Resumen antes de enviar</h2>
+            <p class="section-kicker">Paso 7</p>
+            <h2>Ver resumen y elegir título preferido</h2>
             <p>
-              Verifica que los tres títulos estén completos. Solo podrás enviar una vez.
+              Revisa las tres propuestas completas y elige la que más te guste antes de confirmar el envío.
             </p>
           </div>
 
           <div id="resumenEnvio" class="summary-box">
-            Completa las propuestas para ver el resumen.
+            Completa las tres propuestas para ver el resumen y elegir tu título preferido.
           </div>
 
           <div class="form-actions step-actions">
@@ -375,19 +410,19 @@
             </button>
 
             <button class="btn btn--primary" type="button" id="btnVistaPrevia">
-              Vista previa
+              Ver resumen final
             </button>
 
             <button class="btn btn--primary" type="button" data-action="next">
-              Continuar al envío
+              Continuar a confirmación
             </button>
           </div>
         </section>
 
         <section class="card card--summary is-hidden" id="pasoEnvio" data-step="envio">
           <div class="section-heading">
-            <p class="section-kicker">Paso 7</p>
-            <h2>Enviar propuestas</h2>
+            <p class="section-kicker">Paso 8</p>
+            <h2>Confirmar envío</h2>
             <p>
               Confirma el envío final. Después de enviar no podrás modificar tus propuestas desde esta pantalla.
             </p>
@@ -403,7 +438,7 @@
             </button>
 
             <button class="btn btn--primary" type="submit" id="btnEnviarTitulos">
-              Enviar títulos
+              Confirmar envío
             </button>
           </div>
 
@@ -448,7 +483,7 @@
       <button class="modal__close" type="button" id="btnCerrarRecomendaciones" aria-label="Cerrar">×</button>
 
       <div class="modal__content">
-        <p class="section-kicker">Antes de iniciar</p>
+        <p class="section-kicker">Reglas del proceso</p>
         <h2 id="modalRecomendacionesTitulo">Recomendaciones importantes</h2>
 
         <ul class="recommendation-list">
@@ -475,7 +510,9 @@
         <div class="section-heading">
           <p class="section-kicker">Sugerencias generadas</p>
           <h2 id="modalSugerenciasTitulo">Sugerencias académicas generadas</h2>
-          <p class="muted" id="modalSugerenciasSubtitulo">Selecciona la opción académica que prefieras para usarla como título final.</p>
+          <p class="muted" id="modalSugerenciasSubtitulo">
+            Selecciona la opción académica que prefieras para usarla como título final.
+          </p>
         </div>
 
         <div class="suggestion-modal-list" id="modalSugerenciasLista"></div>
@@ -538,11 +575,11 @@
     </div>
   </section>
 
-  <section class="ia-loading-modal is-hidden" id="iaLoadingModal" aria-hidden="true">
+  <section class="ia-loading-modal is-hidden" id="modalLoadingIA" aria-hidden="true">
     <div class="ia-loading-modal__backdrop"></div>
 
     <div class="ia-loading-modal__panel" role="dialog" aria-modal="true" aria-labelledby="iaLoadingTitulo">
-      <div class="ia-loading-modal__spinner"></div>
+      <div class="ia-loading-modal__spinner" aria-hidden="true"></div>
 
       <p class="section-kicker">Titulación académica</p>
       <h2 id="iaLoadingTitulo">IA de Titulación trabajando</h2>
@@ -552,38 +589,49 @@
         Procesando solicitud académica...
       </div>
 
-      <div class="ia-loading-progress">
+      <div class="ia-loading-progress" aria-hidden="true">
         <div class="ia-loading-progress__bar" id="iaLoadingProgressBar"></div>
       </div>
 
-      <div class="ia-loading-steps">
-        <div class="ia-loading-step" data-step="diagnostico">
-          <span></span>
-          <strong>Diagnóstico</strong>
-          <em>Pendiente</em>
+      <div class="ia-loading-steps" id="iaLoadingSteps">
+        <div class="ia-loading-step ia-loading-step--pendiente" data-step="diagnostico">
+          <span class="ia-loading-step__dot" aria-hidden="true"></span>
+          <strong class="ia-loading-step__label">Diagnóstico</strong>
+          <em class="ia-loading-step__state">Pendiente</em>
         </div>
 
-        <div class="ia-loading-step" data-step="propuesta">
-          <span></span>
-          <strong>Propuesta o mejora</strong>
-          <em>Pendiente</em>
+        <div class="ia-loading-step ia-loading-step--pendiente" data-step="propuesta">
+          <span class="ia-loading-step__dot" aria-hidden="true"></span>
+          <strong class="ia-loading-step__label">Propuesta o mejora</strong>
+          <em class="ia-loading-step__state">Pendiente</em>
         </div>
 
-        <div class="ia-loading-step" data-step="evaluacion">
-          <span></span>
-          <strong>Evaluación o impacto</strong>
-          <em>Pendiente</em>
+        <div class="ia-loading-step ia-loading-step--pendiente" data-step="evaluacion">
+          <span class="ia-loading-step__dot" aria-hidden="true"></span>
+          <strong class="ia-loading-step__label">Evaluación o impacto</strong>
+          <em class="ia-loading-step__state">Pendiente</em>
         </div>
       </div>
 
-      <p class="ia-loading-modal__hint">
-        Este proceso puede tardar unos segundos.
+      <p class="ia-loading-modal__hint" id="iaLoadingNota">
+        Este proceso puede tardar unos segundos. No cierres esta pantalla.
       </p>
     </div>
   </section>
 
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+  <script
+    id="firebase-app-compat"
+    src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
+    onload="this.dataset.loaded='true'"
+    onerror="this.dataset.error='true'"
+  ></script>
+
+  <script
+    id="firebase-firestore-compat"
+    src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
+    onload="this.dataset.loaded='true'"
+    onerror="this.dataset.error='true'"
+  ></script>
 
   <script src="js/firebase.config.js"></script>
   <script src="js/app.config.js"></script>

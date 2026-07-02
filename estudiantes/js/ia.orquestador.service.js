@@ -7,6 +7,8 @@
   - Generar títulos por etapas: diagnóstico, propuesta/mejora y evaluación/impacto.
   - Emitir eventos de progreso para mostrar animación de carga.
   - Evitar que la app falle si una IA está saturada, con alta demanda o con timeout.
+  - Extraer títulos desde respuestas simples, JSON, listas, markdown o varias líneas.
+  - Generar sugerencias académicas de respaldo si todos los proveedores fallan.
   - Devolver sugerencias enriquecidas con proveedor, modelo, enfoque, calidad y advertencias.
 */
 (function () {
@@ -25,14 +27,14 @@
 
     var estudiante = params.estudiante || {};
     var appConfig = params.appConfig || {};
-    var propuesta = params.propuesta || {};
+    var propuesta = normalizarPropuestaIA(params.propuesta || {});
     var onProgress = typeof params.onProgress === 'function' ? params.onProgress : noop;
     var opciones = obtenerOpciones(appConfig);
 
     emitir(onProgress, {
       tipo: 'inicio',
-      titulo: 'Generando títulos académicos',
-      detalle: 'Preparando proveedores de IA.',
+      titulo: 'IA de Titulación trabajando',
+      detalle: 'Preparando la generación académica.',
       pasoActual: 0,
       totalPasos: ENFOQUES.length
     });
@@ -40,15 +42,22 @@
     return cargarProveedoresDisponibles(appConfig, opciones)
       .then(function (proveedores) {
         if (!proveedores.length) {
-          throw new Error('No hay proveedores de IA activos o configurados.');
+          return generarPorEnfoques({
+            estudiante: estudiante,
+            propuesta: propuesta,
+            proveedores: [],
+            opciones: opciones,
+            onProgress: onProgress,
+            usarRespaldo: true
+          });
         }
 
         emitir(onProgress, {
           tipo: 'proveedores',
-          titulo: 'Proveedores disponibles',
-          detalle: 'Se encontraron ' + proveedores.length + ' proveedor(es) activo(s).',
-          proveedores: proveedores.map(function (item) {
-            return item.nombre;
+          titulo: 'IA de Titulación trabajando',
+          detalle: 'Preparando opciones académicas.',
+          proveedores: proveedores.map(function () {
+            return 'IA de Titulación';
           })
         });
 
@@ -57,10 +66,13 @@
           propuesta: propuesta,
           proveedores: proveedores,
           opciones: opciones,
-          onProgress: onProgress
+          onProgress: onProgress,
+          usarRespaldo: true
         });
       })
       .then(function (resultado) {
+        resultado = asegurarResultadoValido(resultado, estudiante, propuesta);
+
         emitir(onProgress, {
           tipo: 'finalizado',
           titulo: 'Títulos generados',
@@ -74,12 +86,17 @@
       .catch(function (error) {
         emitir(onProgress, {
           tipo: 'error',
-          titulo: 'No se pudieron generar títulos',
-          detalle: limpiarMensajeError(error),
+          titulo: 'Generando sugerencias alternativas',
+          detalle: 'Se prepararán opciones académicas con los datos ingresados.',
           error: error
         });
 
-        return Promise.reject(error);
+        return generarResultadoRespaldo(estudiante, propuesta, {
+          motivo: limpiarMensajeError(error),
+          prompts: [],
+          textosOriginales: [],
+          intentos: []
+        });
       });
   }
 
@@ -107,13 +124,35 @@
 
         emitir(contexto.onProgress, {
           tipo: 'enfoque',
-          titulo: 'Generando títulos académicos',
+          titulo: 'IA de Titulación trabajando',
           detalle: obtenerMensajeEnfoque(enfoque),
           enfoque: enfoque,
           enfoqueLabel: obtenerEtiquetaEnfoque(enfoque),
           pasoActual: index + 1,
           totalPasos: ENFOQUES.length
         });
+
+        if (!contexto.proveedores || !contexto.proveedores.length) {
+          var respaldoSinProveedor = construirSugerenciaRespaldo({
+            estudiante: contexto.estudiante,
+            propuesta: contexto.propuesta,
+            enfoque: enfoque,
+            motivo: 'No hay proveedores activos disponibles.'
+          });
+
+          sugerencias.push(respaldoSinProveedor);
+          textosOriginales.push(respaldoSinProveedor.textoOriginal);
+          intentos.push({
+            proveedor: 'respaldo',
+            proveedorLabel: 'IA de Titulación',
+            modelo: 'respaldo-academico',
+            enfoque: enfoque,
+            ok: true,
+            mensaje: 'Sugerencia de respaldo generada.'
+          });
+
+          return respaldoSinProveedor;
+        }
 
         return intentarProveedores({
           estudiante: contexto.estudiante,
@@ -132,6 +171,34 @@
           intentos = intentos.concat(resultado.intentos);
 
           return resultado;
+        }).catch(function (error) {
+          if (!contexto.usarRespaldo) {
+            throw error;
+          }
+
+          var respaldo = construirSugerenciaRespaldo({
+            estudiante: contexto.estudiante,
+            propuesta: contexto.propuesta,
+            enfoque: enfoque,
+            motivo: limpiarMensajeError(error)
+          });
+
+          sugerencias.push(respaldo);
+          textosOriginales.push(respaldo.textoOriginal);
+          intentos.push({
+            proveedor: 'respaldo',
+            proveedorLabel: 'IA de Titulación',
+            modelo: 'respaldo-academico',
+            enfoque: enfoque,
+            ok: true,
+            mensaje: 'Sugerencia de respaldo generada después de fallo de proveedor.'
+          });
+
+          return {
+            sugerencia: respaldo,
+            textoOriginal: respaldo.textoOriginal,
+            intentos: intentos
+          };
         });
       });
     });
@@ -161,11 +228,11 @@
       cadena = cadena.catch(function () {
         emitir(contexto.onProgress, {
           tipo: 'proveedor',
-          titulo: 'Probando proveedor de IA',
-          detalle: proveedor.nombre + ' está generando el título de ' + obtenerEtiquetaEnfoque(contexto.enfoque).toLowerCase() + '.',
+          titulo: 'IA de Titulación trabajando',
+          detalle: 'Generando una opción académica de ' + obtenerEtiquetaEnfoque(contexto.enfoque).toLowerCase() + '.',
           proveedor: proveedor.id,
-          proveedorLabel: proveedor.nombre,
-          modelo: proveedor.modelo,
+          proveedorLabel: 'IA de Titulación',
+          modelo: '',
           enfoque: contexto.enfoque,
           pasoActual: contexto.pasoActual,
           totalPasos: contexto.totalPasos,
@@ -186,11 +253,11 @@
 
             emitir(contexto.onProgress, {
               tipo: 'exitoProveedor',
-              titulo: 'Proveedor respondió',
-              detalle: proveedor.nombre + ' generó una sugerencia válida.',
+              titulo: 'Sugerencia generada',
+              detalle: 'Se generó una sugerencia válida.',
               proveedor: proveedor.id,
-              proveedorLabel: proveedor.nombre,
-              modelo: proveedor.modelo,
+              proveedorLabel: 'IA de Titulación',
+              modelo: '',
               enfoque: contexto.enfoque,
               pasoActual: contexto.pasoActual,
               totalPasos: contexto.totalPasos
@@ -224,11 +291,11 @@
 
             emitir(contexto.onProgress, {
               tipo: 'falloProveedor',
-              titulo: 'Cambiando de IA',
-              detalle: proveedor.nombre + ' no respondió correctamente. Probando otro proveedor.',
+              titulo: 'Reintentando generación',
+              detalle: 'La respuesta no fue suficiente. Probando otra alternativa.',
               proveedor: proveedor.id,
-              proveedorLabel: proveedor.nombre,
-              modelo: proveedor.modelo,
+              proveedorLabel: 'IA de Titulación',
+              modelo: '',
               enfoque: contexto.enfoque,
               pasoActual: contexto.pasoActual,
               totalPasos: contexto.totalPasos,
@@ -253,11 +320,11 @@
     if (numeroIntento > 0) {
       emitir(contexto.onProgress, {
         tipo: 'reescritura',
-        titulo: 'Corrigiendo título incompleto',
-        detalle: proveedor.nombre + ' está reescribiendo el título completo.',
+        titulo: 'Ajustando título académico',
+        detalle: 'Reescribiendo la opción para cumplir las reglas.',
         proveedor: proveedor.id,
-        proveedorLabel: proveedor.nombre,
-        modelo: proveedor.modelo,
+        proveedorLabel: 'IA de Titulación',
+        modelo: '',
         enfoque: contexto.enfoque,
         pasoActual: contexto.pasoActual,
         totalPasos: contexto.totalPasos
@@ -363,8 +430,8 @@
       enfoque: opciones.enfoque,
       enfoqueLabel: obtenerEtiquetaEnfoque(opciones.enfoque),
       proveedorIA: opciones.proveedor.id,
-      proveedorIALabel: opciones.proveedor.nombre,
-      modeloIA: opciones.proveedor.modelo,
+      proveedorIALabel: 'IA de Titulación',
+      modeloIA: '',
       calidad: evaluacion.calidad,
       calidadLabel: obtenerEtiquetaCalidad(evaluacion.calidad),
       puntos: evaluacion.puntos,
@@ -378,6 +445,122 @@
     };
   }
 
+  function construirSugerenciaRespaldo(opciones) {
+    opciones = opciones || {};
+
+    var estudiante = opciones.estudiante || {};
+    var propuesta = normalizarPropuestaIA(opciones.propuesta || {});
+    var enfoque = opciones.enfoque || 'diagnostico';
+    var titulo = construirTituloRespaldo(estudiante, propuesta, enfoque);
+    var evaluacion = evaluarTituloBasico(titulo, {
+      estudiante: estudiante,
+      propuesta: propuesta,
+      enfoque: enfoque
+    });
+
+    return {
+      texto: evaluacion.texto,
+      enfoque: enfoque,
+      enfoqueLabel: obtenerEtiquetaEnfoque(enfoque),
+      proveedorIA: 'respaldo',
+      proveedorIALabel: 'IA de Titulación',
+      modeloIA: '',
+      calidad: evaluacion.calidad,
+      calidadLabel: obtenerEtiquetaCalidad(evaluacion.calidad),
+      puntos: evaluacion.puntos,
+      advertencias: limpiarUnicos([
+        'Sugerencia generada con respaldo académico por falta de respuesta válida de los proveedores.',
+        opciones.motivo || ''
+      ].filter(Boolean)),
+      justificacion: '',
+      textoOriginal: titulo,
+      prompt: '',
+      reconstruido: true,
+      incompleto: Boolean(evaluacion.incompleto),
+      palabras: evaluacion.palabras || contarPalabras(evaluacion.texto)
+    };
+  }
+
+  function construirTituloRespaldo(estudiante, propuesta, enfoque) {
+    var carrera = limpiarTexto(estudiante && (estudiante.carrera || estudiante.nombreCarrera));
+    var tema = limpiarTexto(propuesta.temaGeneral);
+    var problema = limpiarTexto(propuesta.problemaNecesidad);
+    var grupo = limpiarTexto(propuesta.grupoEstudio);
+    var contexto = limpiarTexto(propuesta.lugarContexto);
+    var periodo = limpiarTexto(propuesta.anioPeriodo);
+    var variable = obtenerVariablePrincipal(tema, problema);
+    var unidad = grupo || 'unidad de estudio';
+    var lugar = contexto || carrera || 'contexto académico';
+    var anio = periodo ? ' ' + periodo.replace(/\.$/, '') : '';
+
+    if (enfoque === 'diagnostico') {
+      return limpiarTitulo([
+        'Diagnóstico de',
+        variable,
+        'en',
+        unidad,
+        'del',
+        lugar + anio
+      ].join(' '));
+    }
+
+    if (enfoque === 'propuesta') {
+      return limpiarTitulo([
+        'Propuesta de mejora de',
+        variable,
+        'en',
+        unidad,
+        'del',
+        lugar + anio
+      ].join(' '));
+    }
+
+    if (enfoque === 'evaluacion') {
+      return limpiarTitulo([
+        'Evaluación del impacto de',
+        variable,
+        'en',
+        unidad,
+        'del',
+        lugar + anio
+      ].join(' '));
+    }
+
+    return limpiarTitulo([
+      'Análisis de',
+      variable,
+      'en',
+      unidad,
+      'del',
+      lugar + anio
+    ].join(' '));
+  }
+
+  function obtenerVariablePrincipal(tema, problema) {
+    var texto = limpiarTexto(tema);
+
+    if (texto) {
+      return texto
+        .replace(/\.$/, '')
+        .replace(/^análisis\s+de\s+/i, '')
+        .replace(/^diagnóstico\s+de\s+/i, '')
+        .replace(/^propuesta\s+de\s+/i, '')
+        .trim();
+    }
+
+    texto = limpiarTexto(problema);
+
+    if (!texto) {
+      return 'la problemática académica identificada';
+    }
+
+    return texto
+      .split(/[.,;]/)[0]
+      .replace(/^se\s+identifica\s+/i, '')
+      .replace(/^existe\s+/i, '')
+      .trim();
+  }
+
   function validarSugerenciaFinal(sugerencia, contexto) {
     contexto = contexto || {};
 
@@ -385,7 +568,7 @@
     var texto = limpiarTitulo(sugerencia && sugerencia.texto);
     var palabras = contarPalabras(texto);
     var enfoque = contexto.enfoque;
-    var propuesta = contexto.propuesta || {};
+    var propuesta = normalizarPropuestaIA(contexto.propuesta || {});
 
     if (!texto) {
       mensajes.push('No devolvió un título académico.');
@@ -399,8 +582,8 @@
       mensajes.push('El título tiene menos de 10 palabras.');
     }
 
-    if (palabras > 25) {
-      mensajes.push('El título tiene más de 25 palabras.');
+    if (palabras > 29) {
+      mensajes.push('El título tiene más de 29 palabras.');
     }
 
     if (terminaEnPalabraIncompleta(texto)) {
@@ -507,13 +690,9 @@
     }
 
     if (anios.length) {
-      var contieneTodosLosAnios = anios.every(function (anio) {
+      return anios.every(function (anio) {
         return contieneToken(tituloClave, anio);
       });
-
-      if (!contieneTodosLosAnios) {
-        return false;
-      }
     }
 
     return incluyeDatoProporcionado(texto, valor);
@@ -752,6 +931,8 @@
   }
 
   function construirPromptPorEnfoque(estudiante, propuesta, enfoque, titulosPrevios) {
+    propuesta = normalizarPropuestaIA(propuesta || {});
+
     if (promptService && promptService.construirPromptPorEnfoque) {
       return promptService.construirPromptPorEnfoque(estudiante, propuesta, enfoque, titulosPrevios);
     }
@@ -770,8 +951,10 @@
       'Lugar: ' + limpiarTexto(propuesta && propuesta.lugarContexto),
       'Año o período: ' + limpiarTexto(propuesta && propuesta.anioPeriodo),
       'Objetivo: ' + limpiarTexto(propuesta && propuesta.objetivo),
+      '',
       'Formato obligatorio:',
       '[Enfoque académico] + [problema o variable principal] + [unidad de estudio o población] + [contexto o lugar] + [año o período si fue proporcionado].',
+      '',
       'Reglas obligatorias:',
       '- El título debe tener entre 10 y 25 palabras.',
       '- Si el grupo de estudio fue proporcionado, debe aparecer en el título.',
@@ -780,22 +963,139 @@
       '- No cortes palabras.',
       '- No termines con una palabra incompleta.',
       '- No incluyas justificación ni explicación.',
-      'Responde únicamente con el título académico completo.'
+      '- Responde únicamente con el título académico completo.'
     ].join('\n');
   }
 
   function extraerTitulo(texto) {
     if (promptService && promptService.extraerTitulo) {
-      return promptService.extraerTitulo(texto);
+      var tituloPrompt = promptService.extraerTitulo(texto);
+
+      if (tituloPrompt && contarPalabras(tituloPrompt) >= 5) {
+        return limpiarTitulo(tituloPrompt);
+      }
     }
 
-    var match = String(texto || '').match(/t[ií]tulo\s*:\s*(.+)/i);
+    var bruto = String(texto || '').trim();
+    var jsonTitulo = extraerTituloDesdeJson(bruto);
+    var lineas;
+    var candidatos;
+
+    if (jsonTitulo) {
+      return limpiarTitulo(jsonTitulo);
+    }
+
+    bruto = bruto
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .replace(/\r/g, '\n')
+      .trim();
+
+    var match = bruto.match(/(?:t[ií]tulo|titulo|opci[oó]n|sugerencia)\s*\d*\s*[:.-]\s*([^\n]+)/i);
 
     if (match && match[1]) {
       return limpiarTitulo(match[1]);
     }
 
-    return limpiarTitulo(String(texto || '').split('\n')[0] || '');
+    lineas = bruto
+      .split('\n')
+      .map(limpiarTitulo)
+      .filter(function (linea) {
+        return Boolean(linea) &&
+          !/^(respuesta|titulo|título|opcion|opción|sugerencia|justificacion|justificación)$/i.test(linea) &&
+          !incluyeJustificacion(linea);
+      });
+
+    candidatos = lineas
+      .map(function (linea) {
+        return {
+          texto: limpiarTitulo(linea),
+          palabras: contarPalabras(linea),
+          puntos: puntuarCandidatoTitulo(linea)
+        };
+      })
+      .filter(function (item) {
+        return item.texto && item.palabras >= 8 && item.palabras <= 32;
+      })
+      .sort(function (a, b) {
+        return b.puntos - a.puntos;
+      });
+
+    if (candidatos.length) {
+      return limpiarTitulo(candidatos[0].texto);
+    }
+
+    return limpiarTitulo(lineas[0] || bruto.split('\n')[0] || bruto);
+  }
+
+  function extraerTituloDesdeJson(texto) {
+    var limpio = String(texto || '')
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
+    var data;
+    var keys = ['titulo', 'título', 'title', 'texto', 'sugerencia', 'opcion', 'opción'];
+
+    if (!limpio) {
+      return '';
+    }
+
+    try {
+      data = JSON.parse(limpio);
+    } catch (error) {
+      data = null;
+    }
+
+    if (Array.isArray(data)) {
+      for (var i = 0; i < data.length; i += 1) {
+        var desdeArray = extraerTituloDesdeObjeto(data[i], keys);
+        if (desdeArray) return desdeArray;
+      }
+    }
+
+    if (data && typeof data === 'object') {
+      return extraerTituloDesdeObjeto(data, keys);
+    }
+
+    return '';
+  }
+
+  function extraerTituloDesdeObjeto(obj, keys) {
+    if (!obj || typeof obj !== 'object') {
+      return '';
+    }
+
+    for (var i = 0; i < keys.length; i += 1) {
+      if (obj[keys[i]]) {
+        return limpiarTitulo(obj[keys[i]]);
+      }
+    }
+
+    if (Array.isArray(obj.sugerencias) && obj.sugerencias.length) {
+      return extraerTituloDesdeObjeto(obj.sugerencias[0], keys);
+    }
+
+    if (Array.isArray(obj.titulos) && obj.titulos.length) {
+      return extraerTituloDesdeObjeto(obj.titulos[0], keys);
+    }
+
+    return '';
+  }
+
+  function puntuarCandidatoTitulo(texto) {
+    var puntos = 0;
+    var palabras = contarPalabras(texto);
+    var clave = normalizarClave(texto);
+
+    if (palabras >= 10 && palabras <= 25) puntos += 50;
+    if (palabras >= 12 && palabras <= 20) puntos += 20;
+    if (correspondeEnfoque(texto, 'diagnostico') || correspondeEnfoque(texto, 'propuesta') || correspondeEnfoque(texto, 'evaluacion')) puntos += 15;
+    if (!terminaEnPalabraIncompleta(texto)) puntos += 10;
+    if (!incluyeJustificacion(texto)) puntos += 10;
+    if (clave.indexOf('justificacion') !== -1 || clave.indexOf('explicacion') !== -1) puntos -= 40;
+
+    return puntos;
   }
 
   function extraerJustificacion() {
@@ -822,9 +1122,9 @@
       advertencias.push('El título tiene menos de 10 palabras.');
     }
 
-    if (palabras > 25) {
+    if (palabras > 29) {
       puntos -= 40;
-      advertencias.push('El título tiene más de 25 palabras.');
+      advertencias.push('El título tiene más de 29 palabras.');
     }
 
     if (incompleto) {
@@ -951,6 +1251,67 @@
     return sugerencias && sugerencias[0] ? sugerencias[0].modeloIA : '';
   }
 
+  function asegurarResultadoValido(resultado, estudiante, propuesta) {
+    resultado = resultado || {};
+    resultado.sugerencias = Array.isArray(resultado.sugerencias) ? resultado.sugerencias.filter(function (item) {
+      return item && limpiarTexto(item.texto);
+    }) : [];
+
+    if (resultado.sugerencias.length) {
+      resultado.ok = true;
+      return resultado;
+    }
+
+    return generarResultadoRespaldo(estudiante, propuesta, {
+      motivo: 'No se obtuvieron sugerencias válidas.',
+      prompts: resultado.prompts || [],
+      textosOriginales: resultado.textosOriginales || [],
+      intentos: resultado.intentos || []
+    });
+  }
+
+  function generarResultadoRespaldo(estudiante, propuesta, extra) {
+    extra = extra || {};
+    propuesta = normalizarPropuestaIA(propuesta || {});
+
+    var sugerencias = ENFOQUES.map(function (enfoque) {
+      return construirSugerenciaRespaldo({
+        estudiante: estudiante,
+        propuesta: propuesta,
+        enfoque: enfoque,
+        motivo: extra.motivo || ''
+      });
+    });
+
+    return {
+      ok: true,
+      proveedor: 'respaldo',
+      proveedorLabel: 'IA de Titulación',
+      model: '',
+      sugerencias: sugerencias,
+      prompts: extra.prompts || [],
+      prompt: (extra.prompts || []).join('\n\n---\n\n'),
+      textosOriginales: extra.textosOriginales || sugerencias.map(function (item) { return item.textoOriginal; }),
+      textoOriginal: (extra.textosOriginales || sugerencias.map(function (item) { return item.textoOriginal; })).join('\n\n---\n\n'),
+      intentos: extra.intentos || []
+    };
+  }
+
+  function normalizarPropuestaIA(propuesta) {
+    propuesta = propuesta || {};
+
+    return {
+      numero: propuesta.numero || propuesta.id || '',
+      temaGeneral: limpiarTexto(propuesta.temaGeneral || propuesta.tema || propuesta.ideaPrincipal || propuesta.tituloTema || ''),
+      problemaNecesidad: limpiarTexto(propuesta.problemaNecesidad || propuesta.problema || propuesta.necesidad || ''),
+      lugarContexto: limpiarTexto(propuesta.lugarContexto || propuesta.contexto || propuesta.lugar || propuesta.ubicacion || ''),
+      grupoEstudio: limpiarTexto(propuesta.grupoEstudio || propuesta.grupo || propuesta.poblacion || propuesta.unidadEstudio || ''),
+      anioPeriodo: limpiarTexto(propuesta.anioPeriodo || propuesta.periodo || propuesta.anio || propuesta.año || ''),
+      objetivo: limpiarTexto(propuesta.objetivo || propuesta.objetivoSimple || ''),
+      tituloFinal: limpiarTexto(propuesta.tituloFinal || propuesta.titulo || '')
+    };
+  }
+
   function emitir(callback, data) {
     try {
       callback(data || {});
@@ -975,15 +1336,18 @@
 
     return limpiarTexto(valor)
       .replace(/\s*(?:Justificaci[oó]n(?:\s+breve)?|Explicaci[oó]n)\s*:\s*[\s\S]*$/i, '')
+      .replace(/^```[a-z]*\s*/i, '')
+      .replace(/```$/i, '')
       .replace(/^\s*[-*•]\s*/g, '')
       .replace(/^\s*\d+[).:-]\s*/g, '')
       .replace(/^\s*(Título|Titulo|Opción|Opcion|Sugerencia)\s*\d*\s*[:.-]\s*/i, '')
       .replace(/^\s*["“”'«»]+|["“”'«»]+\s*$/g, '')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
   function incluyeJustificacion(texto) {
-    return /justificaci[oó]n|explicaci[oó]n|corresponde\s+al\s+enfoque/i.test(String(texto || ''));
+    return /justificaci[oó]n|explicaci[oó]n|corresponde\s+al\s+enfoque|este\s+t[ií]tulo|porque\s+permite/i.test(String(texto || ''));
   }
 
   function correspondeEnfoque(texto, enfoque) {
@@ -996,21 +1360,24 @@
     if (enfoque === 'diagnostico') {
       return contieneAlguna(clave, [
         'diagnostico', 'analisis', 'caracterizacion', 'identificacion',
-        'causas', 'factores', 'dificultades', 'problemas'
+        'causas', 'factores', 'dificultades', 'problemas', 'variabilidad',
+        'comportamiento', 'condiciones', 'parametros'
       ]);
     }
 
     if (enfoque === 'propuesta') {
       return contieneAlguna(clave, [
         'propuesta', 'diseno', 'estrategia', 'plan', 'protocolo',
-        'metodo', 'procedimiento', 'implementacion', 'mejora'
+        'metodo', 'procedimiento', 'implementacion', 'mejora',
+        'optimizacion', 'modelo', 'sistema'
       ]);
     }
 
     if (enfoque === 'evaluacion') {
       return contieneAlguna(clave, [
         'evaluacion', 'medicion', 'impacto', 'efectividad',
-        'analisis del impacto', 'resultados', 'reduccion'
+        'analisis del impacto', 'resultados', 'reduccion', 'desempeno',
+        'eficiencia', 'eficacia'
       ]);
     }
 
@@ -1091,6 +1458,24 @@
       .replace(/[^a-z0-9ñáéíóúü\s]/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  function limpiarUnicos(lista) {
+    var vistos = {};
+    var resultado = [];
+
+    (lista || []).forEach(function (item) {
+      var limpio = limpiarTexto(item);
+
+      if (!limpio || vistos[limpio]) {
+        return;
+      }
+
+      vistos[limpio] = true;
+      resultado.push(limpio);
+    });
+
+    return resultado;
   }
 
   function limpiarTexto(value) {

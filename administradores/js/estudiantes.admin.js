@@ -20,21 +20,50 @@
     var btnActualizar = ui.qs('#btnActualizarEstudiantes');
     var formFiltros = ui.qs('#formFiltrosEstudiantes');
     var btnLimpiar = ui.qs('#btnLimpiarFiltrosEstudiantes');
+    var btnAplicar = formFiltros ? formFiltros.querySelector('button[type="submit"]') : null;
 
-    if (btnActualizar) {
+    var camposFiltros = [
+      '#estFiltroPeriodo',
+      '#estFiltroBusqueda',
+      '#estFiltroCarrera',
+      '#estFiltroEstado',
+      '#estFiltroTelegram'
+    ];
+
+    if (btnActualizar && !btnActualizar.dataset.estudiantesBound) {
+      btnActualizar.dataset.estudiantesBound = 'true';
       btnActualizar.addEventListener('click', cargar);
     }
 
-    if (formFiltros) {
+    if (formFiltros && !formFiltros.dataset.estudiantesBound) {
+      formFiltros.dataset.estudiantesBound = 'true';
       formFiltros.addEventListener('submit', function (event) {
         event.preventDefault();
         aplicarFiltros();
       });
     }
 
-    if (btnLimpiar) {
+    if (btnAplicar && !btnAplicar.dataset.estudiantesBound) {
+      btnAplicar.dataset.estudiantesBound = 'true';
+      btnAplicar.addEventListener('click', function (event) {
+        event.preventDefault();
+        aplicarFiltros();
+      });
+    }
+
+    if (btnLimpiar && !btnLimpiar.dataset.estudiantesBound) {
+      btnLimpiar.dataset.estudiantesBound = 'true';
       btnLimpiar.addEventListener('click', limpiarFiltros);
     }
+
+    camposFiltros.forEach(function (selector) {
+      var campo = ui.qs(selector);
+
+      if (!campo || campo.dataset.estudiantesFilterBound) return;
+
+      campo.dataset.estudiantesFilterBound = 'true';
+      campo.addEventListener(campo.tagName === 'INPUT' ? 'input' : 'change', aplicarFiltros);
+    });
   }
 
   function cargar() {
@@ -85,14 +114,22 @@
     var mapa = {};
 
     estado.estudiantes.forEach(function (item) {
-      var carrera = item.carrera || item.nombreCarrera;
-      if (carrera) mapa[carrera] = true;
+      var carrera = limpiarTexto(item.carrera || item.nombreCarrera);
+      var key = normalizarTexto(carrera);
+
+      if (!key) return;
+
+      if (!mapa[key]) {
+        mapa[key] = carrera;
+      }
     });
 
-    var carreras = Object.keys(mapa).sort().map(function (carrera) {
+    var carreras = Object.keys(mapa).sort(function (a, b) {
+      return mapa[a].localeCompare(mapa[b]);
+    }).map(function (key) {
       return {
-        value: carrera,
-        label: carrera
+        value: mapa[key],
+        label: mapa[key]
       };
     });
 
@@ -103,25 +140,31 @@
   }
 
   function aplicarFiltros() {
-    var periodo = ui.value('#estFiltroPeriodo');
+    var periodo = limpiarTexto(ui.value('#estFiltroPeriodo'));
     var busqueda = normalizarTexto(ui.value('#estFiltroBusqueda'));
-    var carrera = ui.value('#estFiltroCarrera');
-    var estadoFiltro = ui.value('#estFiltroEstado');
-    var telegramFiltro = ui.value('#estFiltroTelegram');
+    var carrera = normalizarTexto(ui.value('#estFiltroCarrera'));
+    var estadoFiltro = limpiarTexto(ui.value('#estFiltroEstado'));
+    var telegramFiltro = limpiarTexto(ui.value('#estFiltroTelegram'));
 
     estado.filtrados = estado.estudiantes.filter(function (item) {
+      var itemPeriodo = limpiarTexto(item.periodoId || item.periodo || '');
+      var itemCarrera = normalizarTexto(item.carrera || item.nombreCarrera || item.NombreCarrera || '');
+
       var textoBusqueda = normalizarTexto([
         item.cedula,
         item.nombres,
+        item.nombre,
+        item.apellidos,
         item.carrera,
-        item.nombreCarrera
+        item.nombreCarrera,
+        item.NombreCarrera
       ].join(' '));
 
-      if (periodo && item.periodoId !== periodo) return false;
+      if (periodo && itemPeriodo !== periodo) return false;
 
       if (busqueda && textoBusqueda.indexOf(busqueda) === -1) return false;
 
-      if (carrera && item.carrera !== carrera && item.nombreCarrera !== carrera) return false;
+      if (carrera && itemCarrera !== carrera) return false;
 
       if (estadoFiltro && !coincideEstado(item, estadoFiltro)) return false;
 
@@ -136,6 +179,7 @@
   }
 
   function limpiarFiltros() {
+    ui.setValue('#estFiltroPeriodo', '');
     ui.setValue('#estFiltroBusqueda', '');
     ui.setValue('#estFiltroCarrera', '');
     ui.setValue('#estFiltroEstado', '');
@@ -257,19 +301,64 @@
   }
 
   function coincideEstado(item, filtro) {
-    if (filtro === 'PENDIENTE') {
-      return item.estado === config.estadosTitulo.pendiente || item.estado === config.estadosTitulo.enviado;
+    var estadoActual = normalizarTexto(item.estado || item.estadoTitulo || '');
+    var filtroNormalizado = normalizarTexto(filtro);
+
+    if (filtroNormalizado === 'PENDIENTE') {
+      return estadoCoincide(estadoActual, [
+        config.estadosTitulo.pendiente,
+        config.estadosTitulo.enviado,
+        'PENDIENTE',
+        'ENVIADO'
+      ]);
     }
 
-    if (filtro === 'ENVIADO') {
-      return Boolean(item.titulo);
+    if (filtroNormalizado === 'ENVIADO') {
+      return Boolean(item.titulo) || estadoCoincide(estadoActual, [
+        config.estadosTitulo.enviado,
+        'ENVIADO'
+      ]);
     }
 
-    return item.estado === filtro;
+    if (filtroNormalizado === 'SIN_ENVIAR') {
+      return estadoCoincide(estadoActual, [
+        config.estadosTitulo.sinEnviar,
+        'SIN_ENVIAR',
+        'SIN ENVIAR'
+      ]);
+    }
+
+    if (filtroNormalizado === 'DEVUELTO') {
+      return estadoCoincide(estadoActual, [
+        config.estadosTitulo.devuelto,
+        'DEVUELTO'
+      ]);
+    }
+
+    if (filtroNormalizado === 'APROBADO') {
+      return estadoCoincide(estadoActual, [
+        config.estadosTitulo.aprobado,
+        'APROBADO'
+      ]);
+    }
+
+    return estadoActual === filtroNormalizado;
+  }
+
+  function estadoCoincide(estadoActual, valores) {
+    for (var i = 0; i < valores.length; i += 1) {
+      if (estadoActual === normalizarTexto(valores[i])) return true;
+    }
+
+    return false;
   }
 
   function tieneTelegram(item) {
     return Boolean(String(item.telegram || item.telegramUser || '').trim());
+  }
+
+  function limpiarTexto(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
   }
 
   function normalizarTexto(value) {

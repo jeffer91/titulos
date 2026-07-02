@@ -1,17 +1,20 @@
 /*
   Archivo: ui.service.js
   Ruta: estudiantes/js/ui.service.js
-  Funciones del archivo:
-  - Centralizar utilidades visuales simples del módulo estudiantes.
-  - Leer y escribir valores de campos.
-  - Mostrar/ocultar pasos, mensajes y secciones.
-  - Renderizar datos del estudiante, resumen y comprobante.
-  - Delegar alertas y modales al modal.service.js cuando esté disponible.
+  Funciones principales del archivo:
+  - Proveer utilidades de interfaz para el módulo estudiantes.
+  - Leer y escribir datos del formulario.
+  - Mostrar y ocultar secciones.
+  - Mostrar estados y alertas.
+  - Marcar errores de campos.
+  - Renderizar datos académicos del estudiante.
+  - Renderizar resumen de títulos.
+  - Renderizar resumen final antes de confirmar.
+  - Renderizar comprobante final.
+  - Mantener compatibilidad con modal.service.js si existe.
 */
 (function () {
   'use strict';
-
-  var alertaCallback = null;
 
   function qs(selector, root) {
     return (root || document).querySelector(selector);
@@ -28,7 +31,7 @@
       return;
     }
 
-    element.textContent = normalizarTexto(value) || '—';
+    element.textContent = value === undefined || value === null || value === '' ? '—' : String(value);
   }
 
   function setValue(selector, value) {
@@ -38,9 +41,7 @@
       return;
     }
 
-    element.value = value || '';
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
+    element.value = value === undefined || value === null ? '' : String(value);
   }
 
   function value(selector) {
@@ -48,19 +49,19 @@
     return element ? normalizarTexto(element.value) : '';
   }
 
-  function show(elementOrSelector) {
-    var element = resolverElemento(elementOrSelector);
+  function show(selectorOrElement) {
+    var element = typeof selectorOrElement === 'string' ? qs(selectorOrElement) : selectorOrElement;
 
     if (!element) {
       return;
     }
 
     element.classList.remove('is-hidden');
-    element.removeAttribute('aria-hidden');
+    element.setAttribute('aria-hidden', 'false');
   }
 
-  function hide(elementOrSelector) {
-    var element = resolverElemento(elementOrSelector);
+  function hide(selectorOrElement) {
+    var element = typeof selectorOrElement === 'string' ? qs(selectorOrElement) : selectorOrElement;
 
     if (!element) {
       return;
@@ -68,18 +69,6 @@
 
     element.classList.add('is-hidden');
     element.setAttribute('aria-hidden', 'true');
-  }
-
-  function resolverElemento(elementOrSelector) {
-    if (!elementOrSelector) {
-      return null;
-    }
-
-    if (typeof elementOrSelector === 'string') {
-      return qs(elementOrSelector);
-    }
-
-    return elementOrSelector;
   }
 
   function showStatus(selector, message, type) {
@@ -90,10 +79,10 @@
     }
 
     element.textContent = message || '';
-    element.className = 'status-message';
+    element.classList.remove('is-info', 'is-success', 'is-warning', 'is-error');
 
     if (type) {
-      element.classList.add('status-message--' + type);
+      element.classList.add('is-' + type);
     }
   }
 
@@ -103,126 +92,125 @@
     }
 
     if (loading) {
-      button.dataset.originalText = button.dataset.originalText || button.textContent;
+      if (!button.dataset.originalText) {
+        button.dataset.originalText = button.textContent;
+      }
+
       button.textContent = text || 'Procesando...';
       button.disabled = true;
       button.classList.add('is-loading');
       return;
     }
 
-    button.textContent = button.dataset.originalText || text || button.textContent;
+    button.textContent = button.dataset.originalText || button.textContent;
     button.disabled = false;
     button.classList.remove('is-loading');
   }
 
   function clearFieldErrors() {
-    qsa('.field.has-error').forEach(function (field) {
-      field.classList.remove('has-error');
+    qsa('.is-field-error').forEach(function (element) {
+      element.classList.remove('is-field-error');
+      element.removeAttribute('aria-invalid');
+    });
+
+    qsa('.field-error-message').forEach(function (element) {
+      element.remove();
     });
   }
 
-  function markFieldError(selector) {
-    var element = qs(selector);
+  function markFieldError(selector, message) {
+    var element = selector ? qs(selector) : null;
+    var field;
+    var small;
 
     if (!element) {
       return;
     }
 
-    var field = element.closest ? element.closest('.field') : null;
+    element.classList.add('is-field-error');
+    element.setAttribute('aria-invalid', 'true');
 
-    if (field) {
-      field.classList.add('has-error');
+    field = element.closest ? element.closest('.field') : null;
+
+    if (!field) {
+      return;
     }
+
+    qsa('.field-error-message', field).forEach(function (item) {
+      item.remove();
+    });
+
+    small = document.createElement('small');
+    small.className = 'field-error-message';
+    small.textContent = message || 'Revisa este campo.';
+    field.appendChild(small);
   }
 
   function focusField(selector) {
-    var element = qs(selector);
+    var element = selector ? qs(selector) : null;
 
     if (!element) {
       return;
     }
 
     window.setTimeout(function () {
-      if (element.scrollIntoView) {
+      if (typeof element.focus === 'function' && !element.disabled) {
+        element.focus();
+      }
+
+      if (typeof element.scrollIntoView === 'function') {
         element.scrollIntoView({
           behavior: 'smooth',
           block: 'center'
         });
       }
-
-      element.focus();
     }, 80);
   }
 
   function showAlert(message, selector, title) {
     var modalService = window.TAEstudianteModal;
 
-    alertaCallback = function () {
-      if (!selector) {
-        return;
-      }
-
-      clearFieldErrors();
-      markFieldError(selector);
+    if (selector) {
+      markFieldError(selector, message);
       focusField(selector);
-    };
+    }
 
-    if (modalService && modalService.mostrarAlerta) {
-      modalService.mostrarAlerta(message || 'Revisa la información ingresada.', {
-        titulo: title || 'Revisa la información',
-        onCerrar: function () {
-          ejecutarAlertaCallback();
-        }
+    if (modalService && typeof modalService.mostrarAlerta === 'function') {
+      modalService.mostrarAlerta(message || 'Revisa la información.', {
+        titulo: title || 'Revisa la información'
       });
-
       return;
     }
 
-    mostrarAlertaLocal(message, selector, title);
-  }
-
-  function mostrarAlertaLocal(message, selector, title) {
-    var modal = qs('#modalAlerta');
-    var titleElement = qs('#tituloModalAlerta');
-    var messageElement = qs('#mensajeModalAlerta');
-
-    if (!modal || !messageElement) {
-      window.alert(message || 'Revisa la información.');
-
-      if (selector) {
-        focusField(selector);
-      }
-
-      return;
-    }
-
-    if (titleElement) {
-      titleElement.textContent = title || 'Revisa la información';
-    }
-
-    messageElement.textContent = message || 'Revisa la información ingresada.';
+    setText('#tituloModalAlerta', title || 'Revisa la información');
+    setText('#mensajeModalAlerta', message || 'Completa los campos requeridos.');
     openModalBySelector('#modalAlerta');
+
+    window.setTimeout(function () {
+      var btn = qs('#btnAceptarAlerta');
+
+      if (btn && typeof btn.focus === 'function') {
+        btn.focus();
+      }
+    }, 80);
   }
 
   function closeAlert() {
-    closeModalBySelector('#modalAlerta');
-    ejecutarAlertaCallback();
-  }
-
-  function ejecutarAlertaCallback() {
-    var callback = alertaCallback;
-    alertaCallback = null;
-
-    if (typeof callback === 'function') {
-      callback();
-    }
-  }
-
-  function openAdviceModal(onEntendido) {
     var modalService = window.TAEstudianteModal;
 
-    if (modalService && modalService.abrirRecomendaciones) {
-      modalService.abrirRecomendaciones(onEntendido);
+    if (modalService && typeof modalService.cerrar === 'function') {
+      modalService.cerrar('#modalAlerta');
+      return;
+    }
+
+    closeModalBySelector('#modalAlerta');
+  }
+
+  function openAdviceModal() {
+    var modalService = window.TAEstudianteModal;
+
+    if (modalService && typeof modalService.abrir === 'function') {
+      modalService.abrir('#modalRecomendaciones');
       return;
     }
 
@@ -232,7 +220,7 @@
   function closeAdviceModal() {
     var modalService = window.TAEstudianteModal;
 
-    if (modalService && modalService.cerrar) {
+    if (modalService && typeof modalService.cerrar === 'function') {
       modalService.cerrar('#modalRecomendaciones');
       return;
     }
@@ -243,7 +231,7 @@
   function openModal() {
     var modalService = window.TAEstudianteModal;
 
-    if (modalService && modalService.abrir) {
+    if (modalService && typeof modalService.abrir === 'function') {
       modalService.abrir('#modalResumen');
       return;
     }
@@ -254,7 +242,7 @@
   function closeModal() {
     var modalService = window.TAEstudianteModal;
 
-    if (modalService && modalService.cerrar) {
+    if (modalService && typeof modalService.cerrar === 'function') {
       modalService.cerrar('#modalResumen');
       return;
     }
@@ -290,7 +278,7 @@
   }
 
   function hayModalAbierto() {
-    return qsa('.modal').some(function (modal) {
+    return qsa('.modal, .ia-loading-modal').some(function (modal) {
       return !modal.classList.contains('is-hidden');
     });
   }
@@ -308,22 +296,26 @@
   }
 
   function renderStudent(student) {
+    var periodoTexto;
+
     student = student || {};
 
-    var periodoTexto = student.periodoLabel ||
+    periodoTexto = student.periodoLabel ||
       student.periodo ||
       student.periodoId ||
       student.ultimoPeriodoId ||
       '';
 
-    if (window.TAEstudiantePeriodo && window.TAEstudiantePeriodo.obtenerEtiquetaPeriodo) {
+    if (window.TAEstudiantePeriodo && typeof window.TAEstudiantePeriodo.obtenerEtiquetaPeriodo === 'function') {
       periodoTexto = window.TAEstudiantePeriodo.obtenerEtiquetaPeriodo(student) || periodoTexto;
     }
 
     setText('#datoCedula', student.cedula || student.numeroIdentificacion || student.identificacion || '');
-    setText('#datoNombres', student.nombres || student.estudiante || student.nombre || '');
+    setText('#datoNombres', student.nombres || student.estudiante || student.nombre || 'Datos académicos del estudiante');
     setText('#datoCarrera', student.carrera || student.nombreCarrera || '');
     setText('#datoPeriodo', periodoTexto || '—');
+
+    show('#seccionEstudiante');
   }
 
   function fillFormData(formData) {
@@ -363,12 +355,12 @@
   function readFormData(totalPropuestas) {
     var total = Number(totalPropuestas || 3);
     var telegram = value('#telegramInput');
+    var propuestas = [];
+    var preferido;
 
-    if (window.TAEstudianteTelegram && window.TAEstudianteTelegram.normalizarUsuario) {
+    if (window.TAEstudianteTelegram && typeof window.TAEstudianteTelegram.normalizarUsuario === 'function') {
       telegram = window.TAEstudianteTelegram.normalizarUsuario(telegram);
     }
-
-    var propuestas = [];
 
     for (var i = 1; i <= total; i += 1) {
       propuestas.push({
@@ -383,7 +375,7 @@
       });
     }
 
-    var preferido = qs('input[name="tituloPreferido"]:checked');
+    preferido = qs('input[name="tituloPreferido"]:checked');
 
     return {
       telegram: telegram,
@@ -393,79 +385,146 @@
   }
 
   function renderSuggestions(numero, sugerencias) {
-    if (window.TAEstudianteSugerencias && window.TAEstudianteSugerencias.renderizar) {
+    if (window.TAEstudianteSugerencias && typeof window.TAEstudianteSugerencias.renderizar === 'function') {
       window.TAEstudianteSugerencias.renderizar(numero, sugerencias, {
         autoseleccionar: false
       });
+      return;
     }
+
+    renderSuggestionsFallback(numero, sugerencias);
+  }
+
+  function renderSuggestionsFallback(numero, sugerencias) {
+    var container = qs('#p' + numero + 'Sugerencias');
+
+    if (!container) {
+      return;
+    }
+
+    container.innerHTML = '';
+
+    if (!Array.isArray(sugerencias) || !sugerencias.length) {
+      container.innerHTML = '<p class="muted">No se generaron sugerencias.</p>';
+      return;
+    }
+
+    sugerencias.forEach(function (texto, index) {
+      var button = document.createElement('button');
+
+      button.type = 'button';
+      button.className = 'suggestion-card';
+      button.textContent = String(texto || '');
+
+      button.addEventListener('click', function () {
+        setValue('#p' + numero + 'Titulo', texto || '');
+        var campo = qs('#p' + numero + 'Titulo');
+
+        if (campo) {
+          campo.setAttribute('data-sugerencia-seleccionada', 'true');
+          campo.setAttribute('data-sugerencia-index', String(index));
+          campo.setAttribute('readonly', 'readonly');
+          campo.classList.add('title-final-selected--stable');
+        }
+      });
+
+      container.appendChild(button);
+    });
   }
 
   function clearSuggestions() {
-    if (window.TAEstudianteSugerencias && window.TAEstudianteSugerencias.limpiarTodo) {
+    if (window.TAEstudianteSugerencias && typeof window.TAEstudianteSugerencias.limpiarTodo === 'function') {
       window.TAEstudianteSugerencias.limpiarTodo();
       return;
     }
 
-    if (window.TAEstudianteSugerencias && window.TAEstudianteSugerencias.limpiar) {
-      window.TAEstudianteSugerencias.limpiar();
-    }
+    qsa('[id^="p"][id$="Sugerencias"]').forEach(function (container) {
+      container.innerHTML = '';
+    });
   }
 
   function renderResumenTitulos(formData) {
     var container = qs('#resumenEnvio');
+    var propuestas;
 
     if (!container) {
       return;
     }
 
     formData = formData || {};
+    propuestas = Array.isArray(formData.propuestas) ? formData.propuestas : [];
 
-    var propuestas = Array.isArray(formData.propuestas) ? formData.propuestas : [];
-    var preferidoActual = Number(formData.tituloPreferidoNumero || 1);
+    if (!propuestas.length) {
+      container.innerHTML = '<p class="muted">Completa las tres propuestas para ver el resumen.</p>';
+      return;
+    }
 
-    container.innerHTML = propuestas.map(function (propuesta) {
-      var numero = Number(propuesta.numero || 0);
-      var checked = numero === preferidoActual || (!preferidoActual && numero === 1);
+    container.innerHTML = [
+      '<div class="summary-block">',
+      '<h3>Elige el título que más te gusta</h3>',
+      '<p class="muted">Selecciona una de las tres propuestas antes de confirmar el envío.</p>',
+      '</div>',
+      propuestas.map(function (propuesta) {
+        return renderTituloPreferidoOption(propuesta, formData.tituloPreferidoNumero);
+      }).join('')
+    ].join('');
+  }
 
-      return [
-        '<label class="summary-title-option">',
-        '<input type="radio" name="tituloPreferido" value="' + numero + '"' + (checked ? ' checked' : '') + ' />',
-        '<span>',
-        '<strong>Propuesta ' + numero + '</strong>',
-        '<em>' + escapeHtml(propuesta.tituloFinal || 'Sin título final') + '</em>',
-        '</span>',
-        '</label>'
-      ].join('');
-    }).join('');
+  function renderTituloPreferidoOption(propuesta, preferidoNumero) {
+    var numero = Number(propuesta.numero || 0);
+    var checked = Number(preferidoNumero || 0) === numero;
+    var titulo = propuesta.tituloFinal || 'Título final pendiente';
+
+    return [
+      '<label class="summary-title-option summary-option">',
+      '<input type="radio" name="tituloPreferido" value="' + numero + '"' + (checked ? ' checked' : '') + ' />',
+      '<span>',
+      '<strong>Propuesta ' + numero + '</strong>',
+      '<em>' + escapeHtml(titulo) + '</em>',
+      '</span>',
+      '</label>'
+    ].join('');
   }
 
   function renderSummary(student, formData, payload) {
     var resumen = qs('#resumenTitulo');
     var modal = qs('#modalConsulta');
+    var propuestas;
+    var preferidoNumero;
+    var preferida;
+    var html;
 
     student = student || {};
     formData = formData || {};
     payload = payload || {};
+    propuestas = Array.isArray(formData.propuestas) ? formData.propuestas : [];
+    preferidoNumero = Number(formData.tituloPreferidoNumero || payload.tituloPreferidoNumero || 0);
+    preferida = buscarPropuesta(propuestas, preferidoNumero);
 
-    var propuestas = Array.isArray(formData.propuestas) ? formData.propuestas : [];
-    var preferidoNumero = Number(formData.tituloPreferidoNumero || payload.tituloPreferidoNumero || 0);
-    var preferida = buscarPropuesta(propuestas, preferidoNumero);
-
-    var html = [
+    html = [
       '<div class="summary-block">',
       '<h3>Datos del estudiante</h3>',
       '<p><strong>Cédula:</strong> ' + escapeHtml(student.cedula || payload.cedula || '') + '</p>',
       '<p><strong>Estudiante:</strong> ' + escapeHtml(student.nombres || payload.nombres || payload.estudiante || '') + '</p>',
-      '<p><strong>Carrera:</strong> ' + escapeHtml(student.carrera || payload.carrera || '') + '</p>',
+      '<p><strong>Carrera:</strong> ' + escapeHtml(student.carrera || student.nombreCarrera || payload.carrera || payload.nombreCarrera || '') + '</p>',
+      '<p><strong>Telegram:</strong> ' + escapeHtml(formData.telegram || payload.telegram || '') + '</p>',
       '</div>',
       '<div class="summary-block summary-block--highlight">',
       '<h3>Título preferido</h3>',
-      '<p>' + escapeHtml(preferida ? preferida.tituloFinal : '') + '</p>',
+      '<p>' + escapeHtml(preferida ? preferida.tituloFinal : 'No seleccionado') + '</p>',
       '</div>',
       '<div class="summary-block">',
       '<h3>Propuestas registradas</h3>',
       propuestas.map(function (propuesta) {
-        return '<p><strong>Propuesta ' + propuesta.numero + ':</strong> ' + escapeHtml(propuesta.tituloFinal || '') + '</p>';
+        return [
+          '<article class="summary-proposal">',
+          '<h4>Propuesta ' + escapeHtml(propuesta.numero) + '</h4>',
+          '<p><strong>Título final:</strong> ' + escapeHtml(propuesta.tituloFinal || '') + '</p>',
+          '<p><strong>Tema:</strong> ' + escapeHtml(propuesta.temaGeneral || '') + '</p>',
+          '<p><strong>Problema:</strong> ' + escapeHtml(propuesta.problemaNecesidad || '') + '</p>',
+          '<p><strong>Objetivo:</strong> ' + escapeHtml(propuesta.objetivo || '') + '</p>',
+          '</article>'
+        ].join('');
       }).join(''),
       '</div>'
     ].join('');
@@ -476,28 +535,43 @@
 
     if (modal) {
       modal.innerHTML = html;
+      modal.classList.remove('is-hidden');
     }
   }
 
   function renderComprobante(resultadoFinal) {
-    resultadoFinal = resultadoFinal || {};
+    var firebase;
+    var payload;
+    var id;
 
-    var firebase = resultadoFinal.firebase || {};
-    var payload = firebase.payload || firebase.data || resultadoFinal.payload || {};
-    var id = resultadoFinal.id || firebase.id || payload.id || payload.idRegistro || '—';
+    resultadoFinal = resultadoFinal || {};
+    firebase = resultadoFinal.firebase || {};
+    payload = resultadoFinal.payload || firebase.payload || firebase.data || resultadoFinal.data || {};
+    id = resultadoFinal.id || firebase.id || payload.id || payload.idRegistro || payload.codigoRegistro || '—';
 
     setText('#codigoRegistroTexto', id);
-    setText('#reciboEstudiante', payload.nombres || payload.estudiante || '');
-    setText('#reciboCedula', payload.cedula || '');
+    setText('#reciboEstudiante', payload.nombres || payload.estudiante || payload.nombre || '');
+    setText('#reciboCedula', payload.cedula || payload.numeroIdentificacion || '');
     setText('#reciboCarrera', payload.carrera || payload.nombreCarrera || '');
-    setText('#reciboTituloPreferido', payload.tituloPreferidoTexto || payload.tituloElegido || '');
+    setText('#reciboTituloPreferido', payload.tituloPreferidoTexto || payload.tituloElegido || obtenerTituloPreferidoDesdePayload(payload));
 
     hide('#wizardSteps');
     hide('#formPropuestas');
     hide('#seccionEstudiante');
+    hide('#consultaCard');
     hide('#pasoConsulta');
     hide('#pasoEnvio');
     show('#comprobanteFinal');
+
+    focusField('#comprobanteFinal');
+  }
+
+  function obtenerTituloPreferidoDesdePayload(payload) {
+    var numero = Number(payload && payload.tituloPreferidoNumero || 0);
+    var titulos = payload && Array.isArray(payload.titulosEnviados) ? payload.titulosEnviados : [];
+    var encontrado = buscarPropuesta(titulos, numero);
+
+    return encontrado ? encontrado.tituloFinal : '';
   }
 
   function buscarPropuesta(propuestas, numero) {
@@ -544,6 +618,8 @@
     closeAdviceModal: closeAdviceModal,
     openModal: openModal,
     closeModal: closeModal,
+    openModalBySelector: openModalBySelector,
+    closeModalBySelector: closeModalBySelector,
     setFormDisabled: setFormDisabled,
     renderStudent: renderStudent,
     fillFormData: fillFormData,

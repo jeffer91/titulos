@@ -1135,3 +1135,192 @@ small {
     padding: 18px;
   }
 }
+/* =========================================================
+   Ajuste visual puntual - Pantalla estudiante / Paso 1
+   ========================================================= */
+
+.student-shell,
+.app-container {
+  width: min(1120px, 100%);
+  margin: 20px auto 56px;
+  padding: 0 18px;
+}
+
+.card--intro,
+#consultaCard {
+  max-width: 1040px;
+  margin: 0 auto 18px;
+  padding: 26px;
+  border-radius: 20px;
+}
+
+#consultaForm.search-form,
+#consultaForm.consulta-form,
+.search-form.consulta-form {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  align-items: start;
+  gap: 14px;
+}
+
+#cedulaInput,
+#consultaForm input {
+  min-height: 52px;
+}
+
+#btnConsultar,
+#consultaForm .btn {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 30px;
+  white-space: normal;
+}
+
+.student-hero__content,
+.app-header__content {
+  align-items: flex-start;
+}
+
+.student-hero__meta {
+  padding-top: 18px;
+}
+
+@media (max-width: 760px) {
+  #consultaForm.search-form,
+  #consultaForm.consulta-form,
+  .search-form.consulta-form {
+    grid-template-columns: 1fr;
+  }
+
+  #btnConsultar,
+  #consultaForm .btn {
+    margin-top: 0;
+  }
+
+  #consultaCard {
+    padding: 20px;
+  }
+
+  .student-hero__content,
+  .app-header__content,
+  .student-hero__brand,
+  .app-brand {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .student-hero__meta {
+    width: 100%;
+    padding-top: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+/* =========================================================
+   Corrección visual puntual - Modal consultando datos
+   ========================================================= */
+
+.ia-loading-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.ia-loading-modal.is-hidden {
+  display: none !important;
+}
+
+.ia-loading-modal__panel {
+  width: min(500px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 28px 30px;
+  border-radius: 24px;
+}
+
+.ia-loading-steps {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+}
+
+.ia-loading-step {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 9px 12px;
+}
+
+/* Corrige el problema causado por .ia-loading-step span */
+.ia-loading-step .ia-loading-step__label,
+.ia-loading-step .ia-loading-step__status,
+.ia-loading-step .ia-loading-step__state {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  border-radius: 0;
+  background: transparent;
+  line-height: 1.25;
+}
+
+.ia-loading-step .ia-loading-step__label {
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 800;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.ia-loading-step .ia-loading-step__status,
+.ia-loading-step .ia-loading-step__state {
+  justify-self: end;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.ia-loading-step .ia-loading-step__dot {
+  width: 12px;
+  height: 12px;
+  justify-self: center;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.ia-loading-step--trabajando .ia-loading-step__status,
+.ia-loading-step--trabajando .ia-loading-step__state {
+  color: #1d4ed8;
+}
+
+.ia-loading-step--completado .ia-loading-step__status,
+.ia-loading-step--completado .ia-loading-step__state {
+  color: #166534;
+}
+
+@media (max-width: 520px) {
+  .ia-loading-modal__panel {
+    padding: 24px 18px;
+  }
+
+  .ia-loading-step {
+    grid-template-columns: 14px minmax(0, 1fr);
+  }
+
+  .ia-loading-step .ia-loading-step__status,
+  .ia-loading-step .ia-loading-step__state {
+    grid-column: 2;
+    justify-self: start;
+    text-align: left;
+    margin-top: 2px;
+  }
+}

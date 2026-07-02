@@ -1,0 +1,265 @@
+/*
+  Archivo: resumen.css
+  Ruta: estudiantes/css/resumen.css
+  Funciones principales:
+  - Mejorar visualmente el Paso 7 del estudiante.
+  - Ordenar las tarjetas para elegir el título preferido.
+  - Corregir alineación del radio, textos y botones.
+  - Hacer más clara la propuesta seleccionada.
+  - Mantener diseño responsive para celular.
+*/
+
+/* ================================
+   RESUMEN FINAL DEL ESTUDIANTE
+================================ */
+
+.card--summary {
+  max-width: 1080px;
+  margin: 20px auto 44px;
+  padding: 26px;
+  border-radius: 24px;
+  border: 1px solid #dbe5f1;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgba(15, 35, 65, 0.08);
+}
+
+.card--summary .section-heading {
+  margin-bottom: 18px;
+}
+
+.card--summary .section-kicker {
+  margin: 0 0 8px;
+  color: #0b1f3a;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.card--summary h2 {
+  margin: 0;
+  color: #0b1628;
+  font-size: clamp(1.45rem, 2.2vw, 2rem);
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.card--summary .section-heading p {
+  margin: 8px 0 0;
+  color: #536176;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+/* Caja general del resumen */
+#resumenEnvio.summary-box,
+#resumenEnvio {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d8e3f2;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+}
+
+/* Encabezado interno: "Elige el título..." */
+#resumenEnvio .summary-block {
+  padding: 18px 20px;
+  border: 1px solid #e1e9f4;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+#resumenEnvio .summary-block h3 {
+  margin: 0 0 6px;
+  color: #0b1628;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+#resumenEnvio .summary-block .muted,
+#resumenEnvio .summary-block p {
+  margin: 0;
+  color: #536176;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* Tarjetas de propuesta */
+#resumenEnvio .summary-title-option,
+#resumenEnvio .summary-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 92px;
+  padding: 16px 20px;
+  border: 1px solid #dce6f2;
+  border-radius: 18px;
+  background: #ffffff;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+#resumenEnvio .summary-title-option:hover,
+#resumenEnvio .summary-option:hover {
+  transform: translateY(-1px);
+  border-color: #9fb5d3;
+  background: #f8fbff;
+  box-shadow: 0 12px 28px rgba(15, 35, 65, 0.09);
+}
+
+/* Radio ordenado */
+#resumenEnvio .summary-title-option input[type="radio"],
+#resumenEnvio .summary-option input[type="radio"] {
+  justify-self: center;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #0b1f3a;
+  cursor: pointer;
+}
+
+/* Contenido de cada propuesta */
+#resumenEnvio .summary-title-option span,
+#resumenEnvio .summary-option span {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+#resumenEnvio .summary-title-option strong,
+#resumenEnvio .summary-option strong {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: #eaf1ff;
+  color: #174bd6;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+#resumenEnvio .summary-title-option em,
+#resumenEnvio .summary-option em {
+  display: block;
+  max-width: 820px;
+  color: #0b1628;
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+/* Propuesta seleccionada */
+#resumenEnvio .summary-title-option:has(input[type="radio"]:checked),
+#resumenEnvio .summary-option:has(input[type="radio"]:checked) {
+  border-color: #0b1f3a;
+  background: linear-gradient(180deg, #f6f9ff 0%, #ffffff 100%);
+  box-shadow: 0 16px 34px rgba(11, 31, 58, 0.16);
+}
+
+#resumenEnvio .summary-title-option:has(input[type="radio"]:checked)::after,
+#resumenEnvio .summary-option:has(input[type="radio"]:checked)::after {
+  content: "Seleccionado";
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #0b1f3a;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+#resumenEnvio .summary-title-option:has(input[type="radio"]:checked) strong,
+#resumenEnvio .summary-option:has(input[type="radio"]:checked) strong {
+  background: #0b1f3a;
+  color: #ffffff;
+}
+
+/* Botones inferiores */
+.card--summary .step-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.card--summary .step-actions .btn {
+  min-width: 150px;
+  min-height: 50px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  font-size: 0.98rem;
+  font-weight: 900;
+}
+
+.card--summary .step-actions #btnVistaPrevia,
+.card--summary .step-actions [data-action="next"] {
+  min-width: 190px;
+}
+
+/* Responsive */
+@media (max-width: 760px) {
+  .card--summary {
+    margin: 14px auto 34px;
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  #resumenEnvio.summary-box,
+  #resumenEnvio {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  #resumenEnvio .summary-block {
+    padding: 15px;
+    border-radius: 16px;
+  }
+
+  #resumenEnvio .summary-title-option,
+  #resumenEnvio .summary-option {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    min-height: auto;
+    padding: 15px;
+  }
+
+  #resumenEnvio .summary-title-option em,
+  #resumenEnvio .summary-option em {
+    font-size: 0.94rem;
+  }
+
+  #resumenEnvio .summary-title-option:has(input[type="radio"]:checked)::after,
+  #resumenEnvio .summary-option:has(input[type="radio"]:checked)::after {
+    position: static;
+    grid-column: 2;
+    width: fit-content;
+    margin-top: 2px;
+  }
+
+  .card--summary .step-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .card--summary .step-actions .btn {
+    width: 100%;
+    min-width: 0;
+  }
+}

@@ -3,10 +3,13 @@
   Ruta: estudiantes/js/sugerencias.service.js
   Funciones principales del archivo:
   - Normalizar sugerencias generadas por IA como objetos enriquecidos o texto simple.
-  - Abrir el modal de tres sugerencias para que el estudiante elija una.
-  - Copiar la sugerencia elegida al campo de título final.
-  - Conservar metadatos de IA: proveedor, modelo, enfoque, calidad y advertencias.
-  - Resaltar visualmente el campo de título final cuando se aplica una sugerencia.
+  - Abrir el modal de sugerencias para que el estudiante elija una opción.
+  - Evitar que el título final se complete sin una selección explícita.
+  - Copiar la sugerencia elegida al campo de título final de la propuesta.
+  - Marcar el campo de título final como elegido desde sugerencias.
+  - Conservar metadatos de IA: proveedor, modelo, enfoque, calidad, advertencias e índice.
+  - Limpiar selección anterior cuando se regeneran sugerencias.
+  - Exponer obtenerSeleccion() para validaciones.js.
 */
 (function () {
   'use strict';
@@ -14,21 +17,28 @@
   var estado = {
     ultimaPropuesta: 0,
     ultimasSugerencias: [],
+    porPropuesta: {},
     seleccionadas: {}
   };
 
   function renderizar(numero, sugerencias, opciones) {
+    var lista;
+
     numero = Number(numero || 0);
     opciones = opciones || {};
-
-    var lista = normalizarLista(sugerencias, opciones);
+    lista = normalizarLista(sugerencias, opciones);
 
     estado.ultimaPropuesta = numero;
     estado.ultimasSugerencias = lista;
+    estado.porPropuesta[numero] = lista;
 
     if (!numero) {
       return;
     }
+
+    limpiar(numero, {
+      conservarSugerencias: true
+    });
 
     if (!lista.length) {
       mostrarErrorSugerencias();
@@ -39,66 +49,371 @@
   }
 
   function abrirModalSeleccion(numero, sugerencias, opciones) {
-    opciones = opciones || {};
-
     var modalService = window.TAEstudianteModal;
 
-    if (!modalService || !modalService.abrirSugerencias) {
-      aplicar(numero, sugerencias[0], 0);
+    opciones = opciones || {};
+
+    if (modalService && typeof modalService.abrirSugerencias === 'function') {
+      modalService.abrirSugerencias({
+        numero: numero,
+        sugerencias: sugerencias,
+        onSeleccionar: function (seleccion) {
+          var aplicada = aplicar(
+            seleccion.numero || numero,
+            seleccion.sugerencia || seleccion.texto,
+            seleccion.index || 0
+          );
+
+          if (typeof opciones.onSeleccionar === 'function') {
+            opciones.onSeleccionar(aplicada || seleccion);
+          }
+        }
+      });
+
       return;
     }
 
-    modalService.abrirSugerencias({
-      numero: numero,
-      sugerencias: sugerencias,
-      onSeleccionar: function (seleccion) {
-        aplicar(
-          seleccion.numero || numero,
-          seleccion.sugerencia || seleccion.texto,
-          seleccion.index || 0
-        );
-
-        if (typeof opciones.onSeleccionar === 'function') {
-          opciones.onSeleccionar(seleccion);
-        }
-      }
-    });
+    abrirModalFallback(numero, sugerencias, opciones);
   }
 
   function aplicar(numero, sugerencia, index) {
+    var item;
+    var texto;
+    var campo;
+
     numero = Number(numero || 0);
     index = Number(index || 0);
 
-    var item = normalizarSugerencia(sugerencia, {
+    item = normalizarSugerencia(sugerencia, {
       index: index,
-      enfoque: obtenerEnfoquePorIndice(index)
+      enfoque: obtenerEnfoquePorIndice(index),
+      numero: numero
     });
-    var texto = item.texto;
 
-    if (!numero || !texto) {
-      return;
-    }
+    texto = limpiarTitulo(item.texto);
+    campo = obtenerCampoTitulo(numero);
 
-    var campo = obtenerCampoTitulo(numero);
-
-    if (!campo) {
-      return;
+    if (!numero || !texto || !campo) {
+      return null;
     }
 
     campo.value = texto;
+    campo.setAttribute('data-sugerencia-seleccionada', 'true');
+    campo.setAttribute('data-sugerencia-index', String(index));
+    campo.setAttribute('data-sugerencia-enfoque', item.enfoque || obtenerEnfoquePorIndice(index));
+    campo.setAttribute('data-sugerencia-fecha', new Date().toISOString());
+    campo.setAttribute('readonly', 'readonly');
+
     campo.dispatchEvent(new Event('input', { bubbles: true }));
     campo.dispatchEvent(new Event('change', { bubbles: true }));
 
     estado.seleccionadas[numero] = Object.assign({}, item, {
+      numero: numero,
       index: index,
+      texto: texto,
+      titulo: texto,
+      sugerencia: texto,
       fecha: new Date().toISOString()
     });
 
     resaltarCampo(campo, item);
+    marcarSugerenciaActiva(numero, index);
     mostrarMensajeAplicado(numero, item);
+    cerrarModalSugerencias();
+
+    return estado.seleccionadas[numero];
+  }
+
+  function limpiar(numero, opciones) {
+    var campo;
+    var contenedor;
+
+    opciones = opciones || {};
+    numero = Number(numero || 0);
+
+    if (!numero) {
+      limpiarTodo();
+      return;
+    }
+
+    delete estado.seleccionadas[numero];
+
+    if (!opciones.conservarSugerencias) {
+      delete estado.porPropuesta[numero];
+    }
+
+    campo = obtenerCampoTitulo(numero);
+
+    if (campo) {
+      campo.value = '';
+      campo.removeAttribute('data-sugerencia-seleccionada');
+      campo.removeAttribute('data-sugerencia-index');
+      campo.removeAttribute('data-sugerencia-enfoque');
+      campo.removeAttribute('data-sugerencia-fecha');
+      campo.classList.remove('title-final-selected', 'title-final-selected--stable');
+
+      if (!campo.hasAttribute('readonly')) {
+        campo.setAttribute('readonly', 'readonly');
+      }
+
+      campo.dispatchEvent(new Event('input', { bubbles: true }));
+      campo.dispatchEvent(new Event('change', { bubbles: true }));
+
+      limpiarEstadoCampo(campo);
+    }
+
+    contenedor = obtenerContenedorSugerencias(numero);
+
+    if (contenedor && !opciones.conservarSugerencias) {
+      contenedor.innerHTML = '';
+    }
+  }
+
+  function limpiarTodo() {
+    Object.keys(estado.seleccionadas).forEach(function (numero) {
+      limpiar(Number(numero), {
+        conservarSugerencias: false
+      });
+    });
+
+    estado.ultimaPropuesta = 0;
+    estado.ultimasSugerencias = [];
+    estado.porPropuesta = {};
+    estado.seleccionadas = {};
+
+    cerrarModalSugerencias();
+  }
+
+  function obtenerSeleccion(numero) {
+    numero = Number(numero || 0);
+    return estado.seleccionadas[numero] || null;
+  }
+
+  function normalizarLista(sugerencias, opciones) {
+    var lista;
+
+    opciones = opciones || {};
+
+    if (!Array.isArray(sugerencias)) {
+      sugerencias = extraerDesdeRespuesta(sugerencias);
+    }
+
+    lista = (sugerencias || [])
+      .map(function (item, index) {
+        return normalizarSugerencia(item, {
+          index: index,
+          enfoque: obtenerEnfoquePorIndice(index),
+          respuestaIA: opciones.respuestaIA,
+          propuesta: opciones.propuesta,
+          estudiante: opciones.estudiante
+        });
+      })
+      .filter(function (item) {
+        return Boolean(item && item.texto);
+      });
+
+    lista = deduplicarPorTexto(lista);
+
+    return lista.slice(0, 3);
+  }
+
+  function normalizarSugerencia(sugerencia, opciones) {
+    var texto;
+    var original;
+
+    opciones = opciones || {};
+    original = sugerencia;
+
+    if (typeof sugerencia === 'string') {
+      texto = sugerencia;
+      sugerencia = {
+        texto: sugerencia
+      };
+    } else {
+      sugerencia = sugerencia || {};
+      texto = sugerencia.texto ||
+        sugerencia.titulo ||
+        sugerencia.sugerencia ||
+        sugerencia.title ||
+        sugerencia.value ||
+        '';
+    }
+
+    texto = limpiarTitulo(texto);
+
+    return {
+      texto: texto,
+      titulo: texto,
+      sugerencia: texto,
+      enfoque: limpiarTexto(sugerencia.enfoque || opciones.enfoque || obtenerEnfoquePorIndice(opciones.index)),
+      calidad: limpiarTexto(sugerencia.calidad || sugerencia.nivel || ''),
+      proveedor: limpiarTexto(sugerencia.proveedor || sugerencia.provider || obtenerValorSeguro(opciones.respuestaIA, 'proveedor')),
+      modelo: limpiarTexto(sugerencia.modelo || sugerencia.model || obtenerValorSeguro(opciones.respuestaIA, 'modelo')),
+      advertencias: normalizarAdvertencias(sugerencia.advertencias || sugerencia.warnings || []),
+      index: Number(opciones.index || sugerencia.index || 0),
+      original: original || sugerencia
+    };
+  }
+
+  function abrirModalFallback(numero, sugerencias, opciones) {
+    var modal = obtenerModalSugerencias();
+    var lista = modal.querySelector('#modalSugerenciasLista');
+
+    if (!lista) {
+      aplicar(numero, sugerencias[0], 0);
+      return;
+    }
+
+    actualizarEncabezadoModal(numero);
+    lista.innerHTML = '';
+
+    sugerencias.slice(0, 3).forEach(function (sugerencia, index) {
+      lista.appendChild(crearTarjetaSugerencia(numero, sugerencia, index, opciones));
+    });
+
+    modal.classList.remove('is-hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('has-open-modal');
+
+    enfocarPrimerBoton(modal);
+  }
+
+  function obtenerModalSugerencias() {
+    var modal = document.querySelector('#modalSugerencias');
+
+    if (modal) {
+      return modal;
+    }
+
+    modal = document.createElement('section');
+    modal.id = 'modalSugerencias';
+    modal.className = 'modal is-hidden';
+    modal.setAttribute('aria-hidden', 'true');
+
+    modal.innerHTML = [
+      '<div class="modal__backdrop"></div>',
+      '<div class="modal__panel modal__panel--wide" role="dialog" aria-modal="true" aria-labelledby="modalSugerenciasTitulo">',
+      '<button class="modal__close" type="button" id="btnCerrarSugerencias" aria-label="Cerrar">×</button>',
+      '<div class="modal__content">',
+      '<div class="section-heading">',
+      '<p class="section-kicker">Sugerencias generadas</p>',
+      '<h2 id="modalSugerenciasTitulo">Sugerencias académicas generadas</h2>',
+      '<p class="muted" id="modalSugerenciasSubtitulo">Selecciona una opción para usarla como título final.</p>',
+      '</div>',
+      '<div class="suggestion-modal-list" id="modalSugerenciasLista"></div>',
+      '<div class="modal__actions">',
+      '<button class="btn btn--ghost" type="button" id="btnCancelarSugerencias">Cancelar</button>',
+      '</div>',
+      '</div>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(modal);
+
+    conectarCierreFallback(modal);
+
+    return modal;
+  }
+
+  function crearTarjetaSugerencia(numero, sugerencia, index, opciones) {
+    var item = normalizarSugerencia(sugerencia, {
+      index: index,
+      enfoque: obtenerEnfoquePorIndice(index),
+      respuestaIA: opciones && opciones.respuestaIA
+    });
+    var article = document.createElement('article');
+    var titulo = document.createElement('h3');
+    var texto = document.createElement('p');
+    var meta = document.createElement('p');
+    var actions = document.createElement('div');
+    var boton = document.createElement('button');
+
+    article.className = 'suggestion-modal-card';
+    article.setAttribute('data-sugerencia-index', String(index));
+    article.setAttribute('data-propuesta', String(numero));
+
+    titulo.textContent = 'Sugerencia ' + (index + 1);
+
+    texto.className = 'suggestion-modal-card__text';
+    texto.textContent = item.texto || 'No se pudo leer esta sugerencia.';
+
+    meta.className = 'suggestion-modal-card__meta';
+    meta.textContent = obtenerEtiquetaEnfoque(item.enfoque);
+
+    actions.className = 'suggestion-modal-card__actions';
+
+    boton.type = 'button';
+    boton.className = 'btn btn--primary';
+    boton.textContent = 'Usar esta sugerencia';
+    boton.addEventListener('click', function () {
+      var aplicada = aplicar(numero, item, index);
+
+      if (opciones && typeof opciones.onSeleccionar === 'function') {
+        opciones.onSeleccionar(aplicada || {
+          numero: numero,
+          index: index,
+          texto: item.texto,
+          sugerencia: item
+        });
+      }
+    });
+
+    actions.appendChild(boton);
+
+    article.appendChild(titulo);
+    article.appendChild(texto);
+    article.appendChild(meta);
+    article.appendChild(actions);
+
+    return article;
+  }
+
+  function actualizarEncabezadoModal(numero) {
+    var titulo = document.querySelector('#modalSugerenciasTitulo');
+    var subtitulo = document.querySelector('#modalSugerenciasSubtitulo');
+
+    if (titulo) {
+      titulo.textContent = 'Sugerencias para la propuesta ' + numero;
+    }
+
+    if (subtitulo) {
+      subtitulo.textContent = 'Elige una sugerencia. Se copiará automáticamente al campo “Título final”.';
+    }
+  }
+
+  function cerrarModalSugerencias() {
+    var modal = document.querySelector('#modalSugerencias');
+
+    if (!modal) {
+      return;
+    }
+
+    modal.classList.add('is-hidden');
+    modal.setAttribute('aria-hidden', 'true');
+
+    if (!hayOtroModalAbierto()) {
+      document.body.classList.remove('has-open-modal');
+    }
+  }
+
+  function conectarCierreFallback(modal) {
+    var cerrar = modal.querySelector('#btnCerrarSugerencias');
+    var cancelar = modal.querySelector('#btnCancelarSugerencias');
+    var backdrop = modal.querySelector('.modal__backdrop');
+
+    [cerrar, cancelar, backdrop].forEach(function (element) {
+      if (!element || element.dataset.taCerrarSugerencias === 'true') {
+        return;
+      }
+
+      element.dataset.taCerrarSugerencias = 'true';
+      element.addEventListener('click', cerrarModalSugerencias);
+    });
   }
 
   function resaltarCampo(campo, sugerencia) {
+    var field;
+
     if (!campo) {
       return;
     }
@@ -107,7 +422,12 @@
     campo.classList.remove('title-final-selected--stable');
     campo.classList.add('title-final-selected');
 
-    var field = campo.closest ? campo.closest('.field') : null;
+    window.setTimeout(function () {
+      campo.classList.remove('title-final-selected');
+      campo.classList.add('title-final-selected--stable');
+    }, 900);
+
+    field = campo.closest ? campo.closest('.field') : null;
 
     if (field) {
       field.classList.remove('field-title-selected');
@@ -118,202 +438,154 @@
         field.classList.add('field-title-selected--warning');
       }
     }
-
-    window.setTimeout(function () {
-      campo.classList.add('title-final-selected--stable');
-    }, 80);
   }
 
-  function limpiar(numero) {
-    if (numero) {
-      delete estado.seleccionadas[Number(numero)];
+  function limpiarEstadoCampo(campo) {
+    var field = campo && campo.closest ? campo.closest('.field') : null;
+
+    if (!field) {
       return;
     }
 
-    estado.ultimaPropuesta = 0;
-    estado.ultimasSugerencias = [];
-    estado.seleccionadas = {};
-  }
+    field.classList.remove('field-title-selected');
+    field.classList.remove('field-title-selected--warning');
 
-  function limpiarTodo() {
-    limpiar();
-
-    [1, 2, 3].forEach(function (numero) {
-      var campo = obtenerCampoTitulo(numero);
-
-      if (campo) {
-        campo.classList.remove('title-final-selected');
-        campo.classList.remove('title-final-selected--stable');
-      }
-
-      var field = campo && campo.closest ? campo.closest('.field') : null;
-
-      if (field) {
-        field.classList.remove('field-title-selected');
-        field.classList.remove('field-title-selected--warning');
-      }
+    Array.prototype.slice.call(field.querySelectorAll('.title-selected-message')).forEach(function (element) {
+      element.remove();
     });
-  }
-
-  function normalizarLista(sugerencias, contexto) {
-    if (!Array.isArray(sugerencias)) {
-      return [];
-    }
-
-    contexto = contexto || {};
-
-    var vistas = {};
-
-    return sugerencias
-      .map(function (item, index) {
-        return normalizarSugerencia(item, {
-          index: index,
-          enfoque: item && item.enfoque ? item.enfoque : obtenerEnfoquePorIndice(index),
-          estudiante: contexto.estudiante,
-          propuesta: contexto.propuesta
-        });
-      })
-      .filter(function (item) {
-        return item.texto.length >= 20;
-      })
-      .filter(function (item) {
-        var key = normalizarClave(item.texto);
-
-        if (vistas[key]) {
-          return false;
-        }
-
-        vistas[key] = true;
-        return true;
-      })
-      .slice(0, 3);
-  }
-
-  function normalizarSugerencia(item, contexto) {
-    contexto = contexto || {};
-
-    var texto = typeof item === 'string'
-      ? item
-      : item && item.texto;
-    var enfoque = contexto.enfoque || item && item.enfoque || obtenerEnfoquePorIndice(contexto.index || 0);
-    var evaluacion = evaluarTitulo(texto, {
-      enfoque: enfoque,
-      estudiante: contexto.estudiante,
-      propuesta: contexto.propuesta
-    });
-    var base = item && typeof item === 'object' ? item : {};
-
-    return {
-      texto: evaluacion.texto,
-      enfoque: enfoque,
-      enfoqueLabel: base.enfoqueLabel || obtenerEtiquetaEnfoque(enfoque),
-      proveedorIA: base.proveedorIA || base.proveedor || base.ia || '',
-      modeloIA: base.modeloIA || base.model || base.modelo || '',
-      calidad: base.calidad || evaluacion.calidad,
-      calidadLabel: base.calidadLabel || obtenerEtiquetaCalidad(base.calidad || evaluacion.calidad),
-      puntos: typeof base.puntos === 'number' ? base.puntos : evaluacion.puntos,
-      advertencias: unirAdvertencias(base.advertencias, evaluacion.advertencias),
-      justificacion: base.justificacion || '',
-      textoOriginal: base.textoOriginal || '',
-      prompt: base.prompt || '',
-      reconstruido: Boolean(base.reconstruido)
-    };
-  }
-
-  function obtenerSeleccion(numero) {
-    return estado.seleccionadas[Number(numero || 0)] || null;
-  }
-
-  function obtenerCampoTitulo(numero) {
-    return document.querySelector('#p' + numero + 'Titulo');
   }
 
   function mostrarMensajeAplicado(numero, sugerencia) {
-    var ui = window.TAEstudianteUI;
+    var campo = obtenerCampoTitulo(numero);
+    var field = campo && campo.closest ? campo.closest('.field') : null;
+    var mensaje;
 
-    if (!ui || !ui.showStatus) {
+    if (!field) {
       return;
     }
 
-    var extra = sugerencia && sugerencia.calidad && sugerencia.calidad !== 'buena'
-      ? ' Revisa el texto antes del envío final.'
-      : ' Puedes editarla si lo necesitas.';
+    Array.prototype.slice.call(field.querySelectorAll('.title-selected-message')).forEach(function (element) {
+      element.remove();
+    });
 
-    ui.showStatus(
-      '#envioMensaje',
-      'Sugerencia aplicada en el título final de la propuesta ' + numero + '.' + extra,
-      sugerencia && sugerencia.calidad === 'mala' ? 'error' : 'success'
-    );
+    mensaje = document.createElement('small');
+    mensaje.className = 'title-selected-message';
+    mensaje.textContent = 'Sugerencia elegida y aplicada como título final. Puedes continuar.';
+
+    if (sugerencia && sugerencia.enfoque) {
+      mensaje.textContent += ' Enfoque: ' + obtenerEtiquetaEnfoque(sugerencia.enfoque) + '.';
+    }
+
+    field.appendChild(mensaje);
   }
 
   function mostrarErrorSugerencias() {
+    var ui = window.TAEstudianteUI;
     var modalService = window.TAEstudianteModal;
+    var mensaje = 'No se generaron sugerencias válidas. Revisa la información de la propuesta e inténtalo nuevamente.';
 
-    if (modalService && modalService.mostrarAlerta) {
-      modalService.mostrarAlerta(
-        'No se generaron sugerencias válidas. Puedes escribir el título manualmente o intentarlo más tarde.',
-        {
-          titulo: 'Sugerencias no disponibles'
-        }
-      );
-
+    if (modalService && typeof modalService.mostrarAlerta === 'function') {
+      modalService.mostrarAlerta(mensaje, {
+        titulo: 'Sin sugerencias válidas'
+      });
       return;
     }
 
-    window.alert('No se generaron sugerencias válidas. Puedes escribir el título manualmente o intentarlo más tarde.');
+    if (ui && typeof ui.showAlert === 'function') {
+      ui.showAlert(mensaje, '', 'Sin sugerencias válidas');
+    }
   }
 
-  function evaluarTitulo(titulo, contexto) {
-    var validator = window.TATitulosAcademicValidator;
-
-    if (validator && validator.evaluarTitulo) {
-      return validator.evaluarTitulo(titulo, contexto);
-    }
-
-    return evaluarTituloLocal(titulo, contexto);
+  function marcarSugerenciaActiva(numero, index) {
+    Array.prototype.slice.call(document.querySelectorAll('[data-propuesta="' + numero + '"][data-sugerencia-index]'))
+      .forEach(function (card) {
+        card.classList.toggle('is-selected', Number(card.getAttribute('data-sugerencia-index')) === Number(index));
+      });
   }
 
-  function evaluarTituloLocal(titulo, contexto) {
-    contexto = contexto || {};
+  function obtenerCampoTitulo(numero) {
+    return document.querySelector('#p' + numero + 'Titulo') ||
+      document.querySelector('[name="p' + numero + 'Titulo"]') ||
+      document.querySelector('[data-titulo-final="' + numero + '"]');
+  }
 
-    var texto = limpiarTexto(titulo)
-      .replace(/^\s*[-*•]\s*/g, '')
-      .replace(/^\s*\d+[).:-]\s*/g, '')
-      .replace(/^\s*(Título|Titulo|Opción|Opcion|Sugerencia)\s*\d*\s*[:.-]\s*/i, '')
-      .trim();
-    var palabras = texto ? texto.split(/\s+/).length : 0;
-    var ultima = normalizarClave(texto).split(' ').pop() || '';
-    var conectores = ['a', 'al', 'con', 'de', 'del', 'el', 'en', 'la', 'las', 'los', 'para', 'por', 'un', 'una', 'y'];
-    var incompleto = conectores.indexOf(ultima) !== -1;
-    var advertencias = [];
-    var puntos = 100;
+  function obtenerContenedorSugerencias(numero) {
+    return document.querySelector('#p' + numero + 'Sugerencias') ||
+      document.querySelector('[data-sugerencias="' + numero + '"]');
+  }
 
-    if (palabras < 8) {
-      puntos -= 30;
-      advertencias.push('El título tiene pocas palabras.');
+  function extraerDesdeRespuesta(respuesta) {
+    if (!respuesta) {
+      return [];
     }
 
-    if (incompleto) {
-      puntos -= 55;
-      advertencias.push('El título parece incompleto.');
+    if (Array.isArray(respuesta)) {
+      return respuesta;
     }
 
-    return {
-      texto: texto,
-      calidad: incompleto || puntos < 50 ? 'mala' : puntos < 78 ? 'revisar' : 'buena',
-      calidadLabel: obtenerEtiquetaCalidad(incompleto || puntos < 50 ? 'mala' : puntos < 78 ? 'revisar' : 'buena'),
-      puntos: Math.max(0, puntos),
-      advertencias: advertencias,
-      enfoque: contexto.enfoque || '',
-      etiquetaEnfoque: obtenerEtiquetaEnfoque(contexto.enfoque),
-      esMostrable: Boolean(texto && !incompleto && texto.length >= 20),
-      palabras: palabras,
-      incompleto: incompleto
-    };
+    if (Array.isArray(respuesta.sugerencias)) {
+      return respuesta.sugerencias;
+    }
+
+    if (respuesta.data && Array.isArray(respuesta.data.sugerencias)) {
+      return respuesta.data.sugerencias;
+    }
+
+    if (respuesta.resultado && Array.isArray(respuesta.resultado.sugerencias)) {
+      return respuesta.resultado.sugerencias;
+    }
+
+    if (typeof respuesta.texto === 'string') {
+      return respuesta.texto.split('\n').filter(Boolean);
+    }
+
+    return [];
+  }
+
+  function deduplicarPorTexto(lista) {
+    var vistos = {};
+    var resultado = [];
+
+    lista.forEach(function (item) {
+      var key = normalizarClave(item.texto);
+
+      if (!key || vistos[key]) {
+        return;
+      }
+
+      vistos[key] = true;
+      resultado.push(item);
+    });
+
+    return resultado;
+  }
+
+  function normalizarAdvertencias(value) {
+    if (Array.isArray(value)) {
+      return value.map(limpiarTexto).filter(Boolean);
+    }
+
+    if (typeof value === 'string' && limpiarTexto(value)) {
+      return [limpiarTexto(value)];
+    }
+
+    return [];
+  }
+
+  function obtenerValorSeguro(objeto, key) {
+    if (!objeto || !key) {
+      return '';
+    }
+
+    return objeto[key] || '';
   }
 
   function obtenerEnfoquePorIndice(index) {
     index = Number(index || 0);
+
+    if (index === 0) {
+      return 'diagnostico';
+    }
 
     if (index === 1) {
       return 'propuesta';
@@ -323,17 +595,17 @@
       return 'evaluacion';
     }
 
-    return 'diagnostico';
+    return 'academico';
   }
 
   function obtenerEtiquetaEnfoque(enfoque) {
     var validator = window.TATitulosAcademicValidator;
 
-    if (validator && validator.obtenerEtiquetaEnfoque) {
+    if (validator && typeof validator.obtenerEtiquetaEnfoque === 'function') {
       return validator.obtenerEtiquetaEnfoque(enfoque);
     }
 
-    enfoque = normalizarClave(enfoque);
+    enfoque = limpiarTexto(enfoque).toLowerCase();
 
     if (enfoque === 'diagnostico') {
       return 'Diagnóstico';
@@ -350,53 +622,26 @@
     return 'Título académico';
   }
 
-  function obtenerEtiquetaCalidad(calidad) {
+  function limpiarTitulo(valor) {
     var validator = window.TATitulosAcademicValidator;
 
-    if (validator && validator.obtenerEtiquetaCalidad) {
-      return validator.obtenerEtiquetaCalidad(calidad);
+    if (validator && typeof validator.limpiarTitulo === 'function') {
+      return validator.limpiarTitulo(valor);
     }
 
-    if (calidad === 'buena') {
-      return 'Calidad aceptable';
-    }
-
-    if (calidad === 'mala') {
-      return 'Calidad baja';
-    }
-
-    return 'Revisar';
-  }
-
-  function unirAdvertencias(a, b) {
-    var validator = window.TATitulosAcademicValidator;
-
-    if (validator && validator.unirAdvertencias) {
-      return validator.unirAdvertencias(a, b);
-    }
-
-    var resultado = [];
-    var vistas = {};
-
-    [].concat(a || [], b || []).forEach(function (item) {
-      var texto = limpiarTexto(item);
-      var key = normalizarClave(texto);
-
-      if (!texto || vistas[key]) {
-        return;
-      }
-
-      vistas[key] = true;
-      resultado.push(texto);
-    });
-
-    return resultado;
+    return limpiarTexto(valor)
+      .replace(/\s*(?:Justificaci[oó]n(?:\s+breve)?|Explicaci[oó]n)\s*:\s*[\s\S]*$/i, '')
+      .replace(/^\s*[-*•]\s*/g, '')
+      .replace(/^\s*\d+[).:-]\s*/g, '')
+      .replace(/^\s*(Título|Titulo|Opción|Opcion|Sugerencia)\s*\d*\s*[:.-]\s*/i, '')
+      .replace(/^\s*["“”'«»]+|["“”'«»]+\s*$/g, '')
+      .trim();
   }
 
   function normalizarClave(valor) {
     var validator = window.TATitulosAcademicValidator;
 
-    if (validator && validator.normalizarClave) {
+    if (validator && typeof validator.normalizarClave === 'function') {
       return validator.normalizarClave(valor);
     }
 
@@ -407,6 +652,29 @@
       .replace(/[^a-z0-9ñáéíóúü\s]/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  function enfocarPrimerBoton(modal) {
+    var boton = modal ? modal.querySelector('button') : null;
+
+    if (!boton) {
+      return;
+    }
+
+    window.setTimeout(function () {
+      boton.focus();
+    }, 60);
+  }
+
+  function hayOtroModalAbierto() {
+    return Array.prototype.slice.call(document.querySelectorAll('.modal, .ia-loading-modal'))
+      .some(function (modal) {
+        if (modal.id === 'modalSugerencias') {
+          return false;
+        }
+
+        return !modal.classList.contains('is-hidden');
+      });
   }
 
   function limpiarTexto(valor) {
