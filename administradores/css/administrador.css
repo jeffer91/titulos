@@ -225,6 +225,20 @@ h3 {
   flex-wrap: wrap;
 }
 
+.table-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.btn--small {
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 0.8rem;
+}
+
 .toolbar select {
   min-width: 260px;
 }
@@ -234,6 +248,10 @@ h3 {
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.summary-grid--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .summary-card {

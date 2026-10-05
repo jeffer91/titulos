@@ -12,6 +12,7 @@
     <div class="global-nav__content">
       <a class="global-nav__link" href="../estudiantes/estudiante.html">Estudiantes</a>
       <a class="global-nav__link" href="../coordinadores/coordinador.html">Coordinadores</a>
+      <a class="global-nav__link" href="../investigadores/investigador.html">Investigadores</a>
       <a class="global-nav__link is-active" href="administrador.html">Administrador</a>
     </div>
   </nav>
@@ -32,6 +33,7 @@
       <button class="admin-tab is-active" type="button" data-admin-tab="inicio">Inicio</button>
       <button class="admin-tab" type="button" data-admin-tab="periodos">Períodos</button>
       <button class="admin-tab" type="button" data-admin-tab="coordinadores">Coordinadores</button>
+      <button class="admin-tab" type="button" data-admin-tab="investigadores">Investigadores</button>
       <button class="admin-tab" type="button" data-admin-tab="estudiantes">Estudiantes</button>
       <button class="admin-tab" type="button" data-admin-tab="ajustes">Ajustes</button>
       <button class="admin-tab" type="button" data-admin-tab="respaldo">Respaldo</button>
@@ -245,6 +247,73 @@
       </section>
 
       <div class="status-message" id="coordinadoresMensaje" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="admin-panel is-hidden" id="panelInvestigadores" data-admin-panel="investigadores" aria-labelledby="tituloInvestigadores">
+      <div class="panel-title-row">
+        <div>
+          <p class="section-kicker">Investigadores</p>
+          <h2 id="tituloInvestigadores">Acceso y activación de PIN</h2>
+          <p class="muted">El investigador crea su PIN en el primer ingreso. Desde aquí autorizas el acceso después de verificar su identidad.</p>
+        </div>
+        <div class="toolbar">
+          <button class="btn btn--primary" type="button" id="btnActualizarInvestigadores">Actualizar</button>
+        </div>
+      </div>
+
+      <div class="summary-grid summary-grid--compact">
+        <article class="summary-card"><span>Investigadores</span><strong id="investigadoresTotal">0</strong></article>
+        <article class="summary-card summary-card--warning"><span>PIN por activar</span><strong id="investigadoresPendientes">0</strong></article>
+        <article class="summary-card summary-card--success"><span>PIN activos</span><strong id="investigadoresActivos">0</strong></article>
+      </div>
+
+      <section class="card">
+        <div class="card__header">
+          <div>
+            <p class="section-kicker">Registro autorizado</p>
+            <h3>Agregar investigador</h3>
+            <p class="muted">Registrar a la persona no crea su PIN. El investigador lo crea personalmente en su primer ingreso.</p>
+          </div>
+        </div>
+        <form class="form-grid" id="formCrearInvestigador" autocomplete="off">
+          <div class="field">
+            <label for="investigadorCedulaInput">Cédula</label>
+            <input id="investigadorCedulaInput" inputmode="numeric" maxlength="10" placeholder="0102030405" required />
+          </div>
+          <div class="field">
+            <label for="investigadorNombreInput">Nombres y apellidos</label>
+            <input id="investigadorNombreInput" placeholder="Nombre del investigador" required />
+          </div>
+          <div class="field">
+            <label for="investigadorEmailInput">Correo</label>
+            <input id="investigadorEmailInput" type="email" placeholder="correo@dominio.edu" />
+          </div>
+          <div class="form-actions field--full">
+            <button class="btn btn--primary" type="submit" id="btnCrearInvestigador">Agregar investigador</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Cédula</th>
+                <th>Investigador</th>
+                <th>Correo</th>
+                <th>PIN</th>
+                <th>Acceso</th>
+                <th class="text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="investigadoresTableBody">
+              <tr><td colspan="6" class="empty-cell">Sin investigadores cargados.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <div class="status-message" id="investigadoresMensaje" role="status" aria-live="polite"></div>
     </section>
 
     <section class="admin-panel is-hidden" id="panelEstudiantes" data-admin-panel="estudiantes" aria-labelledby="tituloEstudiantes">
@@ -692,6 +761,7 @@
   <script src="js/inicio.admin.js"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js"></script>
+  <script src="js/investigadores.admin.js"></script>
   <script src="js/estudiantes.admin.js"></script>
   <script src="js/ajustes.admin.js"></script>
   <script src="js/respaldo.admin.js"></script>

@@ -10,7 +10,7 @@ Abrir:
 index.html
 ```
 
-Desde esa pantalla se accede a estudiantes, coordinadores, administradores, reportes, seguridad y pruebas finales.
+Desde esa pantalla se accede a estudiantes, coordinadores, investigadores, administradores, reportes, seguridad y pruebas finales.
 
 ## Estructura general
 
@@ -40,6 +40,7 @@ titulos/
 │  └─ js/
 ├─ estudiantes/
 ├─ coordinadores/
+├─ investigadores/
 └─ administradores/
 ```
 
@@ -58,6 +59,7 @@ titulos/
 estudiantes/estudiante.html
 coordinadores/coordinador.html
 coordinadores/revision.html
+investigadores/investigador.html
 administradores/administrador.html
 administradores/coordinadores.html
 administradores/reportes.html

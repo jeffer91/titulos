@@ -28,6 +28,7 @@
       logs: 'titulos_logs',
       ia: 'IA',
       coordinadores: 'titulos_coordinadores',
+      investigadores: 'investigadores',
       periodos: 'periodos'
     }),
 
@@ -135,6 +136,7 @@
     rutas: Object.freeze({
       estudiantes: '../estudiantes/estudiante.html',
       coordinadores: '../coordinadores/coordinador.html',
+      investigadores: '../investigadores/investigador.html',
       administrador: 'administrador.html',
       electron: 'electron/'
     }),

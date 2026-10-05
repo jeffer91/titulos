@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Investigadores | Revisión de títulos</title>
+  <link rel="stylesheet" href="css/investigador.css" />
+  <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
+</head>
+<body>
+  <nav class="top-nav" aria-label="Navegación principal">
+    <a href="../index.html">Inicio</a>
+    <span>Segunda revisión · Investigadores</span>
+  </nav>
+
+  <header class="app-header">
+    <div>
+      <span class="eyebrow">ITSQMET · Titulación</span>
+      <h1>Revisión de investigación</h1>
+      <p>Los trabajos llegan aquí únicamente después de la revisión de Coordinación.</p>
+    </div>
+    <span class="status-pill" id="estadoGeneral">Conectando</span>
+  </header>
+
+  <main class="container">
+    <section class="card access-card" id="panelAcceso">
+      <div class="access-intro">
+        <span class="step">Acceso seguro</span>
+        <h2 id="accesoTitulo">Ingresa tu cédula</h2>
+        <p id="accesoAyuda">En tu primer ingreso podrás crear un PIN. El acceso quedará pendiente hasta que Administración lo active.</p>
+      </div>
+
+      <form id="formIdentificacion" class="access-form" autocomplete="off">
+        <label for="cedulaInput">Cédula</label>
+        <div class="inline-form">
+          <input id="cedulaInput" inputmode="numeric" autocomplete="username" maxlength="10" placeholder="10 dígitos" required />
+          <button class="btn btn--primary" id="btnContinuar" type="submit">Continuar</button>
+        </div>
+      </form>
+
+      <form id="formCrearPin" class="access-form is-hidden" autocomplete="off">
+        <div class="pin-grid">
+          <div>
+            <label for="nuevoPinInput">Crea tu PIN</label>
+            <input id="nuevoPinInput" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="8" placeholder="4 a 8 dígitos" required />
+          </div>
+          <div>
+            <label for="confirmarPinInput">Repite el PIN</label>
+            <input id="confirmarPinInput" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="8" placeholder="Repite tu PIN" required />
+          </div>
+        </div>
+        <button class="btn btn--primary" id="btnCrearPin" type="submit">Crear PIN</button>
+      </form>
+
+      <form id="formLoginPin" class="access-form is-hidden" autocomplete="off">
+        <label for="pinInput">PIN</label>
+        <div class="inline-form">
+          <input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" minlength="4" maxlength="8" placeholder="Tu PIN" required />
+          <button class="btn btn--primary" id="btnIngresar" type="submit">Ingresar</button>
+        </div>
+      </form>
+
+      <div class="pending-box is-hidden" id="panelPendiente">
+        <strong>PIN creado · pendiente de activación</strong>
+        <p>Administración debe activar tu PIN antes de que puedas ingresar. No necesitas crear otro.</p>
+        <button class="btn btn--secondary" type="button" id="btnRevisarActivacion">Revisar activación</button>
+      </div>
+
+      <div class="message" id="accesoMensaje" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="workspace is-hidden" id="panelTrabajo">
+      <section class="welcome-row">
+        <div>
+          <span class="step">Investigador activo</span>
+          <h2 id="investigadorNombre">Investigador</h2>
+          <p id="investigadorDetalle">Acceso habilitado</p>
+        </div>
+        <button class="btn btn--ghost" type="button" id="btnSalir">Salir</button>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary"><span>Habilitados por Coordinación</span><strong id="totalHabilitados">0</strong></article>
+        <article class="summary"><span>Pendientes de mi revisión</span><strong id="totalPendientes">0</strong></article>
+        <article class="summary summary--success"><span>Revisados por mí</span><strong id="totalRevisados">0</strong></article>
+      </section>
+
+      <section class="card filter-card">
+        <div>
+          <label for="periodoInput">Período</label>
+          <input id="periodoInput" placeholder="Todos los períodos" />
+        </div>
+        <div>
+          <label for="estadoFiltro">Mi revisión</label>
+          <select id="estadoFiltro">
+            <option value="TODOS">Todos</option>
+            <option value="PENDIENTE">Pendientes</option>
+            <option value="REVISADO">Revisados</option>
+          </select>
+        </div>
+        <button class="btn btn--primary" type="button" id="btnActualizarTitulos">Actualizar</button>
+      </section>
+
+      <div class="message" id="revisionMensaje" role="status" aria-live="polite"></div>
+      <section class="titles-list" id="titulosLista"></section>
+    </section>
+  </main>
+
+  <script src="../administradores/js/firebase.config.js"></script>
+  <script src="js/app.config.js"></script>
+  <script src="../administradores/js/firebase.service.js"></script>
+  <script src="js/investigador.repository.js"></script>
+  <script src="js/investigador.app.js"></script>
+</body>
+</html>

@@ -10,6 +10,7 @@
     inicio: window.TAAdminInicio,
     periodos: window.TAAdminPeriodos,
     coordinadores: window.TAAdminCoordinadores,
+    investigadores: window.TAAdminInvestigadores,
     estudiantes: window.TAAdminEstudiantes,
     ajustes: window.TAAdminAjustes,
     respaldo: window.TAAdminRespaldo
@@ -79,6 +80,7 @@
       estado.modulosCargados.inicio = false;
       estado.modulosCargados.estudiantes = false;
       estado.modulosCargados.coordinadores = false;
+      estado.modulosCargados.investigadores = false;
 
       if (estado.tabActual === 'inicio') {
         cargarModulo('inicio', true);
@@ -90,6 +92,10 @@
 
       if (estado.tabActual === 'coordinadores') {
         cargarModulo('coordinadores', true);
+      }
+
+      if (estado.tabActual === 'investigadores') {
+        cargarModulo('investigadores', true);
       }
     });
 
@@ -224,6 +230,7 @@
       inicio: '#inicioMensaje',
       periodos: '#periodosMensaje',
       coordinadores: '#coordinadoresMensaje',
+      investigadores: '#investigadoresMensaje',
       estudiantes: '#estudiantesMensaje',
       ajustes: '#ajustesMensaje',
       respaldo: '#respaldoMensaje'
