@@ -1,361 +1,620 @@
-/* Controlador principal del módulo coordinadores. */
+/* Interfaz integrada de Coordinadores: tabla, filtros, modal e historial. */
 (function () {
   'use strict';
 
   var config = window.TA_COORDINADORES_CONFIG;
   var firebaseService = window.TACoordFirebaseService;
   var repository = window.TACoordRepository;
-
   var estado = {
-    firebaseListo: false,
-    appConfig: null,
+    firebase: false,
+    coordinadores: [],
     coordinador: null,
-    titulos: []
+    titulos: [],
+    tab: 'POR_REVISAR',
+    tipo: 'TODOS',
+    busqueda: '',
+    tituloModal: null,
+    tituloSeleccionado: 0
+  };
+
+  var textosVista = {
+    POR_REVISAR: ['POR REVISAR', 'Títulos pendientes de revisión por Coordinación'],
+    DEVUELTOS: ['DEVUELTOS', 'Títulos devueltos al estudiante'],
+    VALIDADOS: ['VALIDADOS', 'Títulos validados por Coordinación y enviados a Investigación'],
+    APROBADOS: ['APROBADOS', 'Títulos aprobados después de la revisión de Investigación']
   };
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
   function iniciar() {
-    actualizarModoEjecucion();
+    setText('versionTexto', 'v' + config.version);
     conectarEventos();
-    bloquearConsulta(true);
-    renderDiagnosticoBase();
-    iniciarFirebase();
+    setEstado('Conectando…');
+    firebaseService.iniciar(config.firebase).then(function (resultado) {
+      estado.firebase = Boolean(resultado.ok);
+      if (!resultado.ok) throw new Error(resultado.mensaje || 'No se pudo conectar con Firebase.');
+      setEstado('Conectado');
+      return cargarCoordinadores();
+    }).catch(function (error) {
+      estado.firebase = false;
+      setEstado('Sin conexión');
+      mensaje('No se pudo cargar Coordinadores. ' + errorMensaje(error), 'error');
+      renderDiagnostico(errorMensaje(error));
+    });
   }
 
   function conectarEventos() {
-    var form = qs('#formCoordinador');
-    if (form) form.addEventListener('submit', consultarTitulos);
-  }
-
-  function iniciarFirebase() {
-    setText('#estadoGeneral', 'Conectando Firebase');
-    setText('#projectIdTexto', config.firebase.projectId || '—');
-    setText('#firebaseMensaje', 'Inicializando conexión con Firebase...');
-
-    if (!firebaseService || !repository) {
-      estado.firebaseListo = false;
-      setText('#estadoGeneral', 'Archivos incompletos');
-      setText('#firebaseMensaje', 'No se cargaron los servicios Firebase del módulo coordinadores.');
-      renderDiagnosticoBase('error', 'Archivos incompletos.');
-      bloquearConsulta(true);
-      return;
-    }
-
-    firebaseService.iniciar(config.firebase).then(function (resultado) {
-      estado.firebaseListo = resultado.ok;
-
-      if (!resultado.ok) {
-        setText('#estadoGeneral', 'Firebase pendiente');
-        setText('#firebaseMensaje', resultado.mensaje);
-        renderDiagnosticoBase('pending', resultado.mensaje);
-        bloquearConsulta(true);
-        return;
+    on('coordinadorSelect', 'change', seleccionarCoordinador);
+    on('tipoTrabajoSelect', 'change', function () {
+      estado.tipo = valor('tipoTrabajoSelect') || 'TODOS';
+      renderTabla();
+    });
+    on('buscarInput', 'input', function () {
+      estado.busqueda = normalizarBusqueda(valor('buscarInput'));
+      renderTabla();
+    });
+    on('btnActualizar', 'click', actualizar);
+    document.querySelectorAll('[data-tab]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        estado.tab = button.dataset.tab;
+        document.querySelectorAll('[data-tab]').forEach(function (item) {
+          item.classList.toggle('is-active', item === button);
+        });
+        renderEncabezadoVista();
+        renderTabla();
+      });
+    });
+    on('btnCerrarDetalle', 'click', cerrarDetalle);
+    on('btnDiagnostico', 'click', abrirDiagnostico);
+    on('btnCerrarDiagnostico', 'click', cerrarDiagnostico);
+    on('detalleModal', 'click', function (event) { if (event.target.id === 'detalleModal') cerrarDetalle(); });
+    on('diagnosticoModal', 'click', function (event) { if (event.target.id === 'diagnosticoModal') cerrarDiagnostico(); });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        cerrarDetalle();
+        cerrarDiagnostico();
       }
-
-      setText('#estadoGeneral', 'Firebase conectado');
-      setText('#firebaseMensaje', resultado.mensaje);
-      bloquearConsulta(false);
-      cargarConfigApp();
-      renderDiagnosticoBase('ok', 'Firebase conectado.');
     });
   }
 
-  function cargarConfigApp() {
-    repository.cargarConfigApp()
-      .then(function (appConfig) {
-        estado.appConfig = appConfig;
-        setText('#periodoActivoTexto', appConfig.periodoActivo || 'Sin período activo');
-        if (appConfig.periodoActivo) setValue('#periodoInput', appConfig.periodoActivo);
-      })
-      .catch(function (error) {
-        setText('#periodoActivoTexto', 'No disponible');
-        showStatus('#consultaMensaje', 'No se pudo leer la configuración general: ' + obtenerMensajeError(error), 'warning');
-      });
+  function cargarCoordinadores() {
+    mensaje('Cargando coordinadores…', 'info');
+    return repository.listarCoordinadores().then(function (items) {
+      estado.coordinadores = items;
+      llenarCoordinadores(items);
+      mensaje(items.length ? 'Selecciona un coordinador para ver sus títulos.' : 'No hay coordinadores activos registrados.', items.length ? 'info' : 'warning');
+      renderDiagnostico('');
+      return items;
+    });
   }
 
-  function consultarTitulos(event) {
-    event.preventDefault();
+  function llenarCoordinadores(items) {
+    var select = el('coordinadorSelect');
+    if (!select) return;
+    var anterior = select.value;
+    select.innerHTML = '<option value="">Selecciona un coordinador</option>';
+    items.forEach(function (item) {
+      var option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = item.nombre;
+      select.appendChild(option);
+    });
+    if (anterior && items.some(function (item) { return item.id === anterior; })) select.value = anterior;
+  }
 
-    if (!estado.firebaseListo) {
-      showStatus('#consultaMensaje', 'Firebase no está conectado.', 'warning');
+  function seleccionarCoordinador() {
+    var id = valor('coordinadorSelect');
+    estado.coordinador = estado.coordinadores.filter(function (item) { return item.id === id; })[0] || null;
+    estado.titulos = [];
+    renderResumenCoordinador();
+    renderTabla();
+    if (!estado.coordinador) {
+      mensaje('Selecciona un coordinador para consultar sus títulos.', 'info');
       return;
     }
+    cargarTitulos();
+  }
 
-    var email = value('#coordEmailInput');
-    var periodoId = value('#periodoInput');
-    var estadoFiltro = value('#estadoFiltroInput') || 'TODOS';
+  function actualizar() {
+    setLoading('btnActualizar', true, 'Actualizando…');
+    var idActual = estado.coordinador && estado.coordinador.id;
+    cargarCoordinadores().then(function () {
+      if (!idActual) return;
+      var select = el('coordinadorSelect');
+      select.value = idActual;
+      estado.coordinador = estado.coordinadores.filter(function (item) { return item.id === idActual; })[0] || null;
+      renderResumenCoordinador();
+      if (estado.coordinador) return cargarTitulos();
+    }).finally(function () {
+      setLoading('btnActualizar', false);
+    });
+  }
 
-    if (!email) {
-      showStatus('#consultaMensaje', 'Ingresa el correo del coordinador.', 'error');
+  function cargarTitulos() {
+    if (!estado.coordinador) return Promise.resolve([]);
+    mensaje('Cargando títulos de ' + estado.coordinador.nombre + '…', 'info');
+    return repository.listarTitulosParaCoordinador(estado.coordinador).then(function (items) {
+      estado.titulos = items;
+      renderTabla();
+      mensajeResumen(items);
+      renderDiagnostico('');
+      return items;
+    }).catch(function (error) {
+      estado.titulos = [];
+      renderTabla();
+      mensaje('No se pudieron consultar los títulos. ' + errorMensaje(error), 'error');
+      renderDiagnostico(errorMensaje(error));
+      throw error;
+    });
+  }
+
+  function renderResumenCoordinador() {
+    var box = el('coordinadorResumen');
+    if (!box) return;
+    if (!estado.coordinador) {
+      box.classList.add('is-hidden');
       return;
     }
+    setText('coordinadorNombre', estado.coordinador.nombre);
+    setText('coordinadorCarreras', estado.coordinador.carreras.length ? estado.coordinador.carreras.join(', ') : 'Sin carreras asignadas');
+    box.classList.remove('is-hidden');
+  }
 
-    if (!periodoId) {
-      showStatus('#consultaMensaje', 'Ingresa el período para consultar títulos.', 'error');
+  function mensajeResumen(items) {
+    var recibidos = items.length;
+    var tipo = items.filter(filtrarTipo).length;
+    var vista = items.filter(function (item) { return filtrarTipo(item) && repository.clasificarTitulo(item) === estado.tab; }).length;
+    mensaje('Recibidos: ' + recibidos + ' · De sus carreras: ' + recibidos + ' · Del tipo seleccionado: ' + tipo + ' · Del estado: ' + vista + '.', 'success');
+  }
+
+  function renderEncabezadoVista() {
+    var textos = textosVista[estado.tab] || textosVista.POR_REVISAR;
+    setText('vistaKicker', textos[0]);
+    setText('vistaTitulo', textos[1]);
+  }
+
+  function renderTabla() {
+    var body = el('titulosTableBody');
+    if (!body) return;
+    body.innerHTML = '';
+    var items = estado.titulos.filter(function (item) {
+      return repository.clasificarTitulo(item) === estado.tab && filtrarTipo(item) && filtrarBusqueda(item);
+    });
+    setText('totalVista', String(items.length));
+    renderEncabezadoVista();
+    if (!estado.coordinador) {
+      vacio(body, 'Selecciona un coordinador para consultar sus títulos.');
       return;
     }
+    if (!items.length) {
+      vacio(body, 'No hay títulos para mostrar.');
+      return;
+    }
+    items.forEach(function (titulo) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="cell-id">' + escapeHtml(titulo.cedula || '—') + '</td>' +
+        '<td><strong>' + escapeHtml(titulo.nombres) + '</strong></td>' +
+        '<td>' + escapeHtml(titulo.carrera || '—') + '</td>' +
+        '<td></td><td>' + escapeHtml(periodoVisible(titulo)) + '</td><td></td><td></td>';
+      tr.children[3].appendChild(badge(titulo.tipoTrabajo.label, titulo.tipoTrabajo.id === 'ARTICULO' ? 'blue' : 'gold'));
+      tr.children[5].appendChild(badge(estadoVisible(titulo), claseEstado(repository.clasificarTitulo(titulo))));
+      var ver = document.createElement('button');
+      ver.type = 'button';
+      ver.className = 'btn btn--view';
+      ver.textContent = 'Ver';
+      ver.addEventListener('click', function () { abrirDetalle(titulo); });
+      tr.children[6].appendChild(ver);
+      body.appendChild(tr);
+    });
+  }
 
-    setLoading('#btnConsultarTitulos', true, 'Consultando...');
-    showStatus('#consultaMensaje', 'Validando coordinador y consultando títulos...', 'info');
-    renderTitulos([]);
+  function filtrarTipo(titulo) {
+    return estado.tipo === 'TODOS' || titulo.tipoTrabajo.id === estado.tipo;
+  }
 
-    repository.buscarCoordinadorPorEmail(email)
-      .then(function (coordinador) {
-        estado.coordinador = coordinador;
-        renderCoordinador(coordinador);
-        return repository.listarTitulosParaCoordinador(coordinador, {
-          periodoId: periodoId,
-          estado: estadoFiltro
+  function filtrarBusqueda(titulo) {
+    if (!estado.busqueda) return true;
+    var texto = normalizarBusqueda([titulo.cedula, titulo.nombres, titulo.carrera, titulo.tituloPreferidoTexto]
+      .concat((titulo.titulosEnviados || []).map(function (item) { return item.tituloFinal || ''; })).join(' '));
+    return texto.indexOf(estado.busqueda) !== -1;
+  }
+
+  function abrirDetalle(titulo) {
+    estado.tituloModal = titulo;
+    estado.tituloSeleccionado = 0;
+    setText('detalleTituloModal', titulo.nombres);
+    setText('detalleSubtitulo', (titulo.cedula || '—') + ' · ' + (titulo.carrera || 'Carrera no registrada'));
+    var body = el('detalleModalBody');
+    body.innerHTML = '<div class="modal-loading">Cargando detalle e historial…</div>';
+    mostrarModal('detalleModal');
+    repository.cargarHistorialTitulo(titulo).then(function (historial) {
+      if (!estado.tituloModal || estado.tituloModal.id !== titulo.id) return;
+      renderDetalle(titulo, historial);
+    }).catch(function () {
+      if (!estado.tituloModal || estado.tituloModal.id !== titulo.id) return;
+      renderDetalle(titulo, { proceso: titulo.historialProceso || [], archivos: [], logs: [] });
+    });
+  }
+
+  function renderDetalle(titulo, historial) {
+    var body = el('detalleModalBody');
+    if (!body) return;
+    var vista = repository.clasificarTitulo(titulo);
+    var editable = vista === 'POR_REVISAR';
+    body.innerHTML = '';
+    body.appendChild(renderMetaDetalle(titulo));
+    body.appendChild(renderPropuestas(titulo, editable));
+    body.appendChild(renderHistorial(titulo, historial));
+    body.appendChild(renderDecision(titulo, editable));
+  }
+
+  function renderMetaDetalle(titulo) {
+    var wrap = document.createElement('div');
+    wrap.className = 'detail-meta';
+    wrap.appendChild(metaItem('Tipo', titulo.tipoTrabajo.label));
+    wrap.appendChild(metaItem('Período', periodoVisible(titulo)));
+    wrap.appendChild(metaItem('Fecha de envío', fechaVisible(titulo.fechaEnvio, true)));
+    wrap.appendChild(metaItem('Estado', estadoVisible(titulo)));
+    return wrap;
+  }
+
+  function renderPropuestas(titulo, editable) {
+    var section = document.createElement('section');
+    section.className = 'detail-section';
+    var propuestas = titulo.titulosEnviados || [];
+    if (!propuestas.length) {
+      section.innerHTML = '<h3>Títulos enviados</h3><p class="muted">Este registro no contiene propuestas de título.</p>';
+      return section;
+    }
+    propuestas.forEach(function (propuesta, index) {
+      var numero = Number(propuesta.numero || index + 1);
+      var card = document.createElement('article');
+      card.className = 'proposal-card';
+      var head = document.createElement('div');
+      head.className = 'proposal-head';
+      var title = document.createElement('h3');
+      title.textContent = 'Título ' + numero;
+      head.appendChild(title);
+      if (Number(titulo.tituloPreferidoNumero) === numero || propuesta.preferido) {
+        var fav = document.createElement('span');
+        fav.className = 'favorite';
+        fav.textContent = '★ Favorito del estudiante';
+        head.appendChild(fav);
+      }
+      card.appendChild(head);
+      if (editable) {
+        var select = document.createElement('label');
+        select.className = 'select-title';
+        var radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'tituloCoordinacion';
+        radio.value = numero;
+        radio.addEventListener('change', function () {
+          estado.tituloSeleccionado = numero;
+          document.querySelectorAll('.proposal-card').forEach(function (node) { node.classList.remove('is-selected'); });
+          card.classList.add('is-selected');
         });
-      })
-      .then(function (titulos) {
-        estado.titulos = titulos;
-        renderResumen(titulos);
-        renderTitulos(titulos);
-        showStatus('#consultaMensaje', 'Títulos encontrados para revisión: ' + titulos.length + '.', 'success');
+        select.appendChild(radio);
+        select.appendChild(document.createTextNode(' Seleccionar este título'));
+        card.appendChild(select);
+      } else if (titulo.revisionCoordinador && Number(titulo.revisionCoordinador.tituloSeleccionadoNumero) === numero) {
+        var chosen = document.createElement('span');
+        chosen.className = 'selected-label';
+        chosen.textContent = 'Título validado por Coordinación';
+        card.appendChild(chosen);
+      }
+      var p = document.createElement('p');
+      p.className = 'proposal-text';
+      p.textContent = propuesta.tituloFinal || propuesta.titulo || 'Sin título registrado';
+      card.appendChild(p);
+      section.appendChild(card);
+    });
+    return section;
+  }
+
+  function renderHistorial(titulo, historial) {
+    var section = document.createElement('section');
+    section.className = 'detail-section history-section';
+    var heading = document.createElement('div');
+    heading.className = 'section-heading';
+    heading.innerHTML = '<span class="eyebrow eyebrow--blue">Historial del proceso</span><h3>Envíos y revisiones anteriores</h3>';
+    section.appendChild(heading);
+
+    var versiones = construirVersiones(titulo, historial);
+    if (!versiones.length) {
+      var empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'Este es el primer envío y todavía no tiene revisiones anteriores.';
+      section.appendChild(empty);
+      return section;
+    }
+
+    versiones.forEach(function (version, index) {
+      var box = document.createElement('article');
+      box.className = 'history-version';
+      var numero = Number(version.version || index + 1);
+      var revision = version.revisionCoordinador || version.revision || null;
+      box.innerHTML =
+        '<div class="history-title"><strong>VERSIÓN ' + numero + '</strong></div>' +
+        '<div class="history-counts"><span><b>1</b> Envíos</span><span><b>' + Math.max(numero - 1, 0) + '</b> Reenvíos</span><span><b>' + (revision ? 1 : 0) + '</b> Revisiones</span></div>';
+      if (revision) {
+        var review = document.createElement('div');
+        review.className = 'history-review';
+        review.innerHTML =
+          '<strong>Revisión ' + numero + ' · ' + escapeHtml(labelEstadoRevision(revision.estado)) + '</strong>' +
+          '<time>' + escapeHtml(fechaVisible(revision.fechaLocal || revision.fecha || revision.creadoEn)) + '</time>' +
+          '<span>' + escapeHtml(revision.coordinadorNombre || revision.investigadorNombre || 'Coordinador no registrado') + '</span>' +
+          (revision.observacion ? '<p>' + escapeHtml(revision.observacion) + '</p>' : '');
+        box.appendChild(review);
+      }
+      var sent = document.createElement('div');
+      sent.className = 'history-sent';
+      var fechaEnvio = version.fechaEnvio || version.creadoEn || titulo.fechaEnvio;
+      sent.innerHTML = '<div class="history-sent-head"><strong>Envío ' + numero + '</strong><time>' + escapeHtml(fechaVisible(fechaEnvio)) + '</time></div>';
+      var ul = document.createElement('ul');
+      (version.titulosEnviados || []).forEach(function (p) {
+        var li = document.createElement('li');
+        li.textContent = (p.tituloFinal || p.titulo || 'Sin título') + (Number(p.numero) === Number(version.tituloPreferidoNumero) || p.preferido ? ' · Favorito' : '');
+        ul.appendChild(li);
+      });
+      if (ul.children.length) sent.appendChild(ul);
+      box.appendChild(sent);
+      section.appendChild(box);
+    });
+    return section;
+  }
+
+  function construirVersiones(titulo, historial) {
+    var versiones = Array.isArray(historial.proceso) ? historial.proceso.slice() : [];
+    if (!versiones.length && titulo.revisionCoordinador) {
+      versiones.push({
+        version: Math.max(Number(titulo.intentosUsados || 1), 1),
+        fechaEnvio: titulo.fechaEnvio,
+        tituloPreferidoNumero: titulo.tituloPreferidoNumero,
+        titulosEnviados: titulo.titulosEnviados,
+        revisionCoordinador: titulo.revisionCoordinador
+      });
+    }
+    (historial.archivos || []).forEach(function (archivo) {
+      if (archivo && Array.isArray(archivo.titulosEnviados)) {
+        versiones.push({
+          version: versiones.length + 1,
+          fechaEnvio: archivo.enviadoEn || archivo.creadoEn || archivo.actualizadoEn,
+          tituloPreferidoNumero: archivo.tituloPreferidoNumero,
+          titulosEnviados: archivo.titulosEnviados,
+          revisionCoordinador: archivo.revisionCoordinador || archivo.revision || null
+        });
+      }
+    });
+    return versiones.sort(function (a, b) {
+      return fechaMs(a.fechaEnvio) - fechaMs(b.fechaEnvio);
+    }).map(function (item, index) {
+      item.version = index + 1;
+      return item;
+    });
+  }
+
+  function renderDecision(titulo, editable) {
+    var section = document.createElement('section');
+    section.className = 'detail-section decision-section';
+    var revision = titulo.revisionCoordinador || {};
+    if (!editable) {
+      var estadoBox = document.createElement('div');
+      estadoBox.className = 'readonly-box';
+      var validado = revision.tituloSeleccionadoTexto || (repository.clasificarTitulo(titulo) === 'VALIDADOS' || repository.clasificarTitulo(titulo) === 'APROBADOS' ? titulo.tituloPreferidoTexto : '');
+      estadoBox.innerHTML =
+        (validado ? '<div><span>Título validado por Coordinación</span><strong>' + escapeHtml(validado) + '</strong></div>' : '') +
+        '<div><span>Comentario del coordinador</span><strong>' + escapeHtml(revision.observacion || 'Sin comentario') + '</strong></div>' +
+        '<p>Registro revisado. Esta vista es solo de lectura.</p>';
+      section.appendChild(estadoBox);
+      return section;
+    }
+    var note = document.createElement('p');
+    note.className = 'decision-note';
+    note.textContent = 'El campo inferior registra una nueva decisión. Los comentarios anteriores no se reemplazan.';
+    var label = document.createElement('label');
+    label.className = 'decision-label';
+    label.setAttribute('for', 'comentarioCoordinador');
+    label.textContent = 'Comentario del coordinador';
+    var textarea = document.createElement('textarea');
+    textarea.id = 'comentarioCoordinador';
+    textarea.rows = 3;
+    textarea.placeholder = 'Escribe una observación. Es obligatoria si devuelves el título.';
+    var actions = document.createElement('div');
+    actions.className = 'decision-actions';
+    var validar = document.createElement('button');
+    validar.type = 'button';
+    validar.className = 'btn btn--primary';
+    validar.textContent = 'Validar y enviar a Investigación';
+    validar.addEventListener('click', function () { guardarDecision('VALIDAR', textarea, validar); });
+    var devolver = document.createElement('button');
+    devolver.type = 'button';
+    devolver.className = 'btn btn--danger';
+    devolver.textContent = 'Devolver al estudiante';
+    devolver.addEventListener('click', function () { guardarDecision('DEVOLVER', textarea, devolver); });
+    actions.appendChild(validar);
+    actions.appendChild(devolver);
+    section.appendChild(note);
+    section.appendChild(label);
+    section.appendChild(textarea);
+    section.appendChild(actions);
+    return section;
+  }
+
+  function guardarDecision(accion, textarea, button) {
+    var titulo = estado.tituloModal;
+    if (!titulo || !estado.coordinador) return;
+    var comentario = String(textarea && textarea.value || '').trim();
+    if (accion === 'VALIDAR' && !estado.tituloSeleccionado) {
+      mostrarErrorModal('Selecciona uno de los títulos antes de validarlo.');
+      return;
+    }
+    if (accion === 'DEVOLVER' && !comentario) {
+      mostrarErrorModal('Escribe un comentario indicando qué debe corregir el estudiante.');
+      if (textarea) textarea.focus();
+      return;
+    }
+    setLoadingElement(button, true, 'Guardando…');
+    repository.revisarTitulo(titulo, accion, comentario, estado.coordinador, estado.tituloSeleccionado)
+      .then(function () {
+        cerrarDetalle();
+        mensaje(accion === 'VALIDAR' ? 'Título validado y enviado a Investigación.' : 'Título devuelto al estudiante.', 'success');
+        return cargarTitulos();
       })
       .catch(function (error) {
-        estado.titulos = [];
-        renderResumen([]);
-        renderTitulos([]);
-        showStatus('#consultaMensaje', 'No se pudo consultar: ' + obtenerMensajeError(error), 'error');
+        mostrarErrorModal(errorMensaje(error));
       })
       .finally(function () {
-        setLoading('#btnConsultarTitulos', false);
+        setLoadingElement(button, false);
       });
   }
 
-  function renderCoordinador(coordinador) {
-    setText('#coordNombreTexto', coordinador.nombres || coordinador.email);
-    setText('#coordCarrerasTexto', 'Carreras asignadas: ' + coordinador.carreras.join(', '));
-    show('#seccionCoordinador');
-  }
-
-  function renderResumen(titulos) {
-    var enviados = titulos.filter(function (titulo) {
-      return String(titulo.estado || '').toUpperCase() === 'ENVIADO';
-    }).length;
-
-    setText('#totalTitulosTexto', String(titulos.length));
-    setText('#totalEnviadosTexto', String(enviados));
-    setText('#totalCarreraTexto', String(titulos.length));
-  }
-
-  function renderTitulos(titulos) {
-    var container = qs('#titulosLista');
-    if (!container) return;
-
-    container.innerHTML = '';
-
-    if (!titulos.length) {
-      var empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.textContent = 'No hay títulos para mostrar con los filtros seleccionados.';
-      container.appendChild(empty);
-      return;
+  function mostrarErrorModal(texto) {
+    var existente = el('modalDecisionError');
+    if (!existente) {
+      existente = document.createElement('div');
+      existente.id = 'modalDecisionError';
+      existente.className = 'modal-error';
+      var section = document.querySelector('.decision-section');
+      if (section) section.insertBefore(existente, section.firstChild);
     }
-
-    titulos.forEach(function (titulo) {
-      container.appendChild(crearTituloCard(titulo));
-    });
+    existente.textContent = texto;
   }
 
-  function crearTituloCard(titulo) {
-    var card = document.createElement('article');
-    card.className = 'title-item';
-
-    var top = document.createElement('div');
-    top.className = 'title-item__top';
-
-    var info = document.createElement('div');
-    var h3 = document.createElement('h3');
-    h3.textContent = titulo.tituloPreferidoTexto || 'Sin título preferido';
-    var meta = document.createElement('div');
-    meta.className = 'title-meta';
-    meta.appendChild(crearBadge(titulo.estado || 'ENVIADO', claseEstado(titulo.estado)));
-    meta.appendChild(crearBadge(titulo.nombres || 'Sin nombres'));
-    meta.appendChild(crearBadge(titulo.cedula || 'Sin cédula'));
-    meta.appendChild(crearBadge(titulo.carrera || 'Sin carrera'));
-    meta.appendChild(crearBadge('Preferido: propuesta ' + (titulo.tituloPreferidoNumero || 1)));
-
-    info.appendChild(h3);
-    info.appendChild(meta);
-
-    var actions = document.createElement('div');
-    actions.className = 'form-actions';
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn--secondary';
-    btn.textContent = 'Ver propuestas';
-    btn.addEventListener('click', function () {
-      togglePropuestas(card);
-    });
-    actions.appendChild(btn);
-
-    top.appendChild(info);
-    top.appendChild(actions);
-
-    var propuestas = document.createElement('div');
-    propuestas.className = 'proposal-list is-hidden';
-    (titulo.titulosEnviados || []).forEach(function (propuesta) {
-      propuestas.appendChild(crearPropuestaItem(propuesta, titulo.tituloPreferidoNumero));
-    });
-
-    card.appendChild(top);
-    card.appendChild(propuestas);
-    return card;
+  function abrirDiagnostico() {
+    renderDiagnostico('');
+    mostrarModal('diagnosticoModal');
   }
 
-  function crearPropuestaItem(propuesta, preferidoNumero) {
+  function renderDiagnostico(error) {
+    var wrap = el('diagnosticoContenido');
+    if (!wrap) return;
+    var coord = estado.coordinador;
+    wrap.innerHTML =
+      diagnosticoItem('Firebase', estado.firebase ? 'Conectado' : 'Sin conexión', estado.firebase) +
+      diagnosticoItem('Coordinadores', String(estado.coordinadores.length) + ' cargados', estado.coordinadores.length > 0) +
+      diagnosticoItem('Coordinador activo', coord ? coord.nombre : 'Sin seleccionar', Boolean(coord)) +
+      diagnosticoItem('Títulos recibidos', String(estado.titulos.length), true) +
+      (error ? '<p class="diagnostic-error">' + escapeHtml(error) + '</p>' : '');
+  }
+
+  function diagnosticoItem(label, value, ok) {
+    return '<div class="diagnostic-item"><span class="diagnostic-dot ' + (ok ? 'is-ok' : '') + '"></span><strong>' + escapeHtml(label) + '</strong><span>' + escapeHtml(value) + '</span></div>';
+  }
+
+  function cerrarDetalle() {
+    ocultarModal('detalleModal');
+    estado.tituloModal = null;
+    estado.tituloSeleccionado = 0;
+  }
+  function cerrarDiagnostico() { ocultarModal('diagnosticoModal'); }
+  function mostrarModal(id) {
+    var node = el(id); if (!node) return;
+    node.classList.remove('is-hidden'); node.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+  }
+  function ocultarModal(id) {
+    var node = el(id); if (!node || node.classList.contains('is-hidden')) return;
+    node.classList.add('is-hidden'); node.setAttribute('aria-hidden', 'true');
+    if (document.querySelectorAll('.modal-backdrop:not(.is-hidden)').length === 0) document.body.classList.remove('modal-open');
+  }
+
+  function metaItem(label, value) {
     var item = document.createElement('div');
-    item.className = 'proposal-item';
-
-    var strong = document.createElement('strong');
-    strong.textContent = 'Propuesta ' + propuesta.numero + (Number(propuesta.numero) === Number(preferidoNumero) ? ' · preferida' : '');
-
-    var titulo = document.createElement('p');
-    titulo.textContent = 'Título: ' + (propuesta.tituloFinal || '—');
-
-    var tema = document.createElement('p');
-    tema.textContent = 'Tema: ' + (propuesta.temaGeneral || '—');
-
-    var problema = document.createElement('p');
-    problema.textContent = 'Problema: ' + (propuesta.problemaNecesidad || '—');
-
-    item.appendChild(strong);
-    item.appendChild(titulo);
-    item.appendChild(tema);
-    item.appendChild(problema);
+    item.className = 'meta-item';
+    var span = document.createElement('span'); span.textContent = label;
+    var strong = document.createElement('strong'); strong.textContent = value || '—';
+    item.appendChild(span); item.appendChild(strong);
     return item;
   }
 
-  function crearBadge(text, extraClass) {
-    var badge = document.createElement('span');
-    badge.className = 'title-badge' + (extraClass ? ' ' + extraClass : '');
-    badge.textContent = text || '—';
-    return badge;
+  function badge(texto, tipo) {
+    var span = document.createElement('span');
+    span.className = 'badge badge--' + (tipo || 'muted');
+    span.textContent = texto || '—';
+    return span;
   }
 
-  function claseEstado(estado) {
-    var normalized = String(estado || '').toUpperCase();
-    if (normalized.indexOf('APROBADO') !== -1) return 'is-aprobado';
-    if (normalized.indexOf('DEVUELTO') !== -1) return 'is-devuelto';
-    return 'is-enviado';
+  function claseEstado(vista) {
+    if (vista === 'DEVUELTOS') return 'red';
+    if (vista === 'VALIDADOS') return 'blue';
+    if (vista === 'APROBADOS') return 'green';
+    return 'gold';
   }
 
-  function togglePropuestas(card) {
-    var propuestas = card.querySelector('.proposal-list');
-    if (!propuestas) return;
-    propuestas.classList.toggle('is-hidden');
+  function estadoVisible(titulo) {
+    var vista = repository.clasificarTitulo(titulo);
+    if (vista === 'DEVUELTOS') return 'Devuelto';
+    if (vista === 'VALIDADOS') return 'Validado';
+    if (vista === 'APROBADOS') return 'Aprobado';
+    return 'Por revisar';
   }
 
-  function renderDiagnosticoBase(firebaseEstado, detalle) {
-    var container = qs('#diagnosticoModulo');
-    if (!container) return;
-
-    var items = [
-      { titulo: 'HTML independiente', descripcion: 'Pantalla de coordinadores lista.', estado: 'ok' },
-      { titulo: 'CSS propio', descripcion: 'Estilos propios del módulo coordinadores.', estado: 'ok' },
-      { titulo: 'JS propio', descripcion: 'Controlador y repositorio independientes.', estado: 'ok' },
-      { titulo: 'Firebase', descripcion: detalle || 'Pendiente de conexión.', estado: firebaseEstado || 'pending' },
-      { titulo: 'Listado de títulos', descripcion: 'Filtra títulos por período, estado y carreras asignadas.', estado: firebaseEstado === 'ok' ? 'ok' : 'pending' },
-      { titulo: 'Revisión', descripcion: 'Aprobación y devolución se agregan en el siguiente bloque.', estado: 'pending' }
-    ];
-
-    container.innerHTML = '';
-    items.forEach(function (item) {
-      var card = document.createElement('div');
-      card.className = 'diagnostic-item ' + claseDiagnostico(item.estado);
-
-      var title = document.createElement('strong');
-      title.textContent = item.titulo;
-
-      var description = document.createElement('p');
-      description.textContent = item.descripcion;
-
-      card.appendChild(title);
-      card.appendChild(description);
-      container.appendChild(card);
-    });
+  function labelEstadoRevision(value) {
+    var estadoRevision = String(value || '').toUpperCase();
+    if (estadoRevision === 'DEVUELTO') return 'Devuelto';
+    if (estadoRevision === 'VALIDADO') return 'Validado';
+    if (estadoRevision.indexOf('APROBADO') !== -1) return 'Aprobado';
+    return estadoRevision || 'Revisado';
   }
 
-  function claseDiagnostico(estadoItem) {
-    if (estadoItem === 'ok') return 'is-ok';
-    if (estadoItem === 'error') return 'is-error';
-    return 'is-pending';
+  function periodoVisible(titulo) { return titulo.periodoLabel || titulo.periodoId || '—'; }
+
+  function fechaVisible(value, incluirIso) {
+    if (!value) return '—';
+    var date = fechaDate(value);
+    if (!date) return String(value || '—');
+    if (incluirIso) return date.toISOString();
+    try {
+      return new Intl.DateTimeFormat('es-EC', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+    } catch (error) {
+      return date.toLocaleString();
+    }
   }
 
-  function bloquearConsulta(disabled) {
-    var form = qs('#formCoordinador');
-    if (!form) return;
-    Array.prototype.slice.call(form.querySelectorAll('input, select, button')).forEach(function (element) {
-      element.disabled = Boolean(disabled);
-    });
+  function fechaDate(value) {
+    if (!value) return null;
+    if (value && typeof value.toDate === 'function') return value.toDate();
+    if (value && typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+    var date = new Date(value);
+    return isNaN(date.getTime()) ? null : date;
   }
+  function fechaMs(value) { var d = fechaDate(value); return d ? d.getTime() : 0; }
 
-  function actualizarModoEjecucion() {
-    setText('#modoEjecucionTexto', detectarModoEjecucion());
+  function vacio(body, texto) {
+    var tr = document.createElement('tr');
+    var td = document.createElement('td');
+    td.colSpan = 7; td.className = 'empty-cell'; td.textContent = texto;
+    tr.appendChild(td); body.appendChild(tr);
   }
-
-  function detectarModoEjecucion() {
-    if (window.location.protocol === 'file:') return 'Doble click';
-    if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') return 'Live Server';
-    if (window.navigator && /Electron/i.test(window.navigator.userAgent)) return 'Electron';
-    return 'Web';
+  function mensaje(texto, tipo) {
+    var node = el('cargaMensaje'); if (!node) return;
+    node.textContent = texto || '';
+    node.className = 'load-note' + (tipo ? ' is-' + tipo : '');
   }
-
-  function qs(selector) {
-    return document.querySelector(selector);
-  }
-
-  function show(selector) {
-    var element = qs(selector);
-    if (element) element.classList.remove('is-hidden');
-  }
-
-  function value(selector) {
-    var element = qs(selector);
-    return element ? String(element.value || '').trim() : '';
-  }
-
-  function setValue(selector, valueToSet) {
-    var element = qs(selector);
-    if (element) element.value = valueToSet == null ? '' : String(valueToSet);
-  }
-
-  function setText(selector, text) {
-    var element = qs(selector);
-    if (element) element.textContent = text || '—';
-  }
-
-  function showStatus(selector, message, type) {
-    var element = qs(selector);
-    if (!element) return;
-    element.classList.remove('is-info', 'is-success', 'is-warning', 'is-error');
-    if (type) element.classList.add('is-' + type);
-    element.textContent = message || '';
-  }
-
-  function setLoading(selector, loading, text) {
-    var button = qs(selector);
+  function setEstado(texto) { setText('estadoGeneral', texto); }
+  function setLoading(id, loading, texto) { setLoadingElement(el(id), loading, texto); }
+  function setLoadingElement(button, loading, texto) {
     if (!button) return;
-
     if (loading) {
-      if (!button.dataset.originalText) button.dataset.originalText = button.textContent;
-      button.textContent = text || 'Cargando...';
-      button.disabled = true;
-      return;
-    }
-
-    button.disabled = false;
-    if (button.dataset.originalText) {
-      button.textContent = button.dataset.originalText;
-      delete button.dataset.originalText;
+      button.dataset.originalText = button.dataset.originalText || button.textContent;
+      button.textContent = texto || 'Cargando…'; button.disabled = true;
+    } else {
+      button.textContent = button.dataset.originalText || button.textContent; button.disabled = false;
     }
   }
-
-  function obtenerMensajeError(error) {
-    return error && error.message ? error.message : String(error || 'Error desconocido');
+  function normalizarBusqueda(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   }
+  function escapeHtml(value) {
+    return String(value === undefined || value === null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+  function errorMensaje(error) { return error && error.message ? error.message : String(error || 'Error desconocido'); }
+  function el(id) { return document.getElementById(id); }
+  function on(id, event, fn) { var node = el(id); if (node) node.addEventListener(event, fn); }
+  function valor(id) { var node = el(id); return node ? String(node.value || '').trim() : ''; }
+  function setText(id, text) { var node = el(id); if (node) node.textContent = text === undefined || text === null ? '' : String(text); }
 })();

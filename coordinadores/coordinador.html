@@ -3,113 +3,123 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Coordinadores | Revisión de títulos</title>
+  <title>Coordinadores de titulación</title>
   <link rel="stylesheet" href="css/coordinador.css" />
-  <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
   <header class="app-header">
     <div class="app-header__content">
-      <div>
-        <span class="app-badge">Módulo coordinadores</span>
-        <h1>Revisión de títulos académicos</h1>
-        <p>Panel independiente para revisar títulos enviados por estudiantes.</p>
+      <div class="brand-mark" aria-hidden="true">CT</div>
+      <div class="brand-copy">
+        <span class="eyebrow">COORDINADORES</span>
+        <h1>Coordinadores de titulación</h1>
+        <p>Revisión de artículos académicos y Trabajos de Titulación.</p>
       </div>
-      <div class="app-status-pill" id="estadoGeneral">Conectando</div>
+      <span class="version-pill" id="versionTexto">v4.0.0</span>
     </div>
   </header>
 
   <main class="app-container">
-    <section class="notice notice--info">
-      <strong>Bloque 23 activo.</strong> Vista revisada: conexión, filtros, listado, tarjetas de títulos, propuestas y acciones mantienen visibilidad correcta.
-    </section>
-
-    <section class="card hero-card">
-      <div>
-        <p class="section-kicker">Firebase</p>
-        <h2>Estado de conexión</h2>
-        <p class="muted" id="firebaseMensaje">Inicializando conexión...</p>
-      </div>
-      <div class="mode-grid">
-        <div class="mode-item"><span>1</span><strong>Modo</strong><p id="modoEjecucionTexto">—</p></div>
-        <div class="mode-item"><span>2</span><strong>Proyecto</strong><p id="projectIdTexto">—</p></div>
-        <div class="mode-item"><span>3</span><strong>Período activo</strong><p id="periodoActivoTexto">—</p></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card__header">
-        <div>
-          <p class="section-kicker">Acceso</p>
-          <h2>Identificar coordinador</h2>
-          <p class="muted">Ingresa el correo registrado por administración para cargar tus carreras asignadas.</p>
-        </div>
-      </div>
-
-      <form class="form-grid" id="formCoordinador" autocomplete="off">
-        <div class="field">
-          <label for="coordEmailInput">Correo del coordinador</label>
-          <input id="coordEmailInput" name="email" type="email" placeholder="coordinador@dominio.edu" />
-        </div>
-        <div class="field">
-          <label for="periodoInput">Período</label>
-          <input id="periodoInput" name="periodo" type="text" placeholder="Ejemplo: 2025-11__2026-05" />
-        </div>
-        <div class="field">
-          <label for="estadoFiltroInput">Estado</label>
-          <select id="estadoFiltroInput" name="estado">
-            <option value="TODOS">Todos</option>
-            <option value="ENVIADO">Enviado</option>
-            <option value="APROBADO">Aprobado</option>
-            <option value="APROBADO_CON_OBSERVACION">Aprobado con observación</option>
-            <option value="DEVUELTO">Devuelto</option>
+    <section class="card filters-card">
+      <div class="filters-row">
+        <div class="field field--coordinator">
+          <label for="coordinadorSelect">Coordinador</label>
+          <select id="coordinadorSelect">
+            <option value="">Selecciona un coordinador</option>
           </select>
         </div>
-        <div class="form-actions field--full">
-          <button class="btn btn--primary" type="submit" id="btnConsultarTitulos">Consultar títulos</button>
+        <div class="field field--type">
+          <label for="tipoTrabajoSelect">Tipo de trabajo</label>
+          <select id="tipoTrabajoSelect">
+            <option value="TODOS">Todos</option>
+            <option value="ARTICULO">Artículo académico</option>
+            <option value="TRABAJO_TITULACION">Trabajo de Titulación</option>
+          </select>
         </div>
-      </form>
+        <button class="btn btn--soft" type="button" id="btnActualizar">Actualizar</button>
+      </div>
 
-      <div class="status-message" id="consultaMensaje" role="status" aria-live="polite"></div>
+      <div class="coordinator-summary is-hidden" id="coordinadorResumen">
+        <strong id="coordinadorNombre">—</strong>
+        <p id="coordinadorCarreras">—</p>
+      </div>
+
+      <div class="load-note" id="cargaMensaje" role="status" aria-live="polite">Conectando con la información de titulación…</div>
     </section>
 
-    <section class="card is-hidden" id="seccionCoordinador">
-      <div class="card__header">
+    <section class="card workspace-card">
+      <div class="tabs-row">
+        <div class="tabs" role="tablist" aria-label="Estados de revisión">
+          <button class="tab is-active" type="button" data-tab="POR_REVISAR">Por revisar</button>
+          <button class="tab" type="button" data-tab="DEVUELTOS">Devueltos</button>
+          <button class="tab" type="button" data-tab="VALIDADOS">Validados</button>
+          <button class="tab" type="button" data-tab="APROBADOS">Aprobados</button>
+        </div>
+        <div class="total-pill">TOTAL <strong id="totalVista">0</strong></div>
+      </div>
+
+      <div class="list-heading">
         <div>
-          <p class="section-kicker">Coordinador</p>
-          <h2 id="coordNombreTexto">—</h2>
-          <p class="muted" id="coordCarrerasTexto">—</p>
+          <span class="eyebrow eyebrow--blue" id="vistaKicker">POR REVISAR</span>
+          <h2 id="vistaTitulo">Títulos pendientes de revisión por Coordinación</h2>
         </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card__header">
-        <div>
-          <p class="section-kicker">Títulos</p>
-          <h2>Listado para revisión</h2>
-          <p class="muted">Consulta los títulos filtrados por carrera, período y estado. Para registrar decisiones usa también la pantalla de revisión.</p>
+        <div class="search-field">
+          <label for="buscarInput">Buscar</label>
+          <input id="buscarInput" type="search" placeholder="Nombre, cédula o título" autocomplete="off" />
         </div>
       </div>
 
-      <div class="summary-grid">
-        <div class="summary-item"><span>Total</span><strong id="totalTitulosTexto">0</strong></div>
-        <div class="summary-item"><span>Enviados</span><strong id="totalEnviadosTexto">0</strong></div>
-        <div class="summary-item"><span>Filtrados por carrera</span><strong id="totalCarreraTexto">0</strong></div>
+      <div class="table-wrap">
+        <table class="titles-table">
+          <thead>
+            <tr>
+              <th>Cédula</th>
+              <th>Nombre</th>
+              <th>Carrera</th>
+              <th>Tipo</th>
+              <th>Período</th>
+              <th>Estado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="titulosTableBody">
+            <tr><td colspan="7" class="empty-cell">Selecciona un coordinador para consultar sus títulos.</td></tr>
+          </tbody>
+        </table>
       </div>
-
-      <div class="titles-list" id="titulosLista"></div>
     </section>
 
-    <section class="card diagnostic-card">
-      <div>
-        <p class="section-kicker">Diagnóstico</p>
-        <h2>Estado del módulo</h2>
-      </div>
-      <div class="diagnostic-list" id="diagnosticoModulo"></div>
-    </section>
+    <div class="footer-row">
+      <span id="estadoGeneral">Inicializando…</span>
+      <button class="diagnostic-link" type="button" id="btnDiagnostico">Ver diagnóstico</button>
+    </div>
   </main>
 
+  <div class="modal-backdrop is-hidden" id="detalleModal" aria-hidden="true">
+    <section class="modal-card modal-card--detail" role="dialog" aria-modal="true" aria-labelledby="detalleTituloModal">
+      <div class="modal-head">
+        <div>
+          <span class="eyebrow eyebrow--blue">Detalle del estudiante</span>
+          <h2 id="detalleTituloModal">—</h2>
+          <p id="detalleSubtitulo">—</p>
+        </div>
+        <button class="close-btn" type="button" id="btnCerrarDetalle" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body" id="detalleModalBody"></div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop is-hidden" id="diagnosticoModal" aria-hidden="true">
+    <section class="modal-card modal-card--small" role="dialog" aria-modal="true" aria-labelledby="diagnosticoTitulo">
+      <div class="modal-head">
+        <div><span class="eyebrow eyebrow--blue">Diagnóstico</span><h2 id="diagnosticoTitulo">Estado del módulo</h2></div>
+        <button class="close-btn" type="button" id="btnCerrarDiagnostico" aria-label="Cerrar">×</button>
+      </div>
+      <div class="modal-body diagnostic-body" id="diagnosticoContenido"></div>
+    </section>
+  </div>
+
+  <script src="js/firebase.config.js"></script>
   <script src="js/app.config.js"></script>
   <script src="js/firebase.service.js"></script>
   <script src="js/coordinador.repository.js"></script>

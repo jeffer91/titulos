@@ -16,6 +16,6 @@
     }),
     documents: Object.freeze({ appConfig: 'app' }),
     pin: Object.freeze({ min: 4, max: 8 }),
-    estadosCoordinadorHabilitados: Object.freeze(['APROBADO', 'APROBADO_CON_OBSERVACION'])
+    estadosCoordinadorHabilitados: Object.freeze(['VALIDADO', 'APROBADO', 'APROBADO_CON_OBSERVACION'])
   });
 })();
