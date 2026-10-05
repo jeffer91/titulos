@@ -32,6 +32,9 @@ jobs:
         with:
           path: .
 
+      - name: Esperar disponibilidad del artefacto
+        run: sleep 5
+
       - name: Publicar
         id: deployment
         uses: actions/deploy-pages@v4
