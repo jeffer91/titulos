@@ -24,6 +24,13 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
+      - name: Validar sintaxis JavaScript
+        run: |
+          find . -type f -name '*.js' \
+            -not -path './node_modules/*' \
+            -not -path './.git/*' \
+            -print0 | xargs -0 -n1 node --check
+
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
 
