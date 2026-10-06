@@ -1,0 +1,1 @@
+(function(){'use strict';window.__TA_LOOKUP_PARALLELO_VERSION='20261006-1';})();
