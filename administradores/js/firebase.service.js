@@ -100,7 +100,7 @@
     var db = esAcademica(collectionName) ? getDbAcademico() : getDb();
     return db.collection(collectionName).doc(documentId).get().then(function (snapshot) {
       if (!snapshot.exists) return null;
-      return normalizarDocumento(snapshot);
+      return adaptarDocumento(collectionName, normalizarDocumento(snapshot));
     });
   }
 
@@ -166,7 +166,7 @@
   }
 
   function listarColeccion(collectionName) {
-    return listarDocumentos(collectionName, { limit: collectionName === 'Estudiante' ? 5000 : 5000 });
+    return listarDocumentos(collectionName, { limit: 5000 });
   }
 
   function obtenerColeccion(collectionName) { return listarColeccion(collectionName); }
@@ -185,8 +185,8 @@
   function listarEstudiantesAcademicos(options) {
     if (!dbAcademico) return Promise.resolve([]);
     return Promise.all([
-      ejecutarListado(getDbAcademico(), 'Estudiante', { limit: 5000 }),
-      ejecutarListado(getDbAcademico(), 'matriculas', { limit: 5000 })
+      ejecutarListadoCrudo(getDbAcademico(), 'Estudiante', { limit: 5000 }),
+      ejecutarListadoCrudo(getDbAcademico(), 'matriculas', { limit: 5000 })
     ]).then(function (resultados) {
       var estudiantes = resultados[0] || [];
       var matriculas = resultados[1] || [];
@@ -230,6 +230,12 @@
   }
 
   function ejecutarListado(db, collectionName, options) {
+    return ejecutarListadoCrudo(db, collectionName, options).then(function (docs) {
+      return docs.map(function (doc) { return adaptarDocumento(collectionName, doc); });
+    });
+  }
+
+  function ejecutarListadoCrudo(db, collectionName, options) {
     var query = db.collection(collectionName);
     var opts = options || {};
     if (opts.where && opts.where.length === 3) query = query.where(opts.where[0], opts.where[1], opts.where[2]);
@@ -240,6 +246,49 @@
       snapshot.forEach(function (doc) { docs.push(normalizarDocumento(doc)); });
       return docs;
     });
+  }
+
+  function adaptarDocumento(collectionName, data) {
+    if (!data) return data;
+
+    if (collectionName === 'envios') {
+      var propuestas = Array.isArray(data.titulosEnviados) && data.titulosEnviados.length
+        ? data.titulosEnviados
+        : [1, 2, 3].map(function (numero) {
+            var titulo = String(data['titulo' + numero] || '').trim();
+            if (!titulo) return null;
+            var detalle = Array.isArray(data.propuestasDetalle)
+              ? data.propuestasDetalle.filter(function (p) { return Number(p.numero) === numero; })[0]
+              : null;
+            return Object.assign({}, detalle || {}, { numero: numero, tituloFinal: titulo, preferido: Number(data.tituloPreferidoNumero) === numero });
+          }).filter(Boolean);
+      var preferido = Number(data.tituloPreferidoNumero || 1);
+      var preferida = propuestas.filter(function (p) { return Number(p.numero) === preferido; })[0] || propuestas[0] || {};
+
+      return Object.assign({}, data, {
+        carrera: data.carrera || data.nombreCarrera || data.carreraNombre || '',
+        nombreCarrera: data.nombreCarrera || data.carreraNombre || data.carrera || '',
+        codigoCarrera: data.codigoCarrera || data.carreraCodigo || '',
+        periodoLabel: data.periodoLabel || data.periodoNombre || '',
+        titulosEnviados: propuestas,
+        tituloPreferidoTexto: data.tituloPreferidoTexto || data.tituloElegido || data.tituloCoordinador || preferida.tituloFinal || '',
+        telegramUser: data.telegramUser || data.telegram || '',
+        estadoCoordinador: data.estadoCoordinador || (data.validadoCoordinador ? 'VALIDADO' : (data.estado === 'DEVUELTO' && data.devueltoPor === 'COORDINADOR' ? 'DEVUELTO' : '')),
+        estadoInvestigador: data.estadoInvestigador || (data.estado === 'APROBADO_FINAL' ? 'APROBADO' : '')
+      });
+    }
+
+    if (collectionName === 'coordinadores') {
+      var carreras = data.carreras;
+      if (!Array.isArray(carreras) || !carreras.length) carreras = data.carrerasNombres || data.carrerasIds || [];
+      return Object.assign({}, data, {
+        carreras: carreras,
+        carrerasAsignadas: data.carrerasAsignadas || (Array.isArray(carreras) ? carreras.map(function (c) { return { nombreCarrera: c, codigoCarrera: '' }; }) : []),
+        activo: data.activo !== false && String(data.estado || 'ACTIVO').toUpperCase() !== 'INACTIVO'
+      });
+    }
+
+    return data;
   }
 
   function contarColeccion(collectionName, limit) {
