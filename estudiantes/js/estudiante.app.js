@@ -6,6 +6,7 @@
   - Verificar que los servicios principales estén cargados.
   - Cargar el seguimiento de títulos existentes antes de conectar eventos.
   - Compatibilizar estados históricos de envíos anteriores.
+  - Cargar la capa visual compacta del seguimiento.
   - Delegar eventos, consulta, recomendaciones, formulario, sugerencias, borrador y envío a controladores separados.
 */
 (function () {
@@ -30,7 +31,7 @@
       })
       .then(function () {
         window.TAEstudianteEvents.iniciar();
-        console.info('[Estudiantes] Módulo iniciado correctamente con seguimiento de títulos existentes.');
+        console.info('[Estudiantes] Módulo iniciado correctamente con seguimiento visual de títulos existentes.');
       });
   }
 
@@ -45,6 +46,15 @@
         'js/seguimiento.compat.js?v=20261006-1',
         function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__seguimientoCompat); }
       );
+    }).then(function () {
+      return cargarScriptSeguimiento(
+        'ta-seguimiento-visual',
+        'js/seguimiento.visual.js?v=20261006-1',
+        function () { return Boolean(document.getElementById('seguimientoVisualV2Styles')); }
+      ).catch(function (error) {
+        console.warn('[Estudiantes] El seguimiento funcionará sin la capa visual adicional:', error);
+        return false;
+      });
     });
   }
 
