@@ -3,38 +3,38 @@
   'use strict';
 
   var firebaseConfig = window.TA_ADMIN_FIREBASE_CONFIG || Object.freeze({
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: ''
+    apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: ''
+  });
+  var firebaseAcademico = window.TA_ADMIN_ACADEMICO_FIREBASE_CONFIG || Object.freeze({
+    apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: ''
   });
 
   window.TA_ADMINISTRADORES_CONFIG = Object.freeze({
     modulo: 'administradores',
-    version: '1.1.0-respaldo-normalizacion',
-    modo: 'firebase-panel-admin',
+    version: '1.2.0-dual-firebase',
+    modo: 'firebase-titulos-con-consulta-academica',
     firebaseActivo: true,
     electronActivo: true,
 
     firebase: firebaseConfig,
+    firebaseAcademico: firebaseAcademico,
 
     collections: Object.freeze({
-      estudiantes: 'Estudiantes',
-      titulos: 'titulos',
-      titulosHistorial: 'titulos_historial',
-      config: 'titulos_config',
-      logs: 'titulos_logs',
-      ia: 'IA',
-      coordinadores: 'titulos_coordinadores',
+      estudiantes: 'Estudiante',
+      matriculas: 'matriculas',
+      titulos: 'envios',
+      titulosHistorial: 'versiones_envio',
+      config: 'configuracion',
+      logs: 'workflow_events',
+      ia: 'ia',
+      coordinadores: 'coordinadores',
       investigadores: 'investigadores',
-      periodos: 'periodos'
+      periodos: 'periodos',
+      carreras: 'carreras',
+      resoluciones: 'resoluciones'
     }),
 
-    documents: Object.freeze({
-      appConfig: 'app'
-    }),
+    documents: Object.freeze({ appConfig: 'general' }),
 
     defaultAppConfig: Object.freeze({
       procesoActivo: true,
@@ -45,11 +45,9 @@
       periodosActivosLabels: [],
       maxIntentos: 1,
       propuestasObligatorias: 3,
-
       proveedorIA: 'gemini',
       proveedorIALabel: 'Google Gemini API',
       iaActiva: true,
-
       sheetsActivo: false,
       sheetsWebAppUrl: '',
       sheetsToken: '',
@@ -71,66 +69,28 @@
     }),
 
     proveedoresSugerencias: Object.freeze([
-      {
-        id: 'gemini',
-        nombre: 'Google Gemini API',
-        modeloDefault: 'gemini-1.5-flash-latest',
-        endpointDefault: ''
-      },
-      {
-        id: 'groq',
-        nombre: 'GroqCloud',
-        modeloDefault: 'llama-3.1-8b-instant',
-        endpointDefault: 'https://api.groq.com/openai/v1/chat/completions'
-      },
-      {
-        id: 'openrouter',
-        nombre: 'OpenRouter Free Models',
-        modeloDefault: 'meta-llama/llama-3.1-8b-instruct:free',
-        endpointDefault: 'https://openrouter.ai/api/v1/chat/completions'
-      },
-      {
-        id: 'cloudflare',
-        nombre: 'Cloudflare Workers AI',
-        modeloDefault: '@cf/meta/llama-3.1-8b-instruct',
-        endpointDefault: ''
-      }
+      { id: 'gemini', nombre: 'Google Gemini API', modeloDefault: 'gemini-1.5-flash-latest', endpointDefault: '' },
+      { id: 'groq', nombre: 'GroqCloud', modeloDefault: 'llama-3.1-8b-instant', endpointDefault: 'https://api.groq.com/openai/v1/chat/completions' },
+      { id: 'openrouter', nombre: 'OpenRouter Free Models', modeloDefault: 'meta-llama/llama-3.1-8b-instruct:free', endpointDefault: 'https://openrouter.ai/api/v1/chat/completions' },
+      { id: 'cloudflare', nombre: 'Cloudflare Workers AI', modeloDefault: '@cf/meta/llama-3.1-8b-instruct', endpointDefault: '' }
     ]),
 
     respaldo: Object.freeze({
       tipos: Object.freeze({
-        ping: 'PING',
-        envio: 'ENVIO',
-        estudiante: 'ESTUDIANTE',
-        coordinador: 'COORDINADOR',
-        periodo: 'PERIODO',
-        resolucion: 'RESOLUCION',
-        normalizacion: 'NORMALIZACION',
-        log: 'LOG'
+        ping: 'PING', envio: 'ENVIO', estudiante: 'ESTUDIANTE', coordinador: 'COORDINADOR',
+        periodo: 'PERIODO', resolucion: 'RESOLUCION', normalizacion: 'NORMALIZACION', log: 'LOG'
       }),
-
-      hojasEspejo: Object.freeze([
-        'Envios',
-        'Estudiantes',
-        'Coordinadores',
-        'Periodos',
-        'Resoluciones'
-      ]),
-
-      hojasHistorial: Object.freeze([
-        'Normalizaciones',
-        'Logs',
-        'PING'
-      ]),
-
+      hojasEspejo: Object.freeze(['Envios', 'Estudiantes', 'Coordinadores', 'Periodos', 'Resoluciones']),
+      hojasHistorial: Object.freeze(['Normalizaciones', 'Logs', 'PING']),
       timeoutMs: 18000
     }),
 
     normalizacion: Object.freeze({
       agruparOnlineVista: true,
-      corregirFirebaseAutomatico: true,
+      corregirFirebaseAutomatico: false,
       guardarOriginalOnline: false,
-      idEstudiante: 'cedula_periodo'
+      idEstudiante: 'cedula_periodo',
+      academicoSoloLectura: true
     }),
 
     rutas: Object.freeze({
