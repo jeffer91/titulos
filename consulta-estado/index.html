@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#071b34" />
+  <title>Consulta aislada de títulos | ITSQMET</title>
+  <style>
+    :root{font-family:Arial,Helvetica,sans-serif;color:#0b1f36;background:#eef4fb}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}.panel{width:min(760px,100%);background:#fff;border:1px solid #d6e2ef;border-radius:22px;padding:24px;box-shadow:0 18px 48px rgba(7,27,52,.12)}.eyebrow{font-size:.78rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#45617f}h1{margin:.35rem 0 .4rem;font-size:clamp(1.65rem,3vw,2.35rem);color:#071b34}p{color:#58708c;line-height:1.55}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}.field{display:grid;gap:7px}.field label{font-weight:800;font-size:.9rem}.field input{width:100%;border:1px solid #c8d7e8;border-radius:14px;padding:13px 14px;font:inherit}.actions{display:flex;gap:12px;margin-top:16px}.btn{border:0;border-radius:14px;padding:13px 18px;font-weight:800;cursor:pointer;background:#071b34;color:#fff}.result{margin-top:18px;padding:16px;border-radius:15px;line-height:1.5;border:1px solid #d6e2ef}.result--info{background:#f4f8fc}.result--ok{background:#edf9f1;border-color:#bce4c9}.result--warning{background:#fff8e8;border-color:#ecd69a}.result--error{background:#fff0f0;border-color:#efb8b8}.result div{margin-top:7px}.is-embed body{display:block;min-height:0;padding:0;background:transparent}.is-embed .panel{display:none}@media(max-width:640px){.grid{grid-template-columns:1fr}.panel{padding:18px}}
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <span class="eyebrow">Motor aislado</span>
+    <h1>Consulta de estado del título</h1>
+    <p>Este módulo consulta únicamente Firebase de Títulos mediante una petición HTTP directa. No usa el flujo académico, IA, historial ni el SDK Firestore de la aplicación principal.</p>
+
+    <form id="consultaEstadoForm">
+      <div class="grid">
+        <div class="field">
+          <label for="cedula">Cédula</label>
+          <input id="cedula" inputmode="numeric" maxlength="10" value="1718677824" />
+        </div>
+        <div class="field">
+          <label for="periodo">Período ID</label>
+          <input id="periodo" value="2026-02__2026-08" />
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" type="submit">Consultar estado</button>
+      </div>
+    </form>
+
+    <div class="result result--info" id="resultado">Listo para consultar.</div>
+  </main>
+
+  <script src="consulta.config.js?v=20261006-12"></script>
+  <script src="consulta.service.js?v=20261006-12"></script>
+  <script src="consulta.app.js?v=20261006-12"></script>
+</body>
+</html>
