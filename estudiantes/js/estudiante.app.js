@@ -1,14 +1,12 @@
 /*
   Archivo: estudiante.app.js
   Ruta: estudiantes/js/estudiante.app.js
-  Funciones principales del archivo:
+  Funciones principales:
   - Iniciar el módulo público de estudiantes.
-  - Verificar que los servicios principales estén cargados.
-  - Precargar las dos Firebase mientras el usuario todavía está en la pantalla inicial.
-  - Cargar el seguimiento de títulos existentes antes de conectar eventos.
-  - Compatibilizar estados históricos de envíos anteriores.
-  - Activar búsqueda paralela de envíos, consulta rápida e historial en segundo plano.
-  - Cargar la capa visual compacta del seguimiento.
+  - Precargar las dos Firebase.
+  - Cargar una sola ruta estable de consulta del título.
+  - Mantener el historial fuera del camino crítico.
+  - Cargar la capa visual de seguimiento.
 */
 (function () {
   'use strict';
@@ -28,13 +26,13 @@
     preconectarFirebase();
 
     cargarSeguimiento()
-      .catch(function (error) {
-        console.error('[Estudiantes] No se pudo cargar el seguimiento de títulos:', error);
-        return false;
-      })
       .then(function () {
         window.TAEstudianteEvents.iniciar();
-        console.info('[Estudiantes] Módulo iniciado con búsqueda paralela y seguimiento visual.');
+        console.info('[Estudiantes] Módulo iniciado con consulta determinista de Títulos.');
+      })
+      .catch(function (error) {
+        console.error('[Estudiantes] No se pudo preparar la consulta estable:', error);
+        mostrarErrorDependencias(['consulta estable de Títulos']);
       });
   }
 
@@ -71,30 +69,24 @@
   function cargarSeguimiento() {
     return cargarScriptSeguimiento(
       'ta-seguimiento-service',
-      'js/seguimiento.service.js?v=20261006-2',
+      'js/seguimiento.service.js?v=20261006-8',
       function () { return Boolean(window.TAEstudianteSeguimiento); }
     ).then(function () {
       return cargarScriptSeguimiento(
-        'ta-seguimiento-compat',
-        'js/seguimiento.compat.js?v=20261006-1',
-        function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__seguimientoCompat); }
-      );
-    }).then(function () {
-      return cargarScriptSeguimiento(
         'ta-seguimiento-lookup',
-        'js/seguimiento.lookup.js?v=20261006-2',
-        function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__lookupParalelo); }
+        'js/seguimiento.lookup.js?v=20261006-8',
+        function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__consultaEstable); }
       );
     }).then(function () {
       return cargarScriptSeguimiento(
         'ta-seguimiento-fast',
-        'js/seguimiento.fast.js?v=20261006-2',
+        'js/seguimiento.fast.js?v=20261006-8',
         function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__consultaRapida); }
       );
     }).then(function () {
       return cargarScriptSeguimiento(
         'ta-seguimiento-visual',
-        'js/seguimiento.visual.js?v=20261006-3',
+        'js/seguimiento.visual.js?v=20261006-8',
         function () { return Boolean(document.getElementById('seguimientoVisualV2Styles')); }
       ).catch(function (error) {
         console.warn('[Estudiantes] El seguimiento funcionará sin la capa visual adicional:', error);
@@ -182,9 +174,9 @@
   }
 
   function mostrarErrorDependencias(faltantes) {
-    var mensaje = 'La pantalla de estudiantes no pudo iniciar porque faltan archivos JS: ' +
+    var mensaje = 'La pantalla de estudiantes no pudo iniciar correctamente. Faltan: ' +
       faltantes.join(', ') +
-      '. Revisa el orden de scripts en estudiante.html.';
+      '.';
 
     console.error('[Estudiantes] ' + mensaje);
 
