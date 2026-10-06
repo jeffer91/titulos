@@ -5,6 +5,7 @@
   - Iniciar el módulo público de estudiantes.
   - Verificar que los servicios principales estén cargados.
   - Cargar el seguimiento de títulos existentes antes de conectar eventos.
+  - Compatibilizar estados históricos de envíos anteriores.
   - Delegar eventos, consulta, recomendaciones, formulario, sugerencias, borrador y envío a controladores separados.
 */
 (function () {
@@ -34,37 +35,59 @@
   }
 
   function cargarSeguimiento() {
-    if (window.TAEstudianteSeguimiento) {
+    return cargarScriptSeguimiento(
+      'ta-seguimiento-service',
+      'js/seguimiento.service.js?v=20261006-2',
+      function () { return Boolean(window.TAEstudianteSeguimiento); }
+    ).then(function () {
+      return cargarScriptSeguimiento(
+        'ta-seguimiento-compat',
+        'js/seguimiento.compat.js?v=20261006-1',
+        function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__seguimientoCompat); }
+      );
+    });
+  }
+
+  function cargarScriptSeguimiento(id, src, verificar) {
+    if (typeof verificar === 'function' && verificar()) {
       return Promise.resolve(true);
     }
 
     return new Promise(function (resolve, reject) {
-      var existente = document.getElementById('ta-seguimiento-service');
+      var existente = document.getElementById(id);
 
       if (existente) {
-        if (window.TAEstudianteSeguimiento) {
+        if (typeof verificar !== 'function' || verificar()) {
           resolve(true);
           return;
         }
 
-        existente.addEventListener('load', function () { resolve(Boolean(window.TAEstudianteSeguimiento)); }, { once: true });
-        existente.addEventListener('error', function () { reject(new Error('No se pudo cargar seguimiento.service.js.')); }, { once: true });
+        existente.addEventListener('load', function () {
+          if (typeof verificar === 'function' && !verificar()) {
+            reject(new Error('El servicio ' + id + ' no quedó disponible.'));
+            return;
+          }
+          resolve(true);
+        }, { once: true });
+        existente.addEventListener('error', function () {
+          reject(new Error('No se pudo cargar ' + src + '.'));
+        }, { once: true });
         return;
       }
 
       var script = document.createElement('script');
-      script.id = 'ta-seguimiento-service';
-      script.src = 'js/seguimiento.service.js?v=20261006-1';
+      script.id = id;
+      script.src = src;
       script.async = false;
       script.onload = function () {
-        if (!window.TAEstudianteSeguimiento) {
-          reject(new Error('El servicio de seguimiento no quedó disponible.'));
+        if (typeof verificar === 'function' && !verificar()) {
+          reject(new Error('El servicio ' + id + ' no quedó disponible.'));
           return;
         }
         resolve(true);
       };
       script.onerror = function () {
-        reject(new Error('No se pudo descargar seguimiento.service.js.'));
+        reject(new Error('No se pudo descargar ' + src + '.'));
       };
       document.head.appendChild(script);
     });
