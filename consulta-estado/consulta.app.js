@@ -4,6 +4,7 @@
   var service = window.TAConsultaEstadoService;
   var EMBED = new URLSearchParams(window.location.search).get('embed') === '1';
   var TARGET_ORIGIN = window.location.origin;
+  var VERSION = '20261006-13';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -130,7 +131,7 @@
 
   function notificarListo() {
     if (!EMBED || window.parent === window) return;
-    window.parent.postMessage({ type: 'TA_CONSULTA_ESTADO_READY', version: '20261006-12' }, TARGET_ORIGIN);
+    window.parent.postMessage({ type: 'TA_CONSULTA_ESTADO_READY', version: VERSION }, TARGET_ORIGIN);
   }
 
   function mostrarEstado(texto, tipo) {
