@@ -1,45 +1,37 @@
 /*
   Archivo: app.config.js
   Ruta: estudiantes/js/app.config.js
-  Funciones principales del archivo:
-  - Definir la configuración base del módulo estudiantes.
-  - Centralizar nombres de colecciones Firebase usadas por estudiantes.
-  - Definir configuración por defecto de proceso, IA, Sheets y borrador local.
-  - Definir proveedores de IA disponibles para el orquestador.
-  - Definir textos generales usados por la pantalla de estudiantes.
+  Configuración base del módulo estudiantes con dos Firebase independientes.
 */
 (function () {
   'use strict';
 
-  var firebaseConfig = window.TA_ESTUDIANTES_FIREBASE_CONFIG || Object.freeze({
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: ''
-  });
-
+  var firebaseAcademico = window.TA_ESTUDIANTES_FIREBASE_ACADEMICO_CONFIG || Object.freeze({});
+  var firebaseTitulos = window.TA_ESTUDIANTES_FIREBASE_TITULOS_CONFIG || Object.freeze({});
   var ORDEN_PROVEEDORES_IA = Object.freeze(['gemini', 'groq', 'cloudflare', 'openrouter']);
 
   window.TA_ESTUDIANTES_CONFIG = Object.freeze({
     modulo: 'estudiantes',
-    version: '0.9.1-ia-pipeline',
-    modo: 'firebase-envio-sugerencias-sheets-ia-multiple',
+    version: '1.0.0-dual-firebase',
+    modo: 'firebase-academico-lectura-titulos-operativo',
     propuestasObligatorias: 3,
 
-    firebase: firebaseConfig,
+    firebase: Object.freeze({
+      academico: firebaseAcademico,
+      titulos: firebaseTitulos
+    }),
 
     collections: Object.freeze({
-      estudiantes: 'Estudiantes',
-      titulos: 'titulos',
-      config: 'titulos_config',
-      logs: 'titulos_logs',
-      ia: 'IA'
+      estudiantes: 'Estudiante',
+      matriculas: 'matriculas',
+      titulos: 'envios',
+      config: 'configuracion',
+      logs: 'workflow_events',
+      ia: 'ia'
     }),
 
     documents: Object.freeze({
-      appConfig: 'app'
+      appConfig: 'general'
     }),
 
     defaultAppConfig: Object.freeze({
@@ -129,15 +121,12 @@
     validaciones: Object.freeze({
       cedulaMin: 10,
       cedulaMax: 10,
-
       tituloMinCaracteres: 20,
       tituloMaxCaracteres: 260,
-
       tituloMinPalabras: 10,
       tituloMaxPalabras: 25,
       tituloAdvertenciaMaxPalabras: 29,
       tituloBloqueoPalabras: 30,
-
       textoMinCaracteres: 8
     }),
 
