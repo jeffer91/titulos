@@ -4,7 +4,7 @@
   1. Consulta académica.
   2. Datos del estudiante.
   3. Estado del título o cronograma.
-  4. Propuestas y envío.
+  4. Títulos externos y envío.
 
   La lógica de consulta vive en estudiante.consulta.controller.js.
   Este archivo solo prepara dependencias y conecta eventos.
@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261006-15';
+  var BUILD = '20261006-17';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -29,9 +29,12 @@
     /* Precarga en segundo plano. Nunca bloquea la interfaz. */
     preconectarFirebase();
 
-    cargarSeguimientoVisual()
+    cargarFlujoTitulosExternos()
+      .then(function () {
+        return cargarSeguimientoVisual();
+      })
       .catch(function (error) {
-        console.warn('[Estudiantes] Seguimiento visual no disponible; continúa el flujo base:', error);
+        console.warn('[Estudiantes] Capa complementaria no disponible; continúa el flujo base:', error);
         return false;
       })
       .then(function () {
@@ -61,6 +64,14 @@
         console.warn('[Estudiantes] Precarga Firebase pendiente:', error);
         return false;
       });
+  }
+
+  function cargarFlujoTitulosExternos() {
+    return cargarScript(
+      'ta-titulos-externos',
+      'js/titulos.externos.service.js?v=' + BUILD,
+      function () { return Boolean(window.TATitulosExternos); }
+    );
   }
 
   function cargarSeguimientoVisual() {
@@ -170,6 +181,7 @@
     iniciar: iniciar,
     verificarDependencias: verificarDependencias,
     cargarSeguimiento: cargarSeguimientoVisual,
+    cargarTitulosExternos: cargarFlujoTitulosExternos,
     preconectarFirebase: preconectarFirebase,
     build: BUILD
   });
