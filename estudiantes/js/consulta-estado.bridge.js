@@ -1,13 +1,16 @@
 (function () {
   'use strict';
 
-  var VERSION = '20261006-12';
-  var TIMEOUT_MS = 6500;
-  var READY_TIMEOUT_MS = 4500;
+  var VERSION = '20261006-13';
+  var TIMEOUT_MS = 5600;
+  var READY_TIMEOUT_MS = 4200;
   var ORIGIN = window.location.origin;
   var iframe = null;
   var ready = false;
   var readyPromise = null;
+  var readyResolve = null;
+  var readyReject = null;
+  var readyTimer = null;
   var pendientes = Object.create(null);
   var secuencia = 0;
 
@@ -19,7 +22,7 @@
     var periodoId = String(datos.periodoId || '').trim();
 
     if (!cedula || !periodoId) {
-      return Promise.reject(new Error('Faltan cédula o período para consultar el estado del título.'));
+      return Promise.reject(crearError('DATOS_INCOMPLETOS', 'Faltan cédula o período para consultar el estado del título.'));
     }
 
     return asegurarListo().then(function () {
@@ -28,7 +31,7 @@
         var timer = window.setTimeout(function () {
           if (!pendientes[requestId]) return;
           delete pendientes[requestId];
-          reject(new Error('El motor aislado de Títulos no respondió a tiempo.'));
+          reject(crearError('BRIDGE_TIMEOUT', 'El motor aislado de Títulos no respondió a tiempo.'));
         }, TIMEOUT_MS);
 
         pendientes[requestId] = {
@@ -36,6 +39,13 @@
           reject: reject,
           timer: timer
         };
+
+        if (!iframe || !iframe.contentWindow) {
+          window.clearTimeout(timer);
+          delete pendientes[requestId];
+          reject(crearError('IFRAME_NO_DISPONIBLE', 'El motor aislado de Títulos no está disponible.'));
+          return;
+        }
 
         iframe.contentWindow.postMessage({
           type: 'TA_CONSULTA_ESTADO_REQUEST',
@@ -52,23 +62,16 @@
     if (readyPromise) return readyPromise;
 
     readyPromise = new Promise(function (resolve, reject) {
-      var timer = window.setTimeout(function () {
-        if (!ready) {
-          readyPromise = null;
-          reject(new Error('No se pudo iniciar el motor aislado de consulta de Títulos.'));
-        }
+      readyResolve = resolve;
+      readyReject = reject;
+      limpiarReadyTimer();
+
+      readyTimer = window.setTimeout(function () {
+        if (ready) return;
+        fallarInicio(crearError('READY_TIMEOUT', 'No se pudo iniciar el motor aislado de consulta de Títulos.'));
       }, READY_TIMEOUT_MS);
 
       crearIframe();
-
-      var check = window.setInterval(function () {
-        if (ready) {
-          window.clearInterval(check);
-          window.clearTimeout(timer);
-          readyPromise = null;
-          resolve(true);
-        }
-      }, 40);
     });
 
     return readyPromise;
@@ -89,7 +92,13 @@
     iframe.style.opacity = '0';
     iframe.style.pointerEvents = 'none';
     iframe.style.left = '-9999px';
-    iframe.src = '../consulta-estado/index.html?embed=1&v=' + encodeURIComponent(VERSION);
+    iframe.onload = function () {
+      /* El READY del hijo confirma que sus scripts ya están operativos. */
+    };
+    iframe.onerror = function () {
+      fallarInicio(crearError('IFRAME_LOAD_ERROR', 'No se pudo cargar el motor aislado de consulta de Títulos.'));
+    };
+    iframe.src = '../consulta-estado/index.html?embed=1&v=' + encodeURIComponent(VERSION) + '&cb=' + Date.now();
     document.body.appendChild(iframe);
     return iframe;
   }
@@ -103,6 +112,11 @@
 
     if (data.type === 'TA_CONSULTA_ESTADO_READY') {
       ready = true;
+      limpiarReadyTimer();
+      if (readyResolve) readyResolve(true);
+      readyPromise = null;
+      readyResolve = null;
+      readyReject = null;
       return;
     }
 
@@ -115,8 +129,10 @@
     delete pendientes[data.requestId];
 
     if (data.ok === false) {
-      var error = new Error(data.error && data.error.mensaje || 'No se pudo consultar el estado del título.');
-      error.codigo = data.error && data.error.codigo || 'CONSULTA_AISLADA_ERROR';
+      var error = crearError(
+        data.error && data.error.codigo || 'CONSULTA_AISLADA_ERROR',
+        data.error && data.error.mensaje || 'No se pudo consultar el estado del título.'
+      );
       error.diagnostico = data.diagnostico || null;
       pendiente.reject(error);
       return;
@@ -125,16 +141,49 @@
     pendiente.resolve(data);
   }
 
-  function reiniciar() {
+  function fallarInicio(error) {
+    limpiarReadyTimer();
     ready = false;
+    if (readyReject) readyReject(error);
     readyPromise = null;
-    Object.keys(pendientes).forEach(function (key) {
-      window.clearTimeout(pendientes[key].timer);
-      pendientes[key].reject(new Error('Se reinició el motor aislado de consulta.'));
-      delete pendientes[key];
-    });
+    readyResolve = null;
+    readyReject = null;
+    destruirIframe();
+  }
+
+  function limpiarReadyTimer() {
+    if (readyTimer) {
+      window.clearTimeout(readyTimer);
+      readyTimer = null;
+    }
+  }
+
+  function destruirIframe() {
     if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
     iframe = null;
+  }
+
+  function reiniciar() {
+    ready = false;
+    limpiarReadyTimer();
+    if (readyReject) readyReject(crearError('REINICIO', 'Se reinició el motor aislado de consulta.'));
+    readyPromise = null;
+    readyResolve = null;
+    readyReject = null;
+
+    Object.keys(pendientes).forEach(function (key) {
+      window.clearTimeout(pendientes[key].timer);
+      pendientes[key].reject(crearError('REINICIO', 'Se reinició el motor aislado de consulta.'));
+      delete pendientes[key];
+    });
+
+    destruirIframe();
+  }
+
+  function crearError(codigo, mensaje) {
+    var error = new Error(mensaje || codigo || 'Error del motor aislado.');
+    error.codigo = codigo || 'BRIDGE_ERROR';
+    return error;
   }
 
   window.TAConsultaEstadoBridge = Object.freeze({
