@@ -14,42 +14,78 @@
 
     documentoId = periodo + '__' + cedula;
 
-    return leerDocumento(documentoId)
-      .then(function (resultado) {
-        if (resultado.encontrado) {
-          return completarResultado(resultado, inicio, documentoId, 'ID_EXACTO');
-        }
+    return ejecutarConTimeoutGlobal(function (signal) {
+      return leerDocumentoConSignal(documentoId, signal)
+        .then(function (resultado) {
+          if (resultado.encontrado) {
+            return completarResultado(resultado, inicio, documentoId, 'ID_EXACTO');
+          }
 
-        return leerDocumento(cedula).then(function (legacy) {
-          return completarResultado(legacy, inicio, legacy.encontrado ? cedula : documentoId, legacy.encontrado ? 'ID_LEGACY_CEDULA' : 'NO_ENCONTRADO');
+          return leerDocumentoConSignal(cedula, signal).then(function (legacy) {
+            return completarResultado(
+              legacy,
+              inicio,
+              legacy.encontrado ? cedula : documentoId,
+              legacy.encontrado ? 'ID_LEGACY_CEDULA' : 'NO_ENCONTRADO'
+            );
+          });
         });
-      });
+    });
   }
 
   function leerDocumento(documentoId) {
+    return ejecutarConTimeoutGlobal(function (signal) {
+      return leerDocumentoConSignal(documentoId, signal);
+    });
+  }
+
+  function ejecutarConTimeoutGlobal(ejecutor) {
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timeoutMs = Number(cfg.timeoutMs || 4500);
+    var timeoutMs = Number(cfg.timeoutMs || 4200);
     var timer = null;
-    var url = construirUrl(documentoId);
 
     if (controller) {
-      timer = window.setTimeout(function () { controller.abort(); }, timeoutMs);
+      timer = window.setTimeout(function () {
+        controller.abort();
+      }, timeoutMs);
     }
+
+    return Promise.resolve()
+      .then(function () {
+        return ejecutor(controller ? controller.signal : undefined);
+      })
+      .catch(function (error) {
+        if (error && error.name === 'AbortError') {
+          throw crearError('TIMEOUT', 'La consulta de Títulos superó el tiempo máximo de espera.');
+        }
+        if (error && error.codigo) throw error;
+        throw crearError('NETWORK_ERROR', 'No se pudo conectar con Firebase de Títulos.', error);
+      })
+      .finally(function () {
+        if (timer) window.clearTimeout(timer);
+      });
+  }
+
+  function leerDocumentoConSignal(documentoId, signal) {
+    var url = construirUrl(documentoId);
 
     return fetch(url, {
       method: 'GET',
       cache: 'no-store',
       mode: 'cors',
       credentials: 'omit',
-      signal: controller ? controller.signal : undefined,
-      headers: { 'Accept': 'application/json' }
+      signal: signal,
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
     })
       .then(function (response) {
         return response.text().then(function (texto) {
           var body = parseJsonSeguro(texto);
 
           if (response.status === 404) {
-            return { ok: true, encontrado: false, status: 404, envio: null, raw: body };
+            return { ok: true, encontrado: false, status: 404, envio: null };
           }
 
           if (!response.ok) {
@@ -60,20 +96,9 @@
             ok: true,
             encontrado: true,
             status: response.status,
-            envio: normalizarDocumentoRest(body),
-            raw: body
+            envio: sanitizarEnvio(normalizarDocumentoRest(body))
           };
         });
-      })
-      .catch(function (error) {
-        if (error && error.name === 'AbortError') {
-          throw crearError('TIMEOUT', 'La consulta aislada de Títulos superó el tiempo máximo de espera.');
-        }
-        if (error && error.codigo) throw error;
-        throw crearError('NETWORK_ERROR', 'No se pudo conectar con Firebase de Títulos.', error);
-      })
-      .finally(function () {
-        if (timer) window.clearTimeout(timer);
       });
   }
 
@@ -96,11 +121,64 @@
 
     data.id = data.id || id;
     data._docId = id;
-    data.__rest = {
-      createTime: doc && doc.createTime || '',
-      updateTime: doc && doc.updateTime || ''
-    };
     return data;
+  }
+
+  function sanitizarEnvio(data) {
+    var salida = {};
+    var permitidos = [
+      'id', '_docId', 'cedula', 'numeroIdentificacion', 'nombres', 'nombreCompleto',
+      'carrera', 'carreraNombre', 'carreraCodigo', 'periodoId', 'periodoCanonicoId', 'periodoNombre',
+      'estado', 'estadoProceso', 'estadoCoordinador', 'estadoInvestigador',
+      'resultadoCoordinador', 'resultadoInvestigacion', 'requiereAccionDe', 'requiereRevision',
+      'validadoCoordinador', 'validadoCoordinacion', 'coordinadorRevisado', 'investigacionRevisada',
+      'titulo1', 'titulo2', 'titulo3', 'tituloElegido', 'tituloPreferidoTexto', 'tituloPreferidoNumero',
+      'tituloCoordinador', 'tituloFinal', 'tituloFinalInvestigacion', 'tituloSeleccionadoNumero', 'tituloSeleccionadoTexto',
+      'comentarioCoordinador', 'comentarioInvestigador', 'observacionDevolucion', 'observacionInvestigacion',
+      'devueltoPor', 'permitirReenvio', 'puedeReenviar', 'intentosUsados', 'numeroEnvios', 'numeroReenvios',
+      'versionActual', 'fechaEnvio', 'fechaValidacionCoordinador', 'fechaResolucionInvestigacion',
+      'fechaRevisionCoordinador', 'fechaRevisionInvestigador', 'actualizadoEn', 'creadoEn'
+    ];
+
+    permitidos.forEach(function (key) {
+      if (Object.prototype.hasOwnProperty.call(data || {}, key)) salida[key] = data[key];
+    });
+
+    salida.titulosEnviados = sanitizarPropuestas(data && data.titulosEnviados);
+    salida.propuestasDetalle = sanitizarPropuestas(data && data.propuestasDetalle);
+    salida.revisionCoordinador = sanitizarRevision(data && data.revisionCoordinador);
+    salida.revisionInvestigador = sanitizarRevision(data && data.revisionInvestigador);
+
+    return salida;
+  }
+
+  function sanitizarPropuestas(lista) {
+    if (!Array.isArray(lista)) return [];
+    return lista.slice(0, 6).map(function (item) {
+      if (!item || typeof item !== 'object') return item;
+      var salida = {};
+      [
+        'numero', 'titulo', 'tituloFinal', 'preferido', 'enfoque',
+        'temaGeneral', 'grupoEstudio', 'lugarContexto', 'anioPeriodo',
+        'problemaNecesidad', 'objetivo'
+      ].forEach(function (key) {
+        if (Object.prototype.hasOwnProperty.call(item, key)) salida[key] = item[key];
+      });
+      return salida;
+    });
+  }
+
+  function sanitizarRevision(revision) {
+    if (!revision || typeof revision !== 'object') return {};
+    var salida = {};
+    [
+      'estado', 'resultado', 'responsable', 'nombre', 'nombres', 'coordinador', 'investigador',
+      'comentario', 'observacion', 'tituloSeleccionadoTexto', 'tituloSeleccionadoNumero',
+      'tituloFinal', 'fecha', 'fechaRevision', 'fechaValidacion', 'fechaResolucion'
+    ].forEach(function (key) {
+      if (Object.prototype.hasOwnProperty.call(revision, key)) salida[key] = revision[key];
+    });
+    return salida;
   }
 
   function decodificarMapa(map) {
@@ -181,6 +259,7 @@
   window.TAConsultaEstadoService = Object.freeze({
     consultar: consultar,
     leerDocumento: leerDocumento,
-    normalizarDocumentoRest: normalizarDocumentoRest
+    normalizarDocumentoRest: normalizarDocumentoRest,
+    sanitizarEnvio: sanitizarEnvio
   });
 })();
