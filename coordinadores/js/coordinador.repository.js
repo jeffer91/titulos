@@ -1,4 +1,4 @@
-/* Datos y flujo de primera revisión del módulo Coordinadores. */
+/* Datos y flujo de primera revisión del módulo Coordinadores sobre titulos-ec2fa/envios. */
 (function () {
   'use strict';
 
@@ -10,42 +10,32 @@
       .then(function (docs) {
         return (docs || []).map(normalizarCoordinador).filter(function (item) {
           return item.activo && item.nombre;
-        }).sort(function (a, b) {
-          return a.nombre.localeCompare(b.nombre);
-        });
+        }).sort(function (a, b) { return a.nombre.localeCompare(b.nombre); });
       });
   }
 
   function listarTitulosParaCoordinador(coordinador) {
     if (!coordinador || !coordinador.carreras.length) return Promise.resolve([]);
-    return firebaseService.listarDocumentos(config.collections.titulos, { limit: 2000 })
+    return firebaseService.listarDocumentos(config.collections.titulos, { limit: 2500 })
       .then(function (docs) {
         return (docs || []).map(normalizarTitulo).filter(function (titulo) {
           return perteneceACoordinador(titulo, coordinador);
-        }).sort(function (a, b) {
-          return fechaMs(b.fechaEnvio) - fechaMs(a.fechaEnvio);
-        });
+        }).sort(function (a, b) { return fechaMs(b.fechaEnvio) - fechaMs(a.fechaEnvio); });
       });
   }
 
   function cargarHistorialTitulo(titulo) {
     if (!titulo || !titulo.id) return Promise.resolve({ proceso: [], archivos: [], logs: [] });
     return Promise.all([
-      firebaseService.listarDocumentos(config.collections.titulosHistorial, {
-        where: ['idOriginal', '==', titulo.id],
-        limit: 100
-      }).catch(function () { return []; }),
-      firebaseService.listarDocumentos(config.collections.logs, {
-        where: ['tituloId', '==', titulo.id],
-        limit: 300
-      }).catch(function () { return []; })
+      firebaseService.listarDocumentos(config.collections.titulosHistorial, { where: ['envioId', '==', titulo.id], limit: 100 }).catch(function () {
+        return firebaseService.listarDocumentos(config.collections.titulosHistorial, { where: ['idOriginal', '==', titulo.id], limit: 100 }).catch(function () { return []; });
+      }),
+      firebaseService.listarDocumentos(config.collections.logs, { where: ['tituloId', '==', titulo.id], limit: 300 }).catch(function () { return []; })
     ]).then(function (resultados) {
       return {
         proceso: Array.isArray(titulo.historialProceso) ? titulo.historialProceso.slice() : [],
         archivos: resultados[0] || [],
-        logs: (resultados[1] || []).sort(function (a, b) {
-          return fechaMs(a.creadoEn || a.fechaLocal) - fechaMs(b.creadoEn || b.fechaLocal);
-        })
+        logs: (resultados[1] || []).sort(function (a, b) { return fechaMs(a.creadoEn || a.fechaLocal) - fechaMs(b.creadoEn || b.fechaLocal); })
       };
     });
   }
@@ -56,26 +46,18 @@
     if (!perteneceACoordinador(titulo, coordinador)) return Promise.reject(new Error('El título no pertenece a las carreras del coordinador.'));
 
     var accionNormalizada = String(accion || '').trim().toUpperCase();
-    if (accionNormalizada !== 'VALIDAR' && accionNormalizada !== 'DEVOLVER') {
-      return Promise.reject(new Error('Acción de revisión no válida.'));
-    }
+    if (accionNormalizada !== 'VALIDAR' && accionNormalizada !== 'DEVOLVER') return Promise.reject(new Error('Acción de revisión no válida.'));
 
     var comentario = limpiar(observacion);
-    if (accionNormalizada === 'DEVOLVER' && !comentario) {
-      return Promise.reject(new Error('Escribe un comentario para devolver el título.'));
-    }
+    if (accionNormalizada === 'DEVOLVER' && !comentario) return Promise.reject(new Error('Escribe un comentario para devolver el título.'));
 
-    var propuestas = Array.isArray(titulo.titulosEnviados) ? titulo.titulosEnviados : [];
+    var propuestas = titulo.titulosEnviados || [];
     var numeroElegido = Number(tituloSeleccionadoNumero || 0);
-    var elegida = propuestas.filter(function (item) {
-      return Number(item.numero) === numeroElegido;
-    })[0] || null;
-
-    if (accionNormalizada === 'VALIDAR' && (!numeroElegido || !elegida)) {
-      return Promise.reject(new Error('Selecciona el título que será validado por Coordinación.'));
-    }
+    var elegida = propuestas.filter(function (item) { return Number(item.numero) === numeroElegido; })[0] || null;
+    if (accionNormalizada === 'VALIDAR' && (!numeroElegido || !elegida)) return Promise.reject(new Error('Selecciona el título que será validado por Coordinación.'));
 
     var ahora = new Date().toISOString();
+    var textoElegido = elegida ? limpiar(elegida.tituloFinal) : '';
     var revision = {
       estado: accionNormalizada === 'VALIDAR' ? 'VALIDADO' : 'DEVUELTO',
       accion: accionNormalizada,
@@ -84,60 +66,89 @@
       coordinadorEmail: coordinador.email || '',
       coordinadorNombre: coordinador.nombre,
       tituloSeleccionadoNumero: accionNormalizada === 'VALIDAR' ? numeroElegido : null,
-      tituloSeleccionadoTexto: accionNormalizada === 'VALIDAR' && elegida ? limpiar(elegida.tituloFinal) : '',
+      tituloSeleccionadoTexto: accionNormalizada === 'VALIDAR' ? textoElegido : '',
       fechaLocal: ahora
     };
 
-    var historial = Array.isArray(titulo.historialProceso) ? titulo.historialProceso.slice() : [];
-    historial.push({
-      version: historial.length + 1,
-      envioNumero: Number(titulo.intentosUsados || historial.length + 1),
-      fechaEnvio: fechaIso(titulo.fechaEnvio) || ahora,
-      tituloPreferidoNumero: titulo.tituloPreferidoNumero,
-      titulosEnviados: copiarPropuestas(propuestas),
-      revisionCoordinador: revision
-    });
-
     var payload = {
-      estado: revision.estado,
-      estadoCoordinador: revision.estado,
       revisionCoordinador: revision,
       revision: revision,
       coordinadorRevisado: true,
-      validadoCoordinacion: accionNormalizada === 'VALIDAR',
-      historialProceso: historial,
       revisadoPor: coordinador.email || coordinador.id,
       revisadoPorNombre: coordinador.nombre,
+      coordinador: coordinador.nombre,
+      ultimoCoordinador: coordinador.nombre,
       revisadoEnLocal: ahora,
       actualizadoPorModulo: 'coordinadores'
     };
 
     if (accionNormalizada === 'VALIDAR') {
-      payload.tituloPreferidoNumero = numeroElegido;
-      payload.tituloPreferidoTexto = revision.tituloSeleccionadoTexto;
-      payload.estadoInvestigador = titulo.estadoInvestigador && titulo.estadoInvestigador !== 'DEVUELTO' ? titulo.estadoInvestigador : 'PENDIENTE';
+      Object.assign(payload, {
+        estado: 'PENDIENTE_INVESTIGADOR',
+        estadoProceso: 'PENDIENTE_INVESTIGADOR',
+        estadoCoordinador: 'VALIDADO',
+        validadoCoordinacion: true,
+        validadoCoordinador: true,
+        resultadoCoordinador: 'APROBADO_SIN_CAMBIOS',
+        tituloPreferidoNumero: numeroElegido,
+        tituloPreferidoTexto: textoElegido,
+        tituloElegido: textoElegido,
+        tituloCoordinador: textoElegido,
+        tituloCoordinadorAntes: textoElegido,
+        comentarioCoordinador: comentario,
+        fechaValidacionCoordinador: ahora,
+        fechaResolucion: ahora,
+        requiereAccionDe: 'INVESTIGACION',
+        requiereRevision: false,
+        permitirReenvio: false,
+        puedeReenviar: false,
+        devueltoPor: '',
+        estadoInvestigador: 'PENDIENTE'
+      });
     } else {
-      payload.intentosUsados = 0;
-      payload.puedeReenviar = true;
+      Object.assign(payload, {
+        estado: 'DEVUELTO',
+        estadoProceso: 'DEVUELTO',
+        estadoCoordinador: 'DEVUELTO',
+        validadoCoordinacion: false,
+        validadoCoordinador: false,
+        resultadoCoordinador: 'DEVUELTO',
+        comentarioCoordinador: comentario,
+        observacion: comentario,
+        observacionDevolucion: comentario,
+        fechaResolucion: ahora,
+        requiereAccionDe: 'ESTUDIANTE',
+        requiereRevision: true,
+        permitirReenvio: true,
+        puedeReenviar: true,
+        devueltoPor: 'COORDINADOR',
+        intentosUsados: 0
+      });
     }
+
+    var historial = Array.isArray(titulo.historialProceso) ? titulo.historialProceso.slice() : [];
+    historial.push({ version: historial.length + 1, fechaEnvio: fechaIso(titulo.fechaEnvio) || ahora, revisionCoordinador: revision });
+    payload.historialProceso = historial;
 
     return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, payload, { merge: true })
       .then(function () {
         return firebaseService.agregarDocumento(config.collections.logs, {
+          tipo: 'REVISION_TITULO_COORDINADOR',
           accion: 'REVISION_TITULO_COORDINADOR',
           modulo: 'coordinadores',
+          entidad: 'envios',
+          entidadId: titulo.id,
           tituloId: titulo.id,
           cedula: titulo.cedula,
           nombres: titulo.nombres,
           carrera: titulo.carrera,
           periodoId: titulo.periodoId,
-          estado: revision.estado,
-          revision: revision
+          estado: payload.estado,
+          revision: revision,
+          fechaLocal: ahora
         }).catch(function () { return null; });
       })
-      .then(function () {
-        return Object.assign({}, titulo, payload, { raw: Object.assign({}, titulo.raw || {}, payload) });
-      });
+      .then(function () { return Object.assign({}, titulo, payload, { raw: Object.assign({}, titulo.raw || {}, payload) }); });
   }
 
   function perteneceACoordinador(titulo, coordinador) {
@@ -155,61 +166,75 @@
   }
 
   function normalizarCoordinador(data) {
+    var carreras = [];
+    [data.carrerasNombres, data.carreras, data.carrerasAsignadas, data.carrerasIds, data.carrera].forEach(function (valor) {
+      carreras = carreras.concat(normalizarCarreras(valor));
+    });
     return {
-      id: data.id || limpiar(data.email || data.correo || data.nombre || data.nombres),
+      id: data.id || data._docId || limpiar(data.email || data.correo || data.nombre || data.nombres),
       nombre: limpiar(data.nombre || data.nombres || data.nombreCompleto || data.email || data.correo),
       email: limpiar(data.email || data.correo || '').toLowerCase(),
-      carreras: normalizarCarreras(data.carreras || data.carrerasAsignadas || data.carrera || []),
-      activo: data.activo !== false,
+      carreras: limpiarUnicos(carreras),
+      activo: data.activo !== false && String(data.estado || 'ACTIVO').toUpperCase() !== 'INACTIVO',
       raw: data
     };
   }
 
   function normalizarTitulo(data) {
-    var propuestas = Array.isArray(data.titulosEnviados) ? data.titulosEnviados : (Array.isArray(data.propuestas) ? data.propuestas : []);
+    var propuestas = construirPropuestas(data);
     var preferido = Number(data.tituloPreferidoNumero || 1);
     var propuestaPreferida = propuestas.filter(function (item) { return Number(item.numero) === preferido; })[0] || propuestas[0] || {};
-    var revisionCoord = data.revisionCoordinador || (data.revision && (data.revision.coordinadorId || data.revision.coordinadorEmail) ? data.revision : null);
+    var revisionCoord = data.revisionCoordinador || null;
+    var estadoGeneral = String(data.estado || 'PENDIENTE_REVISION').toUpperCase();
+    var estadoProceso = String(data.estadoProceso || '').toUpperCase();
     var estadoCoord = String(data.estadoCoordinador || (revisionCoord && revisionCoord.estado) || '').toUpperCase();
-    var estadoGeneral = String(data.estado || 'ENVIADO').toUpperCase();
-    var revisionInv = data.revisionInvestigador || null;
-    var estadoInv = String(data.estadoInvestigador || (revisionInv && revisionInv.estado) || '').toUpperCase();
-    var tipo = normalizarTipoTrabajo(data.tipoTrabajo || data.tipo || data.tipoTitulacion || data.modalidadTitulacion || data.opcionTitulacion || '');
+    var estadoInv = String(data.estadoInvestigador || (data.revisionInvestigador && data.revisionInvestigador.estado) || '').toUpperCase();
 
-    if (!estadoCoord && (estadoGeneral === 'APROBADO' || estadoGeneral === 'APROBADO_CON_OBSERVACION') && (data.revisadoPor || revisionCoord)) {
-      estadoCoord = 'VALIDADO';
-    }
-    if (!estadoCoord && estadoGeneral === 'DEVUELTO') estadoCoord = 'DEVUELTO';
+    if (!estadoCoord && (data.validadoCoordinador === true || estadoGeneral === 'PENDIENTE_INVESTIGADOR' || estadoProceso === 'PENDIENTE_INVESTIGADOR')) estadoCoord = 'VALIDADO';
+    if (!estadoCoord && estadoGeneral === 'DEVUELTO' && String(data.devueltoPor || '').toUpperCase() === 'COORDINADOR') estadoCoord = 'DEVUELTO';
+    if ((estadoGeneral === 'APROBADO_FINAL' || estadoProceso === 'APROBADO_FINAL') && !estadoInv) estadoInv = 'APROBADO';
 
     return {
       id: data.id || data._docId || '',
       cedula: soloNumeros(data.cedula || data.numeroIdentificacion),
       nombres: limpiar(data.nombres || data.nombreCompleto || data.nombre || 'Sin nombre'),
-      carrera: limpiar(data.carrera || data.nombreCarrera || ''),
-      codigoCarrera: limpiar(data.codigoCarrera || ''),
-      periodoId: limpiar(data.periodoId || data.periodo || ''),
-      periodoLabel: limpiar(data.periodoLabel || data.periodoNombre || data.periodoId || data.periodo || ''),
-      tipoTrabajo: tipo,
+      carrera: limpiar(data.carreraNombre || data.carrera || data.nombreCarrera || ''),
+      codigoCarrera: limpiar(data.carreraCodigo || data.codigoCarrera || ''),
+      periodoId: limpiar(data.periodoId || data.periodoCanonicoId || data.periodo || ''),
+      periodoLabel: limpiar(data.periodoNombre || data.periodoLabel || data.periodoId || ''),
+      tipoTrabajo: normalizarTipoTrabajo(data.tipoTrabajo || data.tipoTrabajoLabel || data.tipo || ''),
       estado: estadoGeneral,
+      estadoProceso: estadoProceso,
       estadoCoordinador: estadoCoord,
       estadoInvestigador: estadoInv,
       revisionCoordinador: revisionCoord,
-      revisionInvestigador: revisionInv,
+      revisionInvestigador: data.revisionInvestigador || null,
       tituloPreferidoNumero: preferido,
-      tituloPreferidoTexto: limpiar(data.tituloPreferidoTexto || propuestaPreferida.tituloFinal || ''),
+      tituloPreferidoTexto: limpiar(data.tituloPreferidoTexto || data.tituloElegido || data.tituloCoordinador || propuestaPreferida.tituloFinal || ''),
       titulosEnviados: propuestas,
-      fechaEnvio: data.enviadoEn || data.creadoEn || data.actualizadoEnLocal || data.actualizadoEn || null,
-      intentosUsados: Number(data.intentosUsados || 1),
+      fechaEnvio: data.fechaEnvio || data.enviadoEn || data.creadoEn || data.actualizadoEnLocal || data.actualizadoEn || null,
+      intentosUsados: Number(data.intentosUsados || data.numeroEnvios || 1),
       historialProceso: Array.isArray(data.historialProceso) ? data.historialProceso : [],
       raw: data
     };
   }
 
+  function construirPropuestas(data) {
+    if (Array.isArray(data.titulosEnviados) && data.titulosEnviados.length) return data.titulosEnviados;
+    if (Array.isArray(data.propuestas) && data.propuestas.length) return data.propuestas;
+    var detalles = Array.isArray(data.propuestasDetalle) ? data.propuestasDetalle : [];
+    return [1, 2, 3].map(function (numero) {
+      var titulo = limpiar(data['titulo' + numero]);
+      if (!titulo) return null;
+      var detalle = detalles.filter(function (item) { return Number(item.numero) === numero; })[0] || {};
+      return Object.assign({}, detalle, { numero: numero, tituloFinal: titulo, preferido: Number(data.tituloPreferidoNumero) === numero });
+    }).filter(Boolean);
+  }
+
   function clasificarTitulo(titulo) {
-    if (titulo.estadoInvestigador === 'APROBADO' || titulo.estadoInvestigador === 'APROBADO_CON_OBSERVACION') return 'APROBADOS';
-    if (titulo.estadoCoordinador === 'DEVUELTO' || titulo.estado === 'DEVUELTO') return 'DEVUELTOS';
-    if (titulo.estadoCoordinador === 'VALIDADO' || titulo.estado === 'VALIDADO' ||
-      ((titulo.estado === 'APROBADO' || titulo.estado === 'APROBADO_CON_OBSERVACION') && !titulo.estadoInvestigador)) return 'VALIDADOS';
+    if (titulo.estado === 'APROBADO_FINAL' || titulo.estadoProceso === 'APROBADO_FINAL' || titulo.estadoInvestigador === 'APROBADO' || titulo.estadoInvestigador === 'APROBADO_CON_OBSERVACION') return 'APROBADOS';
+    if (titulo.estadoCoordinador === 'DEVUELTO' || (titulo.estado === 'DEVUELTO' && String(titulo.raw && titulo.raw.devueltoPor || '').toUpperCase() === 'COORDINADOR')) return 'DEVUELTOS';
+    if (titulo.estadoCoordinador === 'VALIDADO' || titulo.estado === 'PENDIENTE_INVESTIGADOR' || titulo.estadoProceso === 'PENDIENTE_INVESTIGADOR') return 'VALIDADOS';
     return 'POR_REVISAR';
   }
 
@@ -222,24 +247,17 @@
   }
 
   function normalizarCarreras(value) {
-    if (Array.isArray(value)) {
-      return value.map(function (item) {
-        return limpiar(item && typeof item === 'object' ? (item.nombreCarrera || item.carrera || item.nombre || item.codigo || '') : item);
-      }).filter(Boolean);
-    }
+    if (Array.isArray(value)) return value.map(function (item) {
+      if (item && typeof item === 'object') return limpiar(item.nombreCarrera || item.carrera || item.nombre || item.codigo || item.id || '');
+      return limpiar(item);
+    }).filter(Boolean);
     return String(value || '').split(/[,;|]/).map(limpiar).filter(Boolean);
   }
 
-  function copiarPropuestas(propuestas) {
-    return (propuestas || []).map(function (item) {
-      return {
-        numero: Number(item.numero || 0),
-        tituloFinal: limpiar(item.tituloFinal || item.titulo || ''),
-        temaGeneral: limpiar(item.temaGeneral || ''),
-        problemaNecesidad: limpiar(item.problemaNecesidad || ''),
-        preferido: Boolean(item.preferido)
-      };
-    });
+  function limpiarUnicos(lista) {
+    var out = [];
+    (lista || []).forEach(function (item) { var v = limpiar(item); if (v && out.indexOf(v) === -1) out.push(v); });
+    return out;
   }
 
   function fechaMs(value) {
@@ -249,17 +267,10 @@
     var ms = new Date(value).getTime();
     return isNaN(ms) ? 0 : ms;
   }
-
-  function fechaIso(value) {
-    var ms = fechaMs(value);
-    return ms ? new Date(ms).toISOString() : '';
-  }
-
+  function fechaIso(value) { var ms = fechaMs(value); return ms ? new Date(ms).toISOString() : ''; }
   function soloNumeros(value) { return String(value || '').replace(/\D/g, ''); }
   function limpiar(value) { return String(value === undefined || value === null ? '' : value).replace(/\s+/g, ' ').trim(); }
-  function normalizarComparacion(value) {
-    return limpiar(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-  }
+  function normalizarComparacion(value) { return limpiar(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(); }
 
   window.TACoordRepository = Object.freeze({
     listarCoordinadores: listarCoordinadores,
