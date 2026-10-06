@@ -1,20 +1,16 @@
 /*
-  Archivo: firebase.service.js
-  Ruta: estudiantes/js/firebase.service.js
-  Funciones principales del archivo:
-  - Cargar Firebase compat de forma segura para el módulo estudiantes.
-  - Evitar carga duplicada del SDK si Firebase ya existe en window.firebase.
-  - Inicializar Firebase y Firestore con la configuración del proyecto.
-  - Exponer helpers para leer, consultar, guardar, actualizar y agregar documentos.
-  - Manejar errores claros de configuración, conexión y SDK.
+  Servicio Firebase dual del módulo estudiantes.
+  - Académico (utet-4387a): SOLO LECTURA.
+  - Títulos (titulos-ec2fa): configuración, IA, envíos, historial y eventos.
 */
 (function () {
   'use strict';
 
-  var app = null;
-  var db = null;
+  var appAcademico = null;
+  var appTitulos = null;
+  var dbAcademico = null;
+  var dbTitulos = null;
   var initialized = false;
-  var sdkLoaded = false;
   var loadingPromise = null;
   var initPromise = null;
 
@@ -22,107 +18,68 @@
   var FIREBASE_APP_CDN = 'https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-app-compat.js';
   var FIREBASE_FIRESTORE_CDN = 'https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-firestore-compat.js';
 
-  function iniciar(firebaseConfig) {
-    if (initialized && db) {
-      return Promise.resolve({
-        ok: true,
-        mensaje: 'Firebase ya estaba conectado.',
-        codigo: 'FIREBASE_YA_INICIADO'
-      });
+  function iniciar(config) {
+    if (initialized && dbAcademico && dbTitulos) {
+      return Promise.resolve({ ok: true, mensaje: 'Las dos Firebase ya estaban conectadas.', codigo: 'FIREBASE_YA_INICIADO' });
     }
 
-    if (initPromise) {
-      return initPromise;
-    }
+    if (initPromise) return initPromise;
 
-    initPromise = cargarSdk()
-      .then(function () {
-        if (!firebaseConfigValido(firebaseConfig)) {
-          initialized = false;
+    initPromise = cargarSdk().then(function () {
+      var configs = resolverConfigs(config);
 
-          return {
-            ok: false,
-            mensaje: 'Firebase todavía no está configurado correctamente en estudiantes/js/firebase.config.js o estudiantes/js/app.config.js.',
-            codigo: 'FIREBASE_CONFIG_PENDIENTE'
-          };
-        }
+      if (!firebaseConfigValido(configs.academico) || !firebaseConfigValido(configs.titulos)) {
+        return { ok: false, mensaje: 'Falta la configuración de una de las dos Firebase.', codigo: 'FIREBASE_CONFIG_PENDIENTE' };
+      }
 
-        if (!window.firebase || !window.firebase.firestore) {
-          throw new Error('El SDK de Firebase no quedó disponible en el navegador.');
-        }
+      try {
+        appAcademico = obtenerOCrearApp('ta-academico-estudiantes', configs.academico);
+        appTitulos = obtenerOCrearApp('ta-titulos-estudiantes', configs.titulos);
+        dbAcademico = window.firebase.firestore(appAcademico);
+        dbTitulos = window.firebase.firestore(appTitulos);
 
-        try {
-          app = obtenerAppFirebase(firebaseConfig);
-          db = window.firebase.firestore(app);
-
-          configurarFirestore(db);
-
-          initialized = true;
-
-          return {
-            ok: true,
-            mensaje: 'Firebase conectado correctamente.',
-            codigo: 'FIREBASE_OK'
-          };
-        } catch (error) {
-          initialized = false;
-          db = null;
-          app = null;
-
-          return {
-            ok: false,
-            mensaje: 'No se pudo inicializar Firebase: ' + obtenerMensajeError(error),
-            codigo: 'FIREBASE_INIT_ERROR'
-          };
-        }
-      })
-      .catch(function (error) {
-        initialized = false;
-        db = null;
-        app = null;
+        configurarFirestore(dbAcademico);
+        configurarFirestore(dbTitulos);
+        initialized = true;
 
         return {
-          ok: false,
-          mensaje: 'No se pudo cargar Firebase desde internet: ' + obtenerMensajeError(error),
-          codigo: 'FIREBASE_SDK_ERROR'
+          ok: true,
+          mensaje: 'Firebase académico y Firebase de Títulos conectados correctamente.',
+          codigo: 'FIREBASE_DUAL_OK'
         };
-      })
-      .then(function (resultado) {
-        initPromise = null;
-        return resultado;
-      });
+      } catch (error) {
+        limpiarEstado();
+        return { ok: false, mensaje: 'No se pudieron inicializar las Firebase: ' + obtenerMensajeError(error), codigo: 'FIREBASE_INIT_ERROR' };
+      }
+    }).catch(function (error) {
+      limpiarEstado();
+      return { ok: false, mensaje: 'No se pudo cargar Firebase desde internet: ' + obtenerMensajeError(error), codigo: 'FIREBASE_SDK_ERROR' };
+    }).then(function (resultado) {
+      initPromise = null;
+      return resultado;
+    });
 
     return initPromise;
   }
 
-  function cargarSdk() {
-    if (firebaseSdkDisponible()) {
-      sdkLoaded = true;
-      return Promise.resolve();
-    }
+  function resolverConfigs(config) {
+    var cfg = config || {};
+    return {
+      academico: cfg.academico || window.TA_ESTUDIANTES_FIREBASE_ACADEMICO_CONFIG || null,
+      titulos: cfg.titulos || (cfg.projectId ? cfg : null) || window.TA_ESTUDIANTES_FIREBASE_TITULOS_CONFIG || null
+    };
+  }
 
-    if (loadingPromise) {
-      return loadingPromise;
-    }
+  function cargarSdk() {
+    if (firebaseSdkDisponible()) return Promise.resolve();
+    if (loadingPromise) return loadingPromise;
 
     loadingPromise = cargarScript(FIREBASE_APP_CDN, 'firebase-app-compat')
+      .then(function () { return cargarScript(FIREBASE_FIRESTORE_CDN, 'firebase-firestore-compat'); })
       .then(function () {
-        if (!window.firebase) {
-          throw new Error('Firebase App no se cargó correctamente.');
-        }
-
-        return cargarScript(FIREBASE_FIRESTORE_CDN, 'firebase-firestore-compat');
+        if (!firebaseSdkDisponible()) throw new Error('Firebase Firestore no quedó disponible.');
       })
-      .then(function () {
-        if (!firebaseSdkDisponible()) {
-          throw new Error('Firebase Firestore no se cargó correctamente.');
-        }
-
-        sdkLoaded = true;
-      })
-      .finally(function () {
-        loadingPromise = null;
-      });
+      .finally(function () { loadingPromise = null; });
 
     return loadingPromise;
   }
@@ -130,324 +87,170 @@
   function cargarScript(src, id) {
     return new Promise(function (resolve, reject) {
       var existing = document.getElementById(id);
-      var script;
+      if (firebaseSdkYaSatisface(id)) return resolve();
 
-      if (firebaseSdkYaSatisface(id)) {
-        resolve();
+      if (existing) {
+        existing.addEventListener('load', resolve, { once: true });
+        existing.addEventListener('error', function () { reject(new Error('No se pudo cargar ' + src)); }, { once: true });
         return;
       }
 
-      if (existing) {
-        if (existing.dataset && existing.dataset.loaded === 'true') {
-          resolve();
-          return;
-        }
-
-        if (existing.dataset && existing.dataset.error === 'true') {
-          existing.parentNode.removeChild(existing);
-        } else {
-          existing.addEventListener('load', function () {
-            if (existing.dataset) {
-              existing.dataset.loaded = 'true';
-            }
-            resolve();
-          }, { once: true });
-
-          existing.addEventListener('error', function () {
-            if (existing.dataset) {
-              existing.dataset.error = 'true';
-            }
-            reject(new Error('No se pudo cargar ' + src));
-          }, { once: true });
-
-          esperarScriptExistente(existing, id, resolve, reject);
-          return;
-        }
-      }
-
-      script = document.createElement('script');
+      var script = document.createElement('script');
       script.src = src;
       script.id = id;
       script.async = false;
-
-      script.onload = function () {
-        script.dataset.loaded = 'true';
-        resolve();
-      };
-
-      script.onerror = function () {
-        script.dataset.error = 'true';
-        reject(new Error('No se pudo cargar ' + src));
-      };
-
+      script.onload = resolve;
+      script.onerror = function () { reject(new Error('No se pudo cargar ' + src)); };
       document.head.appendChild(script);
     });
   }
 
-  function esperarScriptExistente(script, id, resolve, reject) {
-    var intentos = 0;
-    var maxIntentos = 80;
-
-    var timer = window.setInterval(function () {
-      intentos += 1;
-
-      if (firebaseSdkYaSatisface(id)) {
-        window.clearInterval(timer);
-        if (script.dataset) {
-          script.dataset.loaded = 'true';
-        }
-        resolve();
-        return;
-      }
-
-      if (script.dataset && script.dataset.error === 'true') {
-        window.clearInterval(timer);
-        reject(new Error('No se pudo cargar ' + script.src));
-        return;
-      }
-
-      if (intentos >= maxIntentos) {
-        window.clearInterval(timer);
-        reject(new Error('Tiempo agotado cargando ' + script.src));
-      }
-    }, 100);
-  }
-
   function firebaseSdkDisponible() {
-    return Boolean(
-      window.firebase &&
-      typeof window.firebase.initializeApp === 'function' &&
-      typeof window.firebase.firestore === 'function'
-    );
+    return Boolean(window.firebase && typeof window.firebase.initializeApp === 'function' && typeof window.firebase.firestore === 'function');
   }
 
   function firebaseSdkYaSatisface(id) {
-    if (id === 'firebase-app-compat') {
-      return Boolean(window.firebase && typeof window.firebase.initializeApp === 'function');
-    }
-
-    if (id === 'firebase-firestore-compat') {
-      return Boolean(window.firebase && typeof window.firebase.firestore === 'function');
-    }
-
+    if (id === 'firebase-app-compat') return Boolean(window.firebase && typeof window.firebase.initializeApp === 'function');
+    if (id === 'firebase-firestore-compat') return Boolean(window.firebase && typeof window.firebase.firestore === 'function');
     return false;
   }
 
-  function obtenerAppFirebase(firebaseConfig) {
-    if (!window.firebase.apps || !window.firebase.apps.length) {
-      return window.firebase.initializeApp(firebaseConfig);
-    }
-
+  function obtenerOCrearApp(nombre, config) {
     try {
-      return window.firebase.app();
+      return window.firebase.app(nombre);
     } catch (error) {
-      return window.firebase.initializeApp(firebaseConfig);
+      return window.firebase.initializeApp(config, nombre);
     }
   }
 
-  function configurarFirestore(firestoreDb) {
-    if (!firestoreDb || !firestoreDb.settings || firestoreDb.__taSettingsApplied) {
-      return;
-    }
-
+  function configurarFirestore(db) {
+    if (!db || !db.settings || db.__taSettingsApplied) return;
     try {
-      firestoreDb.settings({
-        ignoreUndefinedProperties: true,
-        experimentalAutoDetectLongPolling: true
-      });
-
-      firestoreDb.__taSettingsApplied = true;
+      db.settings({ ignoreUndefinedProperties: true, experimentalAutoDetectLongPolling: true });
+      db.__taSettingsApplied = true;
     } catch (error) {
-      /*
-        Firestore solo permite aplicar settings antes de usar la instancia.
-        Si ya fue usada, no detenemos la app por esto.
-      */
+      /* La instancia pudo haberse usado antes; no bloqueamos el flujo. */
     }
   }
 
-  function firebaseConfigValido(firebaseConfig) {
-    return Boolean(
-      firebaseConfig &&
-      firebaseConfig.apiKey &&
-      firebaseConfig.authDomain &&
-      firebaseConfig.projectId &&
-      firebaseConfig.appId &&
-      firebaseConfig.apiKey !== 'COLOCA_AQUI_TU_API_KEY' &&
-      firebaseConfig.projectId !== 'COLOCA_AQUI_TU_PROJECT_ID'
-    );
+  function firebaseConfigValido(config) {
+    return Boolean(config && config.apiKey && config.authDomain && config.projectId && config.appId);
   }
+
+  function estaListo() { return initialized && Boolean(dbAcademico) && Boolean(dbTitulos); }
 
   function getDb() {
-    if (!initialized || !db) {
-      throw new Error('Firebase no está inicializado.');
-    }
-
-    return db;
+    if (!initialized || !dbTitulos) throw new Error('Firebase de Títulos no está inicializado.');
+    return dbTitulos;
   }
 
-  function estaListo() {
-    return initialized && Boolean(db);
+  function getDbTitulos() { return getDb(); }
+
+  function getDbAcademico() {
+    if (!initialized || !dbAcademico) throw new Error('Firebase académico no está inicializado.');
+    return dbAcademico;
   }
 
-  function leerDocumento(collectionName, documentId) {
-    if (!collectionName || !documentId) {
-      return Promise.resolve(null);
-    }
+  /* Operaciones por defecto: SIEMPRE Firebase de Títulos. */
+  function leerDocumento(collectionName, documentId) { return leerDocumentoEn(getDbTitulos(), collectionName, documentId); }
+  function consultarPrimero(collectionName, fieldName, operator, value) { return consultarPrimeroEn(getDbTitulos(), collectionName, fieldName, operator, value); }
+  function listarColeccion(collectionName) { return listarColeccionEn(getDbTitulos(), collectionName); }
+  function consultarColeccion(collectionName, fieldName, operator, value, limit) { return consultarColeccionEn(getDbTitulos(), collectionName, fieldName, operator, value, limit); }
 
-    return getDb()
-      .collection(collectionName)
-      .doc(String(documentId))
-      .get()
-      .then(function (snapshot) {
-        if (!snapshot.exists) {
-          return null;
-        }
+  /* Operaciones académicas: deliberadamente SOLO lectura. */
+  function leerDocumentoAcademico(collectionName, documentId) { return leerDocumentoEn(getDbAcademico(), collectionName, documentId); }
+  function consultarPrimeroAcademico(collectionName, fieldName, operator, value) { return consultarPrimeroEn(getDbAcademico(), collectionName, fieldName, operator, value); }
+  function listarColeccionAcademico(collectionName) { return listarColeccionEn(getDbAcademico(), collectionName); }
+  function consultarColeccionAcademico(collectionName, fieldName, operator, value, limit) { return consultarColeccionEn(getDbAcademico(), collectionName, fieldName, operator, value, limit); }
 
-        return normalizarDocumento(snapshot);
-      });
+  function leerDocumentoEn(db, collectionName, documentId) {
+    if (!collectionName || !documentId) return Promise.resolve(null);
+    return db.collection(collectionName).doc(String(documentId)).get().then(function (snapshot) {
+      return snapshot.exists ? normalizarDocumento(snapshot) : null;
+    });
   }
 
-  function consultarPrimero(collectionName, fieldName, operator, value) {
-    if (!collectionName || !fieldName || !operator) {
-      return Promise.resolve(null);
-    }
-
-    return getDb()
-      .collection(collectionName)
-      .where(fieldName, operator, value)
-      .limit(1)
-      .get()
-      .then(function (snapshot) {
-        if (snapshot.empty) {
-          return null;
-        }
-
-        return normalizarDocumento(snapshot.docs[0]);
-      });
+  function consultarPrimeroEn(db, collectionName, fieldName, operator, value) {
+    return consultarColeccionEn(db, collectionName, fieldName, operator, value, 1).then(function (docs) {
+      return docs.length ? docs[0] : null;
+    });
   }
 
-  function listarColeccion(collectionName) {
-    if (!collectionName) {
-      return Promise.resolve([]);
-    }
+  function consultarColeccionEn(db, collectionName, fieldName, operator, value, limit) {
+    if (!collectionName || !fieldName || !operator) return Promise.resolve([]);
+    var query = db.collection(collectionName).where(fieldName, operator, value);
+    if (limit) query = query.limit(Number(limit));
+    return query.get().then(function (snapshot) { return snapshot.docs.map(normalizarDocumento); });
+  }
 
-    return getDb()
-      .collection(collectionName)
-      .get()
-      .then(function (snapshot) {
-        return snapshot.docs.map(normalizarDocumento);
-      });
+  function listarColeccionEn(db, collectionName) {
+    if (!collectionName) return Promise.resolve([]);
+    return db.collection(collectionName).get().then(function (snapshot) { return snapshot.docs.map(normalizarDocumento); });
   }
 
   function guardarDocumento(collectionName, documentId, data, options) {
     var merge = Boolean(options && options.merge);
-    var payload;
-
-    if (!collectionName || !documentId) {
-      return Promise.reject(new Error('No se pudo guardar: colección o documento inválido.'));
-    }
-
-    payload = agregarFechas(data || {}, merge);
-
-    return getDb()
-      .collection(collectionName)
-      .doc(String(documentId))
-      .set(payload, { merge: merge });
+    if (!collectionName || !documentId) return Promise.reject(new Error('No se pudo guardar: colección o documento inválido.'));
+    return getDbTitulos().collection(collectionName).doc(String(documentId)).set(agregarFechas(data || {}, merge), { merge: merge });
   }
 
   function actualizarDocumento(collectionName, documentId, data) {
-    var payload;
-
-    if (!collectionName || !documentId) {
-      return Promise.reject(new Error('No se pudo actualizar: colección o documento inválido.'));
-    }
-
-    payload = Object.assign({}, data || {}, {
-      actualizadoEn: serverTimestamp()
-    });
-
-    return getDb()
-      .collection(collectionName)
-      .doc(String(documentId))
-      .update(payload);
+    if (!collectionName || !documentId) return Promise.reject(new Error('No se pudo actualizar: colección o documento inválido.'));
+    return getDbTitulos().collection(collectionName).doc(String(documentId)).update(Object.assign({}, data || {}, { actualizadoEn: serverTimestamp() }));
   }
 
   function agregarDocumento(collectionName, data) {
-    var payload;
-
-    if (!collectionName) {
-      return Promise.reject(new Error('No se pudo agregar: colección inválida.'));
-    }
-
-    payload = agregarFechas(data || {}, false);
-
-    return getDb()
-      .collection(collectionName)
-      .add(payload);
+    if (!collectionName) return Promise.reject(new Error('No se pudo agregar: colección inválida.'));
+    return getDbTitulos().collection(collectionName).add(agregarFechas(data || {}, false));
   }
 
   function serverTimestamp() {
-    if (!window.firebase || !window.firebase.firestore || !window.firebase.firestore.FieldValue) {
-      return new Date().toISOString();
-    }
-
+    if (!window.firebase || !window.firebase.firestore || !window.firebase.firestore.FieldValue) return new Date().toISOString();
     return window.firebase.firestore.FieldValue.serverTimestamp();
   }
 
   function agregarFechas(data, merge) {
-    var payload = Object.assign({}, data || {}, {
-      actualizadoEn: serverTimestamp()
-    });
-
-    if (!merge && !payload.creadoEn) {
-      payload.creadoEn = serverTimestamp();
-    }
-
+    var payload = Object.assign({}, data || {}, { actualizadoEn: serverTimestamp() });
+    if (!merge && !payload.creadoEn) payload.creadoEn = serverTimestamp();
     return limpiarUndefined(payload);
   }
 
   function limpiarUndefined(data) {
     var limpio = {};
-
-    Object.keys(data || {}).forEach(function (key) {
-      if (data[key] !== undefined) {
-        limpio[key] = data[key];
-      }
-    });
-
+    Object.keys(data || {}).forEach(function (key) { if (data[key] !== undefined) limpio[key] = data[key]; });
     return limpio;
   }
 
   function normalizarDocumento(snapshot) {
     var data = snapshot && snapshot.data ? snapshot.data() || {} : {};
-    var normalizado = Object.assign({}, data);
-
-    normalizado.id = snapshot.id;
-    normalizado._docId = snapshot.id;
-
-    return normalizado;
+    return Object.assign({}, data, { id: snapshot.id, _docId: snapshot.id });
   }
 
-  function obtenerMensajeError(error) {
-    if (!error) {
-      return 'Error desconocido';
-    }
-
-    if (error.message) {
-      return error.message;
-    }
-
-    return String(error);
+  function limpiarEstado() {
+    initialized = false;
+    appAcademico = null;
+    appTitulos = null;
+    dbAcademico = null;
+    dbTitulos = null;
   }
+
+  function obtenerMensajeError(error) { return error && error.message ? error.message : String(error || 'Error desconocido'); }
 
   window.TAFirebaseService = Object.freeze({
     iniciar: iniciar,
     cargarSdk: cargarSdk,
     estaListo: estaListo,
     getDb: getDb,
+    getDbTitulos: getDbTitulos,
+    getDbAcademico: getDbAcademico,
     leerDocumento: leerDocumento,
     consultarPrimero: consultarPrimero,
+    consultarColeccion: consultarColeccion,
     listarColeccion: listarColeccion,
+    leerDocumentoAcademico: leerDocumentoAcademico,
+    consultarPrimeroAcademico: consultarPrimeroAcademico,
+    consultarColeccionAcademico: consultarColeccionAcademico,
+    listarColeccionAcademico: listarColeccionAcademico,
     guardarDocumento: guardarDocumento,
     actualizarDocumento: actualizarDocumento,
     agregarDocumento: agregarDocumento,
