@@ -22,7 +22,7 @@
   <script>
     (function () {
       'use strict';
-      var BUILD = '20261006-8';
+      var BUILD = '20261006-12';
       var url = 'estudiante.html?build=' + encodeURIComponent(BUILD);
 
       fetch(url, { cache: 'no-store' })
@@ -31,7 +31,6 @@
           return response.text();
         })
         .then(function (html) {
-          /* Fuerza versión nueva de todos los JS/CSS locales del módulo. */
           html = html.replace(/(src|href)="((?:js|css)\/[^"?]+\.(?:js|css))(?:\?[^\"]*)?"/g, function (_, attr, path) {
             return attr + '="' + path + '?v=' + BUILD + '"';
           });
