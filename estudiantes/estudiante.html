@@ -1,62 +1,41 @@
 <!DOCTYPE html>
-<!--
-  Archivo: estudiante.html
-  Ruta: estudiantes/estudiante.html
-  Funciones principales del archivo:
-  - Renderizar la pantalla pública de estudiantes para registro de títulos académicos.
-  - Consultar estudiante por número de identificación.
-  - Mostrar datos académicos del estudiante encontrado.
-  - Capturar Telegram obligatorio en una página independiente.
-  - Capturar tres propuestas de título en pasos separados.
-  - Guiar el flujo: consulta, carga, datos, Telegram, propuestas, sugerencias, resumen, envío y comprobante.
-  - Mostrar animación de generación mientras la IA de Titulación trabaja.
-  - Mostrar modal de sugerencias para que el estudiante elija una opción.
-  - Mostrar resumen previo, comprobante final y código de registro.
-  - Cargar servicios JS modulares del módulo estudiantes en orden correcto.
--->
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#071b34" />
+  <meta name="description" content="Registro de propuestas de título del Instituto Superior Tecnológico Quito Metropolitano." />
+  <title>Registro de propuestas de título | ITSQMET</title>
 
-  <title>Estudiantes - Títulos Académicos</title>
-
-  <link rel="stylesheet" href="../shared/css/navigation.css" />
-  <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
+  <link rel="icon" href="../assets/img/logo-itsqmet.png" type="image/png" />
+  <link rel="stylesheet" href="../shared/css/base.css" />
   <link rel="stylesheet" href="css/estudiante.css" />
-  <link rel="stylesheet" href="css/propuestas.css" />
-  <link rel="stylesheet" href="css/resumen.css" />
 </head>
-
 <body>
-  <header class="student-hero app-header">
-    <div class="student-hero__content app-header__content">
-      <div class="student-hero__brand app-brand">
-        <img
-          src="assets/logo-instituto.png"
-          alt="Logo institucional"
-          class="student-hero__logo app-logo"
-        />
+  <header class="student-hero">
+    <div class="student-hero__inner">
+      <div class="student-hero__brand">
+        <img src="../assets/img/logo-itsqmet.png" alt="ITSQMET" class="student-hero__logo" />
 
-        <div class="student-hero__text app-title-block">
-          <span class="student-hero__badge">Titulación académica</span>
+        <div class="student-hero__text">
+          <span class="eyebrow">Titulación académica</span>
           <h1>Registro de propuestas de título</h1>
           <p>
-            Consulta tus datos académicos, registra tu Telegram obligatorio, genera tres propuestas y confirma el envío final.
+            Consulta tus datos académicos, revisa tu cronograma, genera tres propuestas y confirma el envío final.
           </p>
         </div>
       </div>
 
-      <div class="student-hero__meta">
-        <span id="estadoProcesoBadge" class="status-pill status-pill--info">Proceso activo</span>
-        <span id="periodoActivoBadge" class="status-pill status-pill--muted">Período por confirmar</span>
+      <div class="student-hero__status">
+        <span class="status-pill status-pill--info" id="estadoProcesoBadge">Proceso activo</span>
+        <span class="status-pill status-pill--neutral" id="periodoActivoBadge">Período por confirmar</span>
       </div>
     </div>
   </header>
 
-  <main class="student-shell app-container">
-    <div id="wizardSteps">
-      <section class="card card--intro" id="consultaCard" data-step="consulta">
+  <main class="student-shell" id="wizardSteps">
+    <div class="student-layout">
+      <section class="card" id="consultaCard" data-step="consulta">
         <div class="section-heading">
           <p class="section-kicker">Paso 1</p>
           <h2>Consulta tus datos académicos</h2>
@@ -65,7 +44,7 @@
           </p>
         </div>
 
-    <form class="search-form consulta-form" id="consultaForm" autocomplete="off" novalidate>
+        <form id="formConsulta" class="query-form" novalidate>
           <div class="field">
             <label for="cedulaInput">Número de identificación</label>
             <input
@@ -74,10 +53,11 @@
               type="text"
               inputmode="numeric"
               maxlength="10"
-              placeholder="Ejemplo: 1720000000"
-              required
+              placeholder="0000000000"
+              autocomplete="off"
+              aria-describedby="cedulaAyuda"
             />
-            <small>Escribe solo números, sin guiones ni espacios.</small>
+            <small id="cedulaAyuda">Escribe solo números, sin guiones ni espacios.</small>
           </div>
 
           <button class="btn btn--primary" type="submit" id="btnConsultar">
@@ -246,7 +226,7 @@
             <p class="section-kicker">Paso 5</p>
             <h2>Propuesta 2</h2>
             <p>
-              Repite el proceso: completa los campos, genera sugerencias, elige una opción y continúa.
+              Completa los campos base, genera sugerencias, espera la carga de IA y elige una opción para llenar el título final.
             </p>
           </div>
 
@@ -254,7 +234,7 @@
             <header class="proposal-card__header proposal-card__top">
               <div>
                 <span class="proposal-card__badge">Propuesta 2</span>
-                <h3>Alternativa académica</h3>
+                <h3>Segunda propuesta</h3>
               </div>
 
               <button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="2">
@@ -265,22 +245,22 @@
             <div class="proposal-card__grid form-grid">
               <div class="field">
                 <label for="p2Tema">Tema general</label>
-                <input id="p2Tema" name="p2Tema" type="text" placeholder="Ejemplo: control de inventarios" />
+                <input id="p2Tema" name="p2Tema" type="text" placeholder="Ejemplo: tiempos de espera" />
               </div>
 
               <div class="field">
                 <label for="p2Grupo">Grupo de estudio</label>
-                <input id="p2Grupo" name="p2Grupo" type="text" placeholder="Ejemplo: microempresas comerciales" />
+                <input id="p2Grupo" name="p2Grupo" type="text" placeholder="Ejemplo: clientes del taller" />
               </div>
 
               <div class="field">
                 <label for="p2Contexto">Lugar o contexto</label>
-                <input id="p2Contexto" name="p2Contexto" type="text" placeholder="Ejemplo: sector La Magdalena" />
+                <input id="p2Contexto" name="p2Contexto" type="text" placeholder="Ejemplo: centro automotriz Quito norte" />
               </div>
 
               <div class="field">
                 <label for="p2Periodo">Año o período</label>
-                <input id="p2Periodo" name="p2Periodo" type="text" placeholder="Ejemplo: 2025-2026" />
+                <input id="p2Periodo" name="p2Periodo" type="text" placeholder="Ejemplo: 2026" />
               </div>
             </div>
 
@@ -319,7 +299,7 @@
             <p class="section-kicker">Paso 6</p>
             <h2>Propuesta 3</h2>
             <p>
-              Completa la tercera propuesta obligatoria, genera sugerencias y selecciona una para el título final.
+              Completa los campos base, genera sugerencias, espera la carga de IA y elige una opción para llenar el título final.
             </p>
           </div>
 
@@ -327,7 +307,7 @@
             <header class="proposal-card__header proposal-card__top">
               <div>
                 <span class="proposal-card__badge">Propuesta 3</span>
-                <h3>Opción final</h3>
+                <h3>Tercera propuesta</h3>
               </div>
 
               <button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="3">
@@ -338,17 +318,17 @@
             <div class="proposal-card__grid form-grid">
               <div class="field">
                 <label for="p3Tema">Tema general</label>
-                <input id="p3Tema" name="p3Tema" type="text" placeholder="Ejemplo: atención al cliente" />
+                <input id="p3Tema" name="p3Tema" type="text" placeholder="Ejemplo: mantenimiento preventivo" />
               </div>
 
               <div class="field">
                 <label for="p3Grupo">Grupo de estudio</label>
-                <input id="p3Grupo" name="p3Grupo" type="text" placeholder="Ejemplo: usuarios del servicio" />
+                <input id="p3Grupo" name="p3Grupo" type="text" placeholder="Ejemplo: vehículos livianos" />
               </div>
 
               <div class="field">
                 <label for="p3Contexto">Lugar o contexto</label>
-                <input id="p3Contexto" name="p3Contexto" type="text" placeholder="Ejemplo: empresa local" />
+                <input id="p3Contexto" name="p3Contexto" type="text" placeholder="Ejemplo: taller automotriz de Quito" />
               </div>
 
               <div class="field">
@@ -662,6 +642,8 @@
   <script src="js/estudiante.envio.controller.js"></script>
   <script src="js/estudiante.events.js"></script>
 
-  <script src="js/estudiante.app.js"></script>
+  <!-- Capa visual cargada de forma explícita para evitar que el navegador reutilice una versión antigua. -->
+  <script src="js/seguimiento.visual.js?v=20261006-2"></script>
+  <script src="js/estudiante.app.js?v=20261006-4"></script>
 </body>
 </html>
