@@ -3,18 +3,19 @@
   Ruta: estudiantes/js/estudiante.consulta.controller.js
   Funciones principales del archivo:
   - Controlar la consulta de cédula del módulo estudiantes.
-  - Mostrar una pantalla de carga durante la consulta de datos académicos.
-  - Mantener visible esa carga un tiempo mínimo para evitar saltos bruscos de pantalla.
+  - Mostrar una pantalla de carga breve y con progreso realista.
+  - Limitar el tiempo máximo de consulta para que la interfaz nunca quede bloqueada.
   - Inicializar Firebase antes de buscar datos.
   - Validar la cédula sin borrar el campo ingresado por el estudiante.
   - Consultar estudiante, configuración y envío existente mediante el repositorio.
   - Guardar el resultado de consulta en estudiante.state.js.
-  - Dejar listo el flujo para mostrar datos académicos y continuar con Telegram obligatorio.
 */
 (function () {
   'use strict';
 
-  var TIEMPO_MINIMO_CONSULTA_MS = 1400;
+  var TIEMPO_MINIMO_CONSULTA_MS = 250;
+  var TIEMPO_MAXIMO_CONSULTA_MS = 10000;
+  var TIMEOUT_FIREBASE_MS = 6500;
 
   function manejarConsulta(event, opciones) {
     var ui = window.TAEstudianteUI;
@@ -27,6 +28,7 @@
     var resultadoCedula;
     var button;
     var inicioConsulta;
+    var temporizadorPaso3 = null;
 
     opciones = opciones || {};
 
@@ -66,7 +68,7 @@
 
     abrirPopupConsulta({
       titulo: 'Consultando datos académicos',
-      detalle: 'Estamos validando tu cédula, período activo y datos académicos. Espera un momento.',
+      detalle: 'Validando tu cédula y preparando la consulta.',
       estado: 'Preparando consulta...',
       paso: 1
     });
@@ -75,19 +77,37 @@
       .then(function () {
         actualizarPopupConsulta({
           titulo: 'Consultando datos académicos',
-          detalle: 'Conexión lista. Buscando información académica del estudiante.',
-          estado: 'Buscando estudiante habilitado...',
+          detalle: 'Buscando al estudiante y su matrícula académica.',
+          estado: 'Buscando estudiante...',
           paso: 2
         });
 
-        return repository.consultarEstudianteCompleto(resultadoCedula.data);
+        temporizadorPaso3 = window.setTimeout(function () {
+          actualizarPopupConsulta({
+            titulo: 'Verificando titulación',
+            detalle: 'Revisando período y estado actual del título.',
+            estado: 'Consultando estado del título...',
+            paso: 3
+          });
+        }, 350);
+
+        return conTimeout(
+          repository.consultarEstudianteCompleto(resultadoCedula.data),
+          TIEMPO_MAXIMO_CONSULTA_MS,
+          'La consulta tardó demasiado. No se guardó ni modificó información; intenta nuevamente.'
+        );
       })
       .then(function (respuesta) {
+        if (temporizadorPaso3) {
+          window.clearTimeout(temporizadorPaso3);
+          temporizadorPaso3 = null;
+        }
+
         actualizarPopupConsulta({
-          titulo: 'Validando información',
-          detalle: 'Estamos revisando que el estudiante pertenezca al período activo.',
-          estado: 'Validando período y permisos...',
-          paso: 3
+          titulo: 'Datos encontrados',
+          detalle: 'La consulta principal terminó. Preparando la pantalla.',
+          estado: 'Mostrando resultado...',
+          paso: 4
         });
 
         return esperarTiempoRestante(inicioConsulta, TIEMPO_MINIMO_CONSULTA_MS)
@@ -111,15 +131,7 @@
           return null;
         }
 
-        actualizarPopupConsulta({
-          titulo: 'Datos encontrados',
-          detalle: 'La información académica fue validada correctamente.',
-          estado: 'Mostrando datos del estudiante...',
-          paso: 4
-        });
-
         state.guardarResultadoConsulta(data.data);
-
         cerrarPopupConsulta();
 
         if (typeof ui.renderStudent === 'function') {
@@ -137,6 +149,11 @@
       .catch(function (error) {
         console.error('[Estudiantes] Error en consulta:', error);
 
+        if (temporizadorPaso3) {
+          window.clearTimeout(temporizadorPaso3);
+          temporizadorPaso3 = null;
+        }
+
         cerrarPopupConsulta();
 
         state.reiniciarConsulta({
@@ -145,16 +162,20 @@
 
         restaurarCedula(resultadoCedula.data);
 
-        ui.showStatus('#consultaMensaje', 'No se pudo consultar la información. Revisa la conexión o Firebase.', 'error');
+        var mensaje = obtenerMensajeError(error) || 'No se pudo consultar la información del estudiante.';
+        ui.showStatus('#consultaMensaje', mensaje, 'error');
         ui.showAlert(
-          obtenerMensajeError(error) || 'No se pudo consultar la información del estudiante.',
+          mensaje,
           '#cedulaInput',
-          'Error de consulta'
+          'No se pudo completar la consulta'
         );
 
         return null;
       })
       .finally(function () {
+        if (temporizadorPaso3) {
+          window.clearTimeout(temporizadorPaso3);
+        }
         cerrarPopupConsulta();
         ui.setLoading(button, false);
       });
@@ -170,22 +191,32 @@
       return Promise.reject(new Error('El servicio Firebase no está cargado.'));
     }
 
+    if (firebaseService.estaListo && firebaseService.estaListo()) {
+      if (state && typeof state.marcarFirebaseListo === 'function') {
+        state.marcarFirebaseListo(true);
+      }
+      return Promise.resolve(true);
+    }
+
     if (estado.firebaseListo && firebaseService.estaListo && firebaseService.estaListo()) {
       return Promise.resolve(true);
     }
 
-    return firebaseService.iniciar(config && config.firebase)
-      .then(function (resultado) {
-        if (resultado && resultado.ok === false) {
-          throw new Error(resultado.mensaje || 'Firebase no pudo iniciar.');
-        }
+    return conTimeout(
+      firebaseService.iniciar(config && config.firebase),
+      TIMEOUT_FIREBASE_MS,
+      'La conexión con Firebase está tardando demasiado. Intenta nuevamente.'
+    ).then(function (resultado) {
+      if (resultado && resultado.ok === false) {
+        throw new Error(resultado.mensaje || 'Firebase no pudo iniciar.');
+      }
 
-        if (state) {
-          state.marcarFirebaseListo(true);
-        }
+      if (state) {
+        state.marcarFirebaseListo(true);
+      }
 
-        return true;
-      });
+      return true;
+    });
   }
 
   function limpiarCedulaMientrasEscribe() {
@@ -333,7 +364,7 @@
       setTextoSeguro('#iaLoadingDetalle', info.detalle || 'Estamos validando la información del estudiante.');
       setTextoSeguro('#iaLoadingEstado', info.estado || 'Procesando consulta...');
       setTextoSeguro('#iaLoadingProveedor', info.estado || 'Procesando consulta...');
-      setTextoSeguro('#iaLoadingNota', 'No cierres esta pantalla mientras se validan tus datos.');
+      setTextoSeguro('#iaLoadingNota', 'La consulta tiene límite de tiempo. El historial se carga después y no bloquea esta pantalla.');
 
       prepararPasosConsulta(paso);
       actualizarBarraConsulta(paso);
@@ -357,22 +388,10 @@
   function prepararPasosConsulta(pasoActual) {
     var contenedor = document.querySelector('#iaLoadingSteps');
     var pasos = [
-      {
-        id: 'cedula',
-        label: 'Validar cédula'
-      },
-      {
-        id: 'firebase',
-        label: 'Buscar datos'
-      },
-      {
-        id: 'periodo',
-        label: 'Validar período'
-      },
-      {
-        id: 'mostrar',
-        label: 'Mostrar datos'
-      }
+      { id: 'cedula', label: 'Validar cédula' },
+      { id: 'firebase', label: 'Buscar estudiante' },
+      { id: 'periodo', label: 'Verificar período y título' },
+      { id: 'mostrar', label: 'Mostrar resultado' }
     ];
 
     if (!contenedor) {
@@ -482,6 +501,23 @@
 
     return new Promise(function (resolve) {
       window.setTimeout(resolve, restante);
+    });
+  }
+
+  function conTimeout(promesa, ms, mensaje) {
+    var timer;
+
+    return Promise.race([
+      Promise.resolve(promesa),
+      new Promise(function (_, reject) {
+        timer = window.setTimeout(function () {
+          reject(new Error(mensaje || 'La consulta tardó demasiado. Intenta nuevamente.'));
+        }, Number(ms || 0));
+      })
+    ]).finally(function () {
+      if (timer) {
+        window.clearTimeout(timer);
+      }
     });
   }
 
