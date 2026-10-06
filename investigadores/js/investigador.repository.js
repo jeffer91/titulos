@@ -1,4 +1,4 @@
-/* Datos, PIN y segunda revisión del módulo Investigadores. */
+/* Datos, PIN y segunda revisión del módulo Investigadores sobre titulos-ec2fa/envios. */
 (function () {
   'use strict';
 
@@ -12,14 +12,11 @@
     return firebaseService.leerDocumento(config.collections.investigadores, id)
       .then(function (doc) {
         if (doc) return normalizarInvestigador(doc);
-        return firebaseService.listarDocumentos(config.collections.investigadores, { limit: 1000 })
-          .then(function (docs) {
-            var encontrado = (docs || []).map(normalizarInvestigador).filter(function (item) {
-              return item.cedula === id;
-            })[0];
-            if (!encontrado) throw new Error('Tu cédula no consta en el registro de investigadores. Comunícate con Administración.');
-            return encontrado;
-          });
+        return firebaseService.listarDocumentos(config.collections.investigadores, { limit: 1000 }).then(function (docs) {
+          var encontrado = (docs || []).map(normalizarInvestigador).filter(function (item) { return item.cedula === id; })[0];
+          if (!encontrado) throw new Error('Tu cédula no consta en el registro de investigadores. Comunícate con Administración.');
+          return encontrado;
+        });
       })
       .then(function (investigador) {
         if (!investigador) throw new Error('Tu cédula no consta en el registro de investigadores.');
@@ -46,12 +43,8 @@
   }
 
   function validarAcceso(investigador, pin) {
-    if (!investigador || !investigador.pinCreado || !investigador.pinHash) {
-      return Promise.reject(new Error('Primero debes crear tu PIN.'));
-    }
-    if (!investigador.pinActivo) {
-      return Promise.reject(new Error('Tu PIN todavía está pendiente de activación por Administración.'));
-    }
+    if (!investigador || !investigador.pinCreado || !investigador.pinHash) return Promise.reject(new Error('Primero debes crear tu PIN.'));
+    if (!investigador.pinActivo) return Promise.reject(new Error('Tu PIN todavía está pendiente de activación por Administración.'));
 
     return hashPin(investigador.cedula || investigador.id, pin).then(function (hash) {
       if (!compararSeguro(hash, investigador.pinHash)) throw new Error('PIN incorrecto.');
@@ -61,14 +54,12 @@
 
   function cargarPeriodoActivo() {
     return firebaseService.leerDocumento(config.collections.config, config.documents.appConfig)
-      .then(function (doc) {
-        return doc && (doc.periodoActivoId || (doc.periodoActivo && doc.periodoActivo.id) || doc.periodoActivo) || '';
-      })
+      .then(function (doc) { return doc && (doc.periodoActivoId || (doc.periodoActivo && doc.periodoActivo.id) || doc.periodoActivo) || ''; })
       .catch(function () { return ''; });
   }
 
   function listarTitulosHabilitados(investigador, periodoId) {
-    var opciones = { limit: 1500 };
+    var opciones = { limit: 2500 };
     if (periodoId) opciones.where = ['periodoId', '==', periodoId];
 
     return firebaseService.listarDocumentos(config.collections.titulos, opciones)
@@ -82,82 +73,123 @@
 
   function revisarTitulo(titulo, accion, observacion, investigador) {
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título.'));
-    if (!estaHabilitadoPorCoordinador(titulo)) {
-      return Promise.reject(new Error('Este título todavía no está habilitado por Coordinación.'));
-    }
+    if (!estaHabilitadoPorCoordinador(titulo)) return Promise.reject(new Error('Este título todavía no está habilitado por Coordinación.'));
     if (!investigador || !investigador.pinActivo) return Promise.reject(new Error('El acceso del investigador no está activo.'));
 
-    var estado = estadoDesdeAccion(accion);
+    var estadoRevision = estadoDesdeAccion(accion);
     var comentario = limpiar(observacion);
-    if ((estado === 'APROBADO_CON_OBSERVACION' || estado === 'DEVUELTO') && !comentario) {
+    if ((estadoRevision === 'APROBADO_CON_OBSERVACION' || estadoRevision === 'DEVUELTO') && !comentario) {
       return Promise.reject(new Error('Debes escribir una observación para esta decisión.'));
     }
 
+    var ahora = new Date().toISOString();
+    var tituloFinal = limpiar(titulo.tituloCoordinador || titulo.tituloPreferidoTexto || titulo.tituloElegido || '');
     var revision = {
-      estado: estado,
+      estado: estadoRevision,
       accion: accion,
       observacion: comentario,
       investigadorId: investigador.id,
       investigadorCedula: investigador.cedula,
       investigadorNombre: investigador.nombre,
       investigadorEmail: investigador.email,
-      fechaLocal: new Date().toISOString()
+      fechaLocal: ahora
     };
 
-    return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, {
-      estadoInvestigador: estado,
+    var payload = {
+      estadoInvestigador: estadoRevision,
       revisionInvestigador: revision,
       investigacionRevisada: true,
-      investigacionRevisadaEn: revision.fechaLocal,
+      investigacionRevisadaEn: ahora,
+      observacionInvestigacion: comentario,
+      fechaResolucionInvestigacion: ahora,
       actualizadoPorModulo: 'investigadores'
-    }, { merge: true })
+    };
+
+    if (estadoRevision === 'DEVUELTO') {
+      Object.assign(payload, {
+        estado: 'DEVUELTO',
+        estadoProceso: 'DEVUELTO',
+        resultadoInvestigacion: 'DEVUELTO',
+        tituloFinalInvestigacion: null,
+        tituloFinal: null,
+        requiereAccionDe: 'ESTUDIANTE',
+        requiereRevision: true,
+        permitirReenvio: true,
+        puedeReenviar: true,
+        devueltoPor: 'INVESTIGACION',
+        observacionDevolucion: comentario
+      });
+    } else {
+      Object.assign(payload, {
+        estado: 'APROBADO_FINAL',
+        estadoProceso: 'APROBADO_FINAL',
+        resultadoInvestigacion: estadoRevision === 'APROBADO_CON_OBSERVACION' ? 'APROBADO_CON_CORRECCION' : 'APROBADO_SIN_CAMBIOS',
+        tituloFinalInvestigacion: tituloFinal,
+        tituloFinal: tituloFinal,
+        requiereAccionDe: '',
+        requiereRevision: false,
+        permitirReenvio: false,
+        puedeReenviar: false,
+        devueltoPor: '',
+        fechaResolucion: ahora
+      });
+    }
+
+    return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, payload, { merge: true })
       .then(function () {
         return firebaseService.agregarDocumento(config.collections.logs, {
+          tipo: 'REVISION_TITULO_INVESTIGADOR',
           accion: 'REVISION_TITULO_INVESTIGADOR',
           modulo: 'investigadores',
+          entidad: 'envios',
+          entidadId: titulo.id,
           tituloId: titulo.id,
           cedula: titulo.cedula,
           carrera: titulo.carrera,
           periodoId: titulo.periodoId,
-          revision: revision
+          estado: payload.estado,
+          revision: revision,
+          fechaLocal: ahora
         }).catch(function () { return null; });
       })
-      .then(function () {
-        return Object.assign({}, titulo, { estadoInvestigador: estado, revisionInvestigador: revision });
-      });
+      .then(function () { return Object.assign({}, titulo, payload); });
   }
 
   function estaHabilitadoPorCoordinador(titulo) {
-    var revision = titulo.revisionCoordinador || {};
-    var estado = String(revision.estado || titulo.estadoCoordinador || titulo.estado || '').toUpperCase();
-    var tieneRevision = Boolean(
-      titulo.revisionCoordinador ||
-      titulo.coordinadorRevisado ||
-      (titulo.raw && titulo.raw.revision && titulo.raw.revision.coordinadorEmail) ||
-      (titulo.raw && titulo.raw.revisadoPor)
-    );
+    var estado = String(titulo.estado || '').toUpperCase();
+    var proceso = String(titulo.estadoProceso || '').toUpperCase();
+    var estadoCoord = String(titulo.estadoCoordinador || '').toUpperCase();
+    var validado = Boolean(titulo.validadoCoordinador || titulo.coordinadorRevisado || titulo.revisionCoordinador);
 
-    return tieneRevision && config.estadosCoordinadorHabilitados.indexOf(estado) !== -1;
+    if (estado === 'APROBADO_FINAL' || proceso === 'APROBADO_FINAL') return true;
+    if (estado === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR') return true;
+    return validado && config.estadosCoordinadorHabilitados.indexOf(estadoCoord) !== -1;
   }
 
   function perteneceAlInvestigador(titulo, investigador) {
     var carreras = investigador && investigador.carreras || [];
     if (!carreras.length) return true;
     var carrera = normalizarTexto(titulo.carrera);
+    var codigo = normalizarTexto(titulo.codigoCarrera);
     return carreras.some(function (item) {
       var valor = normalizarTexto(item);
-      return valor === '*' || valor === 'TODAS' || valor === carrera;
+      return valor === '*' || valor === 'TODAS' || valor === carrera || valor === codigo ||
+        (carrera && carrera.indexOf(valor) !== -1) || (carrera && valor.indexOf(carrera) !== -1);
     });
   }
 
   function normalizarInvestigador(data) {
+    var carreras = [];
+    [data.carrerasNombres, data.carreras, data.carrerasAsignadas, data.carrerasIds].forEach(function (valor) {
+      carreras = carreras.concat(normalizarCarreras(valor));
+    });
     return {
-      id: data.id || soloNumeros(data.cedula || data.identificacion),
+      id: data.id || data._docId || soloNumeros(data.cedula || data.identificacion),
       cedula: soloNumeros(data.cedula || data.identificacion || data.numeroIdentificacion || data.id),
       nombre: limpiar(data.nombres || data.nombre || data.nombreCompleto || ''),
       email: limpiar(data.email || data.correo || '').toLowerCase(),
-      carreras: normalizarCarreras(data.carreras || data.carrerasAsignadas || []),
-      activo: data.activo !== false,
+      carreras: unicos(carreras),
+      activo: data.activo !== false && String(data.estado || 'ACTIVO').toUpperCase() !== 'INACTIVO',
       pinCreado: Boolean(data.pinCreado || data.pinHash),
       pinActivo: Boolean(data.pinActivo),
       pinHash: String(data.pinHash || ''),
@@ -166,25 +198,47 @@
   }
 
   function normalizarTitulo(data) {
-    var revisionGenerica = data.revision || null;
-    var revisionCoord = data.revisionCoordinador || (revisionGenerica && revisionGenerica.coordinadorEmail ? revisionGenerica : null);
+    var propuestas = construirPropuestas(data);
+    var preferido = Number(data.tituloPreferidoNumero || 1);
+    var preferida = propuestas.filter(function (p) { return Number(p.numero) === preferido; })[0] || propuestas[0] || {};
+    var estado = String(data.estado || 'PENDIENTE_REVISION').toUpperCase();
+    var proceso = String(data.estadoProceso || '').toUpperCase();
+    var estadoCoord = String(data.estadoCoordinador || '').toUpperCase();
+    if (!estadoCoord && (data.validadoCoordinador === true || estado === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR')) estadoCoord = 'VALIDADO';
+
     return {
-      id: data.id || '',
+      id: data.id || data._docId || '',
       cedula: soloNumeros(data.cedula || data.numeroIdentificacion),
       nombres: limpiar(data.nombres || data.nombreCompleto || ''),
-      carrera: limpiar(data.carrera || data.nombreCarrera || ''),
-      periodoId: limpiar(data.periodoId || ''),
-      estado: String(data.estado || 'ENVIADO').toUpperCase(),
-      estadoCoordinador: String(data.estadoCoordinador || (revisionCoord && revisionCoord.estado) || data.estado || '').toUpperCase(),
-      tituloPreferidoNumero: Number(data.tituloPreferidoNumero || 1),
-      tituloPreferidoTexto: limpiar(data.tituloPreferidoTexto || ''),
-      titulosEnviados: Array.isArray(data.titulosEnviados) ? data.titulosEnviados : [],
-      revisionCoordinador: revisionCoord,
-      coordinadorRevisado: Boolean(data.coordinadorRevisado),
+      carrera: limpiar(data.carreraNombre || data.carrera || data.nombreCarrera || ''),
+      codigoCarrera: limpiar(data.carreraCodigo || data.codigoCarrera || ''),
+      periodoId: limpiar(data.periodoId || data.periodoCanonicoId || ''),
+      estado: estado,
+      estadoProceso: proceso,
+      estadoCoordinador: estadoCoord,
+      tituloPreferidoNumero: preferido,
+      tituloPreferidoTexto: limpiar(data.tituloPreferidoTexto || data.tituloElegido || data.tituloCoordinador || preferida.tituloFinal || ''),
+      tituloElegido: limpiar(data.tituloElegido || ''),
+      tituloCoordinador: limpiar(data.tituloCoordinador || ''),
+      titulosEnviados: propuestas,
+      revisionCoordinador: data.revisionCoordinador || null,
+      coordinadorRevisado: Boolean(data.coordinadorRevisado || data.validadoCoordinador),
+      validadoCoordinador: Boolean(data.validadoCoordinador),
       estadoInvestigador: String(data.estadoInvestigador || '').toUpperCase(),
       revisionInvestigador: data.revisionInvestigador || null,
       raw: data
     };
+  }
+
+  function construirPropuestas(data) {
+    if (Array.isArray(data.titulosEnviados) && data.titulosEnviados.length) return data.titulosEnviados;
+    var detalles = Array.isArray(data.propuestasDetalle) ? data.propuestasDetalle : [];
+    return [1, 2, 3].map(function (numero) {
+      var titulo = limpiar(data['titulo' + numero]);
+      if (!titulo) return null;
+      var detalle = detalles.filter(function (item) { return Number(item.numero) === numero; })[0] || {};
+      return Object.assign({}, detalle, { numero: numero, tituloFinal: titulo, preferido: Number(data.tituloPreferidoNumero) === numero });
+    }).filter(Boolean);
   }
 
   function estadoDesdeAccion(accion) {
@@ -204,14 +258,10 @@
 
   function hashPin(cedula, pin) {
     validarPin(pin);
-    if (!window.crypto || !window.crypto.subtle || !window.TextEncoder) {
-      return Promise.reject(new Error('Este navegador no permite proteger el PIN. Abre la aplicación mediante HTTPS.'));
-    }
+    if (!window.crypto || !window.crypto.subtle || !window.TextEncoder) return Promise.reject(new Error('Este navegador no permite proteger el PIN. Abre la aplicación mediante HTTPS.'));
     var texto = new TextEncoder().encode('titulos-investigador-v1|' + cedula + '|' + pin);
     return window.crypto.subtle.digest('SHA-256', texto).then(function (buffer) {
-      return Array.prototype.map.call(new Uint8Array(buffer), function (byte) {
-        return byte.toString(16).padStart(2, '0');
-      }).join('');
+      return Array.prototype.map.call(new Uint8Array(buffer), function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
     });
   }
 
@@ -225,12 +275,14 @@
 
   function normalizarCarreras(value) {
     if (Array.isArray(value)) return value.map(function (item) {
-      return limpiar(item && item.nombreCarrera ? item.nombreCarrera : item);
+      if (item && typeof item === 'object') return limpiar(item.nombreCarrera || item.carrera || item.nombre || item.codigo || item.id || '');
+      return limpiar(item);
     }).filter(Boolean);
     return String(value || '').split(/[,;|]/).map(limpiar).filter(Boolean);
   }
+  function unicos(lista) { var out=[]; (lista||[]).forEach(function(v){ v=limpiar(v); if(v && out.indexOf(v)===-1) out.push(v); }); return out; }
   function soloNumeros(value) { return String(value || '').replace(/\D/g, ''); }
-  function limpiar(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
+  function limpiar(value) { return String(value === undefined || value === null ? '' : value).replace(/\s+/g, ' ').trim(); }
   function normalizarTexto(value) { return limpiar(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(); }
 
   window.TAInvestigadorRepository = Object.freeze({
