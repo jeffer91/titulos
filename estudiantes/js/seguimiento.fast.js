@@ -18,7 +18,7 @@
 
   var CACHE_TTL_MS = 120000;
   var TIMEOUT_ACADEMICO_MS = 6500;
-  var TIMEOUT_TITULO_MS = 5000;
+  var TIMEOUT_TITULO_MS = 6000;
   var TIMEOUT_HISTORIAL_MS = 9000;
   var cache = Object.create(null);
   var ultimoResultado = null;
