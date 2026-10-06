@@ -3,10 +3,9 @@
   Ruta: estudiantes/js/estudiante.app.js
   Funciones principales:
   - Iniciar el módulo público de estudiantes.
-  - Precargar las dos Firebase.
-  - Cargar una sola ruta estable de consulta del título.
-  - Mantener el historial fuera del camino crítico.
-  - Cargar la capa visual de seguimiento.
+  - Precargar Firebase académico/operativo sin usarlo para la consulta aislada del estado.
+  - Iniciar el motor aislado /consulta-estado/ antes de conectar eventos.
+  - Mantener historial y visualización fuera del camino crítico.
 */
 (function () {
   'use strict';
@@ -28,11 +27,11 @@
     cargarSeguimiento()
       .then(function () {
         window.TAEstudianteEvents.iniciar();
-        console.info('[Estudiantes] Módulo iniciado con consulta determinista de Títulos.');
+        console.info('[Estudiantes] Módulo iniciado con motor aislado de consulta de Títulos.');
       })
       .catch(function (error) {
-        console.error('[Estudiantes] No se pudo preparar la consulta estable:', error);
-        mostrarErrorDependencias(['consulta estable de Títulos']);
+        console.error('[Estudiantes] No se pudo preparar el motor aislado:', error);
+        mostrarErrorDependencias(['motor aislado de consulta de Títulos']);
       });
   }
 
@@ -46,18 +45,14 @@
     }
 
     if (service.estaListo && service.estaListo()) {
-      if (state && typeof state.marcarFirebaseListo === 'function') {
-        state.marcarFirebaseListo(true);
-      }
+      if (state && typeof state.marcarFirebaseListo === 'function') state.marcarFirebaseListo(true);
       return Promise.resolve(true);
     }
 
     return service.iniciar(config.firebase)
       .then(function (resultado) {
         var ok = !(resultado && resultado.ok === false);
-        if (ok && state && typeof state.marcarFirebaseListo === 'function') {
-          state.marcarFirebaseListo(true);
-        }
+        if (ok && state && typeof state.marcarFirebaseListo === 'function') state.marcarFirebaseListo(true);
         return ok;
       })
       .catch(function (error) {
@@ -68,25 +63,33 @@
 
   function cargarSeguimiento() {
     return cargarScriptSeguimiento(
-      'ta-seguimiento-service',
-      'js/seguimiento.service.js?v=20261006-8',
-      function () { return Boolean(window.TAEstudianteSeguimiento); }
+      'ta-consulta-estado-bridge',
+      'js/consulta-estado.bridge.js?v=20261006-12',
+      function () { return Boolean(window.TAConsultaEstadoBridge); }
     ).then(function () {
+      return window.TAConsultaEstadoBridge.asegurarListo();
+    }).then(function () {
+      return cargarScriptSeguimiento(
+        'ta-seguimiento-service',
+        'js/seguimiento.service.js?v=20261006-12',
+        function () { return Boolean(window.TAEstudianteSeguimiento); }
+      );
+    }).then(function () {
       return cargarScriptSeguimiento(
         'ta-seguimiento-lookup',
-        'js/seguimiento.lookup.js?v=20261006-8',
-        function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__consultaEstable); }
+        'js/seguimiento.lookup.js?v=20261006-12',
+        function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__consultaAislada); }
       );
     }).then(function () {
       return cargarScriptSeguimiento(
         'ta-seguimiento-fast',
-        'js/seguimiento.fast.js?v=20261006-8',
+        'js/seguimiento.fast.js?v=20261006-12',
         function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__consultaRapida); }
       );
     }).then(function () {
       return cargarScriptSeguimiento(
         'ta-seguimiento-visual',
-        'js/seguimiento.visual.js?v=20261006-8',
+        'js/seguimiento.visual.js?v=20261006-12',
         function () { return Boolean(document.getElementById('seguimientoVisualV2Styles')); }
       ).catch(function (error) {
         console.warn('[Estudiantes] El seguimiento funcionará sin la capa visual adicional:', error);
@@ -96,9 +99,7 @@
   }
 
   function cargarScriptSeguimiento(id, src, verificar) {
-    if (typeof verificar === 'function' && verificar()) {
-      return Promise.resolve(true);
-    }
+    if (typeof verificar === 'function' && verificar()) return Promise.resolve(true);
 
     return new Promise(function (resolve, reject) {
       var existente = document.getElementById(id);
@@ -133,9 +134,7 @@
         }
         resolve(true);
       };
-      script.onerror = function () {
-        reject(new Error('No se pudo descargar ' + src + '.'));
-      };
+      script.onerror = function () { reject(new Error('No se pudo descargar ' + src + '.')); };
       document.head.appendChild(script);
     });
   }
@@ -163,34 +162,22 @@
       TAEstudianteEvents: window.TAEstudianteEvents
     };
 
-    var faltantes = Object.keys(dependencias).filter(function (key) {
-      return !dependencias[key];
-    });
-
-    return {
-      ok: faltantes.length === 0,
-      faltantes: faltantes
-    };
+    var faltantes = Object.keys(dependencias).filter(function (key) { return !dependencias[key]; });
+    return { ok: faltantes.length === 0, faltantes: faltantes };
   }
 
   function mostrarErrorDependencias(faltantes) {
-    var mensaje = 'La pantalla de estudiantes no pudo iniciar correctamente. Faltan: ' +
-      faltantes.join(', ') +
-      '.';
-
+    var mensaje = 'La pantalla de estudiantes no pudo iniciar correctamente. Faltan: ' + faltantes.join(', ') + '.';
     console.error('[Estudiantes] ' + mensaje);
 
     var consultaMensaje = document.querySelector('#consultaMensaje');
-
     if (consultaMensaje) {
       consultaMensaje.textContent = mensaje;
       consultaMensaje.className = 'status-message status-message--danger';
     }
 
     if (window.TAEstudianteModal && window.TAEstudianteModal.mostrarAlerta) {
-      window.TAEstudianteModal.mostrarAlerta(mensaje, {
-        titulo: 'Error de carga'
-      });
+      window.TAEstudianteModal.mostrarAlerta(mensaje, { titulo: 'Error de carga' });
     }
   }
 
@@ -205,11 +192,7 @@
     }
 
     if (periodoBadge) {
-      periodoBadge.textContent =
-        config.periodoActivoLabel ||
-        config.periodoLabel ||
-        config.periodoActivo ||
-        'Período por confirmar';
+      periodoBadge.textContent = config.periodoActivoLabel || config.periodoLabel || config.periodoActivo || 'Período por confirmar';
     }
   }
 
