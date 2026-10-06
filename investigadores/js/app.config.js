@@ -4,18 +4,18 @@
 
   window.TA_INVESTIGADORES_CONFIG = Object.freeze({
     modulo: 'investigadores',
-    version: '1.0.0',
+    version: '1.1.0-firebase-titulos',
     firebase: window.TA_ADMIN_FIREBASE_CONFIG || Object.freeze({
       apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: ''
     }),
     collections: Object.freeze({
       investigadores: 'investigadores',
-      titulos: 'titulos',
-      config: 'titulos_config',
-      logs: 'titulos_logs'
+      titulos: 'envios',
+      config: 'configuracion',
+      logs: 'workflow_events'
     }),
-    documents: Object.freeze({ appConfig: 'app' }),
+    documents: Object.freeze({ appConfig: 'general' }),
     pin: Object.freeze({ min: 4, max: 8 }),
-    estadosCoordinadorHabilitados: Object.freeze(['VALIDADO', 'APROBADO', 'APROBADO_CON_OBSERVACION'])
+    estadosCoordinadorHabilitados: Object.freeze(['VALIDADO', 'APROBADO', 'APROBADO_CON_OBSERVACION', 'PENDIENTE_INVESTIGADOR'])
   });
 })();
