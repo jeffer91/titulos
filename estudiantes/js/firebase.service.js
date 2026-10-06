@@ -2,6 +2,7 @@
   Servicio Firebase dual del módulo estudiantes.
   - Académico (utet-4387a): SOLO LECTURA.
   - Títulos (titulos-ec2fa): configuración, IA, envíos, historial y eventos.
+  Se utiliza el transporte estándar de Firestore; no se fuerza long-polling experimental.
 */
 (function () {
   'use strict';
@@ -126,10 +127,10 @@
   function configurarFirestore(db) {
     if (!db || !db.settings || db.__taSettingsApplied) return;
     try {
-      db.settings({ ignoreUndefinedProperties: true, experimentalAutoDetectLongPolling: true });
+      db.settings({ ignoreUndefinedProperties: true });
       db.__taSettingsApplied = true;
     } catch (error) {
-      /* La instancia pudo haberse usado antes; no bloqueamos el flujo. */
+      /* Si la instancia ya fue usada, no se altera ni se bloquea el flujo. */
     }
   }
 
