@@ -129,6 +129,12 @@
 
     estado.normalizacionEjecutada = true;
 
+    /* La Firebase académica es una fuente externa de solo lectura.
+       No intentamos corregir ni normalizar sus documentos desde esta app. */
+    if (!config.normalizacion || config.normalizacion.corregirFirebaseAutomatico !== true) {
+      return Promise.resolve({ ok: true, cambios: 0, omitida: true });
+    }
+
     if (!repository || typeof repository.normalizarDatosAutomaticamente !== 'function') {
       return Promise.resolve({ ok: true, cambios: 0 });
     }
