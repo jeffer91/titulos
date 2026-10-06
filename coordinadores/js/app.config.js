@@ -4,17 +4,16 @@
 
   window.TA_COORDINADORES_CONFIG = Object.freeze({
     modulo: 'coordinadores',
-    version: '4.0.0',
+    version: '4.1.0-firebase-titulos',
     firebase: window.TA_COORDINADORES_FIREBASE_CONFIG || Object.freeze({}),
     collections: Object.freeze({
-      estudiantes: 'Estudiantes',
-      titulos: 'titulos',
-      titulosHistorial: 'titulos_historial',
-      config: 'titulos_config',
-      logs: 'titulos_logs',
-      coordinadores: 'titulos_coordinadores'
+      titulos: 'envios',
+      titulosHistorial: 'versiones_envio',
+      config: 'configuracion',
+      logs: 'workflow_events',
+      coordinadores: 'coordinadores'
     }),
-    documents: Object.freeze({ appConfig: 'app' }),
+    documents: Object.freeze({ appConfig: 'general' }),
     tabs: Object.freeze(['POR_REVISAR', 'DEVUELTOS', 'VALIDADOS', 'APROBADOS']),
     tipos: Object.freeze({
       todos: 'TODOS',
