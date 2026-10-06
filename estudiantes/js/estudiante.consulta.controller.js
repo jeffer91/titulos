@@ -1,40 +1,42 @@
 /*
-  Archivo: estudiante.consulta.controller.js
-  Ruta: estudiantes/js/estudiante.consulta.controller.js
-  Funciones principales del archivo:
-  - Controlar la consulta de cédula del módulo estudiantes.
-  - Mostrar una pantalla de carga breve y con progreso realista.
-  - Limitar el tiempo máximo de consulta para que la interfaz nunca quede bloqueada.
-  - Inicializar Firebase antes de buscar datos.
-  - Validar la cédula sin borrar el campo ingresado por el estudiante.
-  - Consultar estudiante, configuración y envío existente mediante el repositorio.
-  - Guardar el resultado de consulta en estudiante.state.js.
+  Consulta de estudiantes por bloques secuenciales.
+
+  BLOQUE 1: validar cédula.
+  BLOQUE 2: consultar Firebase académica (estudiante + matrícula).
+  BLOQUE 3: consultar Firebase de Títulos (envío actual).
+  BLOQUE 4: mostrar seguimiento o continuar al formulario.
+
+  Ningún bloque abre popup ni modifica el flujo de otro bloque.
 */
 (function () {
   'use strict';
 
-  var TIEMPO_MINIMO_CONSULTA_MS = 250;
-  var TIEMPO_MAXIMO_CONSULTA_MS = 10000;
   var TIMEOUT_FIREBASE_MS = 6500;
+  var TIMEOUT_CONFIG_MS = 3500;
+  var TIMEOUT_ACADEMICO_MS = 7000;
+  var TIMEOUT_TITULO_MS = 6500;
+  var TIMEOUT_HISTORIAL_MS = 8000;
+  var consultaToken = 0;
 
   function manejarConsulta(event, opciones) {
     var ui = window.TAEstudianteUI;
     var validaciones = window.TAEstudianteValidaciones;
     var state = window.TAEstudianteState;
     var repository = window.TAEstudianteRepository;
-
     var inputCedula;
     var cedulaOriginal;
     var resultadoCedula;
     var button;
-    var inicioConsulta;
-    var temporizadorPaso3 = null;
+    var token;
+    var contexto = {
+      appConfig: null,
+      estudiante: null,
+      envio: null
+    };
 
     opciones = opciones || {};
 
-    if (event && event.preventDefault) {
-      event.preventDefault();
-    }
+    if (event && event.preventDefault) event.preventDefault();
 
     if (!ui || !validaciones || !state || !repository) {
       mostrarErrorDependencias();
@@ -45,176 +47,231 @@
     cedulaOriginal = inputCedula ? inputCedula.value : '';
     resultadoCedula = validaciones.validarCedulaBasica(cedulaOriginal);
     button = obtenerBotonConsulta(event);
+    token = ++consultaToken;
 
     ui.clearFieldErrors();
+    limpiarErrorCedula();
 
     if (!resultadoCedula.ok) {
-      ui.showAlert(resultadoCedula.mensaje, resultadoCedula.selector || '#cedulaInput');
+      mostrarErrorCedula(resultadoCedula.mensaje || 'Revisa el número de identificación.');
       return Promise.resolve(null);
     }
 
-    if (inputCedula) {
-      inputCedula.value = resultadoCedula.data;
-    }
+    if (inputCedula) inputCedula.value = resultadoCedula.data;
 
-    limpiarVistaAntesDeConsultar({
-      conservarCedula: resultadoCedula.data
-    });
-
-    inicioConsulta = Date.now();
+    limpiarVistaAntesDeConsultar({ conservarCedula: resultadoCedula.data });
+    prepararBloqueProceso();
+    actualizarBloqueProceso(1, 'completado', 'Cédula validada', 'El número de identificación tiene un formato válido.');
+    actualizarBloqueProceso(2, 'trabajando', 'Consultando datos académicos', 'Buscando estudiante y matrícula activa.');
 
     ui.setLoading(button, true, 'Consultando...');
-    ui.showStatus('#consultaMensaje', 'Consultando datos académicos...', 'info');
-
-    abrirPopupConsulta({
-      titulo: 'Consultando datos académicos',
-      detalle: 'Validando tu cédula y preparando la consulta.',
-      estado: 'Preparando consulta...',
-      paso: 1
-    });
+    ui.showStatus('#consultaMensaje', '', 'info');
 
     return asegurarFirebase()
       .then(function () {
-        actualizarPopupConsulta({
-          titulo: 'Consultando datos académicos',
-          detalle: 'Buscando al estudiante y su matrícula académica.',
-          estado: 'Buscando estudiante...',
-          paso: 2
-        });
-
-        temporizadorPaso3 = window.setTimeout(function () {
-          actualizarPopupConsulta({
-            titulo: 'Verificando titulación',
-            detalle: 'Revisando período y estado actual del título.',
-            estado: 'Consultando estado del título...',
-            paso: 3
-          });
-        }, 350);
+        if (token !== consultaToken) throw crearErrorCancelado();
+        return cargarConfiguracionSegura(repository);
+      })
+      .then(function (appConfig) {
+        if (token !== consultaToken) throw crearErrorCancelado();
+        contexto.appConfig = appConfig;
 
         return conTimeout(
-          repository.consultarEstudianteCompleto(resultadoCedula.data),
-          TIEMPO_MAXIMO_CONSULTA_MS,
-          'La consulta tardó demasiado. No se guardó ni modificó información; intenta nuevamente.'
+          repository.buscarEstudiantePorCedula(resultadoCedula.data, appConfig),
+          TIMEOUT_ACADEMICO_MS,
+          'La consulta académica está tardando demasiado. Intenta nuevamente.'
         );
       })
-      .then(function (respuesta) {
-        if (temporizadorPaso3) {
-          window.clearTimeout(temporizadorPaso3);
-          temporizadorPaso3 = null;
+      .then(function (estudiante) {
+        if (token !== consultaToken) throw crearErrorCancelado();
+
+        if (!estudiante) {
+          throw crearError('ESTUDIANTE_NO_ENCONTRADO', 'No se encontró un estudiante activo con esa cédula.');
         }
 
-        actualizarPopupConsulta({
-          titulo: 'Datos encontrados',
-          detalle: 'La consulta principal terminó. Preparando la pantalla.',
-          estado: 'Mostrando resultado...',
-          paso: 4
-        });
+        contexto.estudiante = estudiante;
+        actualizarBloqueProceso(2, 'completado', 'Datos académicos encontrados', resumenEstudiante(estudiante));
+        actualizarBloqueProceso(3, 'trabajando', 'Consultando estado del título', 'Buscando el envío correspondiente al período ' + (estudiante.periodoLabel || estudiante.periodoId || '') + '.');
 
-        return esperarTiempoRestante(inicioConsulta, TIEMPO_MINIMO_CONSULTA_MS)
-          .then(function () {
-            return respuesta;
-          });
+        return conTimeout(
+          repository.consultarEnvio(estudiante.periodoId, estudiante.cedula || resultadoCedula.data),
+          TIMEOUT_TITULO_MS,
+          'No se pudo confirmar el estado del título a tiempo. Intenta nuevamente.'
+        );
       })
-      .then(function (respuesta) {
-        var data = normalizarRespuestaConsulta(respuesta);
+      .then(function (envio) {
+        if (token !== consultaToken) throw crearErrorCancelado();
 
-        if (!data.ok) {
-          cerrarPopupConsulta();
+        contexto.envio = envio || null;
+        actualizarBloqueProceso(
+          3,
+          'completado',
+          envio ? 'Registro de título encontrado' : 'Sin envío previo',
+          envio ? 'Se encontró el registro actual del estudiante.' : 'No existe un envío previo para esta cédula y período.'
+        );
+        actualizarBloqueProceso(4, 'trabajando', 'Preparando resultado', envio ? 'Mostrando seguimiento de titulación.' : 'Habilitando el siguiente bloque del proceso.');
 
-          state.reiniciarConsulta({
-            conservarFirebase: true
-          });
+        return construirResultado(contexto);
+      })
+      .then(function (resultado) {
+        if (token !== consultaToken) throw crearErrorCancelado();
 
-          restaurarCedula(resultadoCedula.data);
-          ui.showStatus('#consultaMensaje', data.mensaje || 'No se pudo completar la consulta.', 'warning');
-          ui.showAlert(data.mensaje || 'No se encontró información para la cédula ingresada.', '#cedulaInput');
-          return null;
-        }
-
-        state.guardarResultadoConsulta(data.data);
-        cerrarPopupConsulta();
+        state.guardarResultadoConsulta(resultado);
 
         if (typeof ui.renderStudent === 'function') {
-          ui.renderStudent(data.data.estudiante);
+          ui.renderStudent(resultado.estudiante);
         }
 
-        ui.showStatus('#consultaMensaje', '', 'success');
+        actualizarBloqueProceso(4, 'completado', 'Consulta completada', resultado.envioExistente ? 'Seguimiento disponible.' : 'Puedes continuar con el proceso de titulación.');
 
-        if (typeof opciones.onConsultaExitosa === 'function') {
-          opciones.onConsultaExitosa(data.data);
+        if (resultado.envioExistente) {
+          mostrarSeguimientoSinBloquear(resultado, token);
+        } else {
+          window.setTimeout(function () {
+            ocultarBloqueProceso();
+            if (typeof opciones.onConsultaExitosa === 'function') opciones.onConsultaExitosa(resultado);
+          }, 220);
         }
 
-        return data.data;
+        return resultado;
       })
       .catch(function (error) {
-        console.error('[Estudiantes] Error en consulta:', error);
+        if (error && error.codigo === 'CONSULTA_CANCELADA') return null;
 
-        if (temporizadorPaso3) {
-          window.clearTimeout(temporizadorPaso3);
-          temporizadorPaso3 = null;
-        }
-
-        cerrarPopupConsulta();
-
-        state.reiniciarConsulta({
-          conservarFirebase: true
-        });
-
+        console.error('[Estudiantes] Error en consulta por bloques:', error);
+        state.reiniciarConsulta({ conservarFirebase: true });
         restaurarCedula(resultadoCedula.data);
 
-        var mensaje = obtenerMensajeError(error) || 'No se pudo consultar la información del estudiante.';
-        ui.showStatus('#consultaMensaje', mensaje, 'error');
-        ui.showAlert(
-          mensaje,
-          '#cedulaInput',
-          'No se pudo completar la consulta'
+        mostrarErrorProceso(
+          obtenerMensajeError(error) || 'No se pudo completar la consulta.',
+          determinarPasoError(contexto)
         );
 
         return null;
       })
       .finally(function () {
-        if (temporizadorPaso3) {
-          window.clearTimeout(temporizadorPaso3);
-        }
-        cerrarPopupConsulta();
         ui.setLoading(button, false);
       });
+  }
+
+  function cargarConfiguracionSegura(repository) {
+    var defaults = Object.assign({}, (window.TA_ESTUDIANTES_CONFIG && window.TA_ESTUDIANTES_CONFIG.defaultAppConfig) || {});
+
+    if (!repository || typeof repository.cargarConfiguracionApp !== 'function') {
+      return Promise.resolve(defaults);
+    }
+
+    return conTimeout(
+      repository.cargarConfiguracionApp(),
+      TIMEOUT_CONFIG_MS,
+      'La configuración está tardando demasiado.'
+    ).catch(function (error) {
+      console.warn('[Estudiantes] Se usa configuración local para no bloquear la consulta:', error);
+      defaults.origen = 'default-local-bloques';
+      defaults.procesoActivo = defaults.procesoActivo !== false;
+      return defaults;
+    });
+  }
+
+  function construirResultado(contexto) {
+    var estudiante = contexto.estudiante;
+    var appConfig = contexto.appConfig || {};
+    var envio = contexto.envio || null;
+
+    if (!estudiante) throw crearError('ESTUDIANTE_INVALIDO', 'No se encontraron datos académicos válidos.');
+    if (!estudiante.periodoId) throw crearError('PERIODO_NO_ENCONTRADO', 'No se encontró una matrícula activa para el período de titulación.');
+    if (normalizar(estudiante.estadoMatricula || 'ACTIVO') !== 'ACTIVO') throw crearError('MATRICULA_INACTIVA', 'La matrícula no consta como ACTIVO.');
+
+    if (envio) {
+      return {
+        estudiante: estudiante,
+        appConfig: appConfig,
+        envioExistente: envio,
+        seguimiento: {
+          envio: envio,
+          estudiante: estudiante,
+          versiones: [],
+          eventos: [],
+          historialProceso: Array.isArray(envio.historialProceso) ? envio.historialProceso.slice() : []
+        },
+        modoConsulta: 'SEGUIMIENTO'
+      };
+    }
+
+    if (appConfig.procesoActivo === false) {
+      throw crearError('PROCESO_INACTIVO', 'El proceso de registro de títulos no está activo.');
+    }
+
+    if (estudiante.puedeEnviarTitulo === false) {
+      throw crearError('ENVIO_NO_HABILITADO', 'Tu registro no está habilitado para enviar títulos. Comunícate con coordinación.');
+    }
+
+    return {
+      estudiante: estudiante,
+      appConfig: appConfig,
+      envioExistente: null,
+      intentosUsados: 0,
+      maxIntentos: Number(appConfig.maxIntentos || 1),
+      intentosDisponibles: Number(appConfig.maxIntentos || 1),
+      modoConsulta: 'NUEVO'
+    };
+  }
+
+  function mostrarSeguimientoSinBloquear(resultado, token) {
+    var seguimiento = window.TAEstudianteSeguimiento;
+
+    if (!seguimiento || typeof seguimiento.mostrar !== 'function') {
+      mostrarErrorProceso('Se encontró el registro, pero el bloque visual de seguimiento no está disponible. Recarga la página.', 4);
+      return;
+    }
+
+    /* Primero se muestra el estado actual. El historial nunca bloquea. */
+    window.setTimeout(function () {
+      if (token !== consultaToken) return;
+      ocultarBloqueProceso();
+      seguimiento.mostrar(resultado);
+    }, 180);
+
+    if (typeof seguimiento.cargar !== 'function') return;
+
+    window.setTimeout(function () {
+      conTimeout(
+        seguimiento.cargar(resultado.envioExistente, resultado.estudiante),
+        TIMEOUT_HISTORIAL_MS,
+        'El historial tardó demasiado.'
+      ).then(function (data) {
+        if (token !== consultaToken || !data) return;
+        resultado.seguimiento = data;
+        seguimiento.mostrar(resultado);
+      }).catch(function (error) {
+        console.warn('[Estudiantes] Historial omitido sin interrumpir el seguimiento:', error);
+      });
+    }, 0);
   }
 
   function asegurarFirebase() {
     var config = window.TA_ESTUDIANTES_CONFIG;
     var firebaseService = window.TAFirebaseService;
     var state = window.TAEstudianteState;
-    var estado = state ? state.obtener() : {};
 
-    if (!firebaseService || !firebaseService.iniciar) {
-      return Promise.reject(new Error('El servicio Firebase no está cargado.'));
+    if (!firebaseService || typeof firebaseService.iniciar !== 'function') {
+      return Promise.reject(crearError('FIREBASE_NO_DISPONIBLE', 'El servicio Firebase no está cargado.'));
     }
 
     if (firebaseService.estaListo && firebaseService.estaListo()) {
-      if (state && typeof state.marcarFirebaseListo === 'function') {
-        state.marcarFirebaseListo(true);
-      }
-      return Promise.resolve(true);
-    }
-
-    if (estado.firebaseListo && firebaseService.estaListo && firebaseService.estaListo()) {
+      if (state && state.marcarFirebaseListo) state.marcarFirebaseListo(true);
       return Promise.resolve(true);
     }
 
     return conTimeout(
       firebaseService.iniciar(config && config.firebase),
       TIMEOUT_FIREBASE_MS,
-      'La conexión con Firebase está tardando demasiado. Intenta nuevamente.'
+      'La conexión con Firebase está tardando demasiado.'
     ).then(function (resultado) {
       if (resultado && resultado.ok === false) {
-        throw new Error(resultado.mensaje || 'Firebase no pudo iniciar.');
+        throw crearError(resultado.codigo || 'FIREBASE_ERROR', resultado.mensaje || 'Firebase no pudo iniciar.');
       }
-
-      if (state) {
-        state.marcarFirebaseListo(true);
-      }
-
+      if (state && state.marcarFirebaseListo) state.marcarFirebaseListo(true);
       return true;
     });
   }
@@ -223,47 +280,40 @@
     var validaciones = window.TAEstudianteValidaciones;
     var input = obtenerInputCedula();
 
-    if (!input || !validaciones || !validaciones.limpiarCedula) {
-      return;
-    }
-
-    if (input.dataset.taCedulaLimpiaConectada === 'true') {
-      return;
-    }
+    if (!input || !validaciones || !validaciones.limpiarCedula) return;
+    if (input.dataset.taCedulaLimpiaConectada === 'true') return;
 
     input.dataset.taCedulaLimpiaConectada = 'true';
-
     input.addEventListener('input', function () {
       var limpio = validaciones.limpiarCedula(input.value);
-
-      if (input.value !== limpio) {
-        input.value = limpio;
-      }
+      if (input.value !== limpio) input.value = limpio;
+      limpiarErrorCedula();
     });
   }
 
   function limpiarVistaAntesDeConsultar(opciones) {
     var ui = window.TAEstudianteUI;
     var state = window.TAEstudianteState;
-    var telegramService = window.TAEstudianteTelegram;
     var paginacion = window.TAEstudiantePaginacion;
     var recomendacionesController = window.TAEstudianteRecomendacionesController;
+    var panelSeguimiento = document.querySelector('#seguimientoTituloPanel');
 
     opciones = opciones || {};
 
-    if (state) {
-      state.reiniciarConsulta({
-        conservarFirebase: true
-      });
-    }
+    if (state) state.reiniciarConsulta({ conservarFirebase: true });
+    if (recomendacionesController && recomendacionesController.reiniciar) recomendacionesController.reiniciar();
 
-    if (recomendacionesController && typeof recomendacionesController.reiniciar === 'function') {
-      recomendacionesController.reiniciar();
+    if (panelSeguimiento) {
+      panelSeguimiento.classList.add('is-hidden');
+      panelSeguimiento.setAttribute('aria-hidden', 'true');
     }
 
     if (ui) {
       ui.hide('#comprobanteFinal');
+      ui.hide('#seccionEstudiante');
+      ui.hide('#formPropuestas');
       ui.show('#wizardSteps');
+      ui.show('#consultaCard');
       ui.setFormDisabled('#formPropuestas', false);
       ui.clearFieldErrors();
       ui.showStatus('#envioMensaje', '', 'info');
@@ -272,363 +322,279 @@
 
     if (window.TAEstudianteFormularioController && window.TAEstudianteFormularioController.limpiarFormularioVisual) {
       window.TAEstudianteFormularioController.limpiarFormularioVisual();
-    } else {
-      limpiarSugerenciasVisuales();
     }
 
-    if (telegramService && telegramService.marcarEstado) {
-      telegramService.marcarEstado(false, 'Telegram obligatorio pendiente de validación.');
-    }
-
-    if (paginacion && paginacion.reiniciar) {
-      paginacion.reiniciar();
-    }
-
-    if (opciones.conservarCedula) {
-      restaurarCedula(opciones.conservarCedula);
-    }
+    if (paginacion && paginacion.reiniciar) paginacion.reiniciar();
+    if (opciones.conservarCedula) restaurarCedula(opciones.conservarCedula);
   }
 
-  function fusionarAppConfig(appConfig) {
-    var config = window.TA_ESTUDIANTES_CONFIG || {};
-    var base = config.defaultAppConfig || {};
-
-    return Object.assign({}, base, appConfig || {});
+  function prepararBloqueProceso() {
+    var bloque = obtenerBloqueProceso();
+    inyectarEstilosBloque();
+    bloque.classList.remove('is-hidden');
+    bloque.setAttribute('aria-hidden', 'false');
+    bloque.querySelector('[data-proceso-error]').classList.add('is-hidden');
+    bloque.querySelector('[data-proceso-retry]').classList.add('is-hidden');
   }
 
-  function normalizarRespuestaConsulta(respuesta) {
-    var data;
+  function actualizarBloqueProceso(paso, estado, titulo, detalle) {
+    var bloque = obtenerBloqueProceso();
+    var pasos = bloque.querySelectorAll('[data-proceso-paso]');
+    var porcentaje = Math.max(8, Math.min(100, Number(paso || 1) * 25));
 
-    if (!respuesta) {
-      return {
-        ok: false,
-        data: null,
-        mensaje: 'No se encontró un estudiante con esa cédula.'
-      };
-    }
+    prepararBloqueProceso();
 
-    if (respuesta.ok === false) {
-      return {
-        ok: false,
-        data: null,
-        mensaje: respuesta.mensaje || 'No se pudo validar el acceso del estudiante.'
-      };
-    }
-
-    data = respuesta.data || respuesta;
-
-    if (!data || !data.estudiante) {
-      return {
-        ok: false,
-        data: null,
-        mensaje: respuesta.mensaje || 'No se encontró un estudiante habilitado para este proceso.'
-      };
-    }
-
-    data.appConfig = fusionarAppConfig(data.appConfig);
-
-    return {
-      ok: true,
-      data: data,
-      mensaje: respuesta.mensaje || ''
-    };
-  }
-
-  function abrirPopupConsulta(info) {
-    var loading = window.TAEstudianteLoading;
-
-    info = info || {};
-
-    if (loading && typeof loading.abrir === 'function') {
-      loading.abrir({
-        titulo: info.titulo || 'Consultando datos académicos',
-        detalle: info.detalle || 'Estamos validando la información del estudiante.'
-      });
-
-      actualizarPopupConsulta(info);
-      return;
-    }
-
-    abrirPopupConsultaFallback(info);
-  }
-
-  function actualizarPopupConsulta(info) {
-    var loading = window.TAEstudianteLoading;
-    var paso;
-
-    info = info || {};
-    paso = Number(info.paso || 1);
-
-    if (loading && typeof loading.abrir === 'function') {
-      setTextoSeguro('#iaLoadingTitulo', info.titulo || 'Consultando datos académicos');
-      setTextoSeguro('#iaLoadingDetalle', info.detalle || 'Estamos validando la información del estudiante.');
-      setTextoSeguro('#iaLoadingEstado', info.estado || 'Procesando consulta...');
-      setTextoSeguro('#iaLoadingProveedor', info.estado || 'Procesando consulta...');
-      setTextoSeguro('#iaLoadingNota', 'La consulta tiene límite de tiempo. El historial se carga después y no bloquea esta pantalla.');
-
-      prepararPasosConsulta(paso);
-      actualizarBarraConsulta(paso);
-      return;
-    }
-
-    actualizarPopupConsultaFallback(info);
-  }
-
-  function cerrarPopupConsulta() {
-    var loading = window.TAEstudianteLoading;
-
-    if (loading && typeof loading.cerrar === 'function') {
-      loading.cerrar();
-      return;
-    }
-
-    cerrarPopupConsultaFallback();
-  }
-
-  function prepararPasosConsulta(pasoActual) {
-    var contenedor = document.querySelector('#iaLoadingSteps');
-    var pasos = [
-      { id: 'cedula', label: 'Validar cédula' },
-      { id: 'firebase', label: 'Buscar estudiante' },
-      { id: 'periodo', label: 'Verificar período y título' },
-      { id: 'mostrar', label: 'Mostrar resultado' }
-    ];
-
-    if (!contenedor) {
-      return;
-    }
-
-    contenedor.innerHTML = '';
-
-    pasos.forEach(function (paso, index) {
-      var estadoPaso = 'pendiente';
-      var item = document.createElement('div');
-
-      if (index + 1 < pasoActual) {
-        estadoPaso = 'completado';
-      } else if (index + 1 === pasoActual) {
-        estadoPaso = 'trabajando';
-      }
-
-      item.className = 'ia-loading-step ia-loading-step--' + estadoPaso;
-      item.setAttribute('data-step', paso.id);
-      item.innerHTML =
-        '<span class="ia-loading-step__dot"></span>' +
-        '<span class="ia-loading-step__label">' + escaparHtml(paso.label) + '</span>' +
-        '<span class="ia-loading-step__status">' + obtenerTextoEstadoPaso(estadoPaso) + '</span>';
-
-      contenedor.appendChild(item);
+    Array.prototype.forEach.call(pasos, function (item, index) {
+      var numero = index + 1;
+      var estadoItem = numero < paso ? 'completado' : (numero === paso ? estado : 'pendiente');
+      if (estado === 'completado' && numero === paso) estadoItem = 'completado';
+      item.className = 'consulta-bloque__paso is-' + estadoItem;
+      var status = item.querySelector('[data-paso-status]');
+      if (status) status.textContent = textoEstado(estadoItem);
     });
+
+    bloque.querySelector('[data-proceso-barra]').style.width = porcentaje + '%';
+    bloque.querySelector('[data-proceso-titulo]').textContent = titulo || 'Procesando consulta';
+    bloque.querySelector('[data-proceso-detalle]').textContent = detalle || '';
   }
 
-  function actualizarBarraConsulta(pasoActual) {
-    var barra = document.querySelector('#iaLoadingProgressBar') ||
-      document.querySelector('.ia-loading-modal__progress-bar');
-    var porcentaje = Math.max(15, Math.min(100, Number(pasoActual || 1) * 25));
+  function mostrarErrorProceso(mensaje, paso) {
+    var bloque = obtenerBloqueProceso();
+    var error = bloque.querySelector('[data-proceso-error]');
+    var retry = bloque.querySelector('[data-proceso-retry]');
+    var item = bloque.querySelector('[data-proceso-paso="' + Number(paso || 1) + '"]');
 
-    if (barra) {
-      barra.style.width = porcentaje + '%';
-    }
-  }
+    prepararBloqueProceso();
+    bloque.querySelector('[data-proceso-titulo]').textContent = 'No se pudo completar este bloque';
+    bloque.querySelector('[data-proceso-detalle]').textContent = mensaje;
 
-  function abrirPopupConsultaFallback(info) {
-    var modal = obtenerPopupConsultaFallback();
-
-    info = info || {};
-
-    modal.classList.remove('is-hidden');
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('has-open-modal');
-
-    actualizarPopupConsultaFallback(info);
-  }
-
-  function actualizarPopupConsultaFallback(info) {
-    var modal = obtenerPopupConsultaFallback();
-
-    info = info || {};
-
-    setTextoEn(modal, '[data-consulta-loading="titulo"]', info.titulo || 'Consultando datos académicos');
-    setTextoEn(modal, '[data-consulta-loading="detalle"]', info.detalle || 'Estamos validando la información del estudiante.');
-    setTextoEn(modal, '[data-consulta-loading="estado"]', info.estado || 'Procesando consulta...');
-  }
-
-  function cerrarPopupConsultaFallback() {
-    var modal = document.querySelector('#consultaLoadingModal');
-
-    if (!modal) {
-      return;
+    if (item) {
+      item.className = 'consulta-bloque__paso is-error';
+      var status = item.querySelector('[data-paso-status]');
+      if (status) status.textContent = 'Reintentar';
     }
 
-    modal.classList.add('is-hidden');
-    modal.setAttribute('aria-hidden', 'true');
-
-    if (!hayOtroModalAbierto()) {
-      document.body.classList.remove('has-open-modal');
-    }
+    error.textContent = mensaje;
+    error.classList.remove('is-hidden');
+    retry.classList.remove('is-hidden');
   }
 
-  function obtenerPopupConsultaFallback() {
-    var modal = document.querySelector('#consultaLoadingModal');
+  function ocultarBloqueProceso() {
+    var bloque = document.querySelector('#consultaProcesoBloque');
+    if (!bloque) return;
+    bloque.classList.add('is-hidden');
+    bloque.setAttribute('aria-hidden', 'true');
+  }
 
-    if (modal) {
-      return modal;
-    }
+  function obtenerBloqueProceso() {
+    var bloque = document.querySelector('#consultaProcesoBloque');
+    var form;
+    var card;
 
-    modal = document.createElement('section');
-    modal.id = 'consultaLoadingModal';
-    modal.className = 'modal consulta-loading-modal is-hidden';
-    modal.setAttribute('aria-hidden', 'true');
+    if (bloque) return bloque;
 
-    modal.innerHTML = [
-      '<div class="modal__backdrop"></div>',
-      '<div class="modal__panel modal__panel--small" role="dialog" aria-modal="true">',
-      '<p class="section-kicker">Consulta académica</p>',
-      '<h2 data-consulta-loading="titulo">Consultando datos académicos</h2>',
-      '<p data-consulta-loading="detalle">Estamos validando la información del estudiante.</p>',
-      '<div class="status-message" data-consulta-loading="estado">Procesando consulta...</div>',
-      '</div>'
+    card = document.querySelector('#consultaCard');
+    form = document.querySelector('#formConsulta');
+
+    bloque = document.createElement('section');
+    bloque.id = 'consultaProcesoBloque';
+    bloque.className = 'consulta-bloque is-hidden';
+    bloque.setAttribute('aria-hidden', 'true');
+    bloque.setAttribute('aria-live', 'polite');
+    bloque.innerHTML = [
+      '<div class="consulta-bloque__cabecera">',
+        '<div><span class="consulta-bloque__kicker">Verificación por bloques</span><h3 data-proceso-titulo>Preparando consulta</h3><p data-proceso-detalle></p></div>',
+        '<span class="consulta-bloque__spinner" aria-hidden="true"></span>',
+      '</div>',
+      '<div class="consulta-bloque__barra"><span data-proceso-barra></span></div>',
+      '<div class="consulta-bloque__pasos">',
+        pasoHtml(1, 'Cédula'),
+        pasoHtml(2, 'Datos académicos'),
+        pasoHtml(3, 'Estado del título'),
+        pasoHtml(4, 'Resultado'),
+      '</div>',
+      '<div class="consulta-bloque__error is-hidden" data-proceso-error></div>',
+      '<button type="button" class="btn btn--secondary consulta-bloque__retry is-hidden" data-proceso-retry>Reintentar consulta</button>'
     ].join('');
 
-    document.body.appendChild(modal);
+    bloque.querySelector('[data-proceso-retry]').addEventListener('click', function () {
+      var formConsulta = document.querySelector('#formConsulta');
+      if (formConsulta && typeof formConsulta.requestSubmit === 'function') formConsulta.requestSubmit();
+    });
 
-    return modal;
+    if (form && form.parentNode) form.parentNode.insertBefore(bloque, form.nextSibling);
+    else if (card) card.appendChild(bloque);
+    else document.body.appendChild(bloque);
+
+    return bloque;
   }
 
-  function esperarTiempoRestante(inicio, minimoMs) {
-    var transcurrido = Date.now() - Number(inicio || Date.now());
-    var restante = Math.max(0, Number(minimoMs || 0) - transcurrido);
+  function pasoHtml(numero, label) {
+    return '<div class="consulta-bloque__paso is-pendiente" data-proceso-paso="' + numero + '">' +
+      '<span class="consulta-bloque__numero">' + numero + '</span>' +
+      '<div><strong>' + escaparHtml(label) + '</strong><small data-paso-status>Pendiente</small></div>' +
+    '</div>';
+  }
 
-    return new Promise(function (resolve) {
-      window.setTimeout(resolve, restante);
-    });
+  function inyectarEstilosBloque() {
+    if (document.getElementById('consultaBloquesStyles')) return;
+
+    var style = document.createElement('style');
+    style.id = 'consultaBloquesStyles';
+    style.textContent = [
+      '.consulta-bloque{margin-top:16px;padding:18px;border:1px solid #c9dff3;border-radius:18px;background:linear-gradient(135deg,#f8fbff,#eef6ff);box-shadow:0 10px 24px rgba(7,27,52,.06)}',
+      '.consulta-bloque.is-hidden{display:none}',
+      '.consulta-bloque__cabecera{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}',
+      '.consulta-bloque__kicker{display:block;font-size:.7rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#426686;margin-bottom:4px}',
+      '.consulta-bloque__cabecera h3{margin:0;color:#071b34;font-size:1.08rem}',
+      '.consulta-bloque__cabecera p{margin:5px 0 0;color:#60758c;font-size:.88rem}',
+      '.consulta-bloque__spinner{width:28px;height:28px;flex:0 0 28px;border:4px solid #dce8f5;border-top-color:#0b5da7;border-radius:50%;animation:taBloqueSpin .75s linear infinite}',
+      '@keyframes taBloqueSpin{to{transform:rotate(360deg)}}',
+      '.consulta-bloque__barra{height:7px;margin:14px 0;background:#dce8f5;border-radius:999px;overflow:hidden}',
+      '.consulta-bloque__barra span{display:block;width:0;height:100%;background:linear-gradient(90deg,#0b5da7,#0f8f8a);border-radius:999px;transition:width .22s ease}',
+      '.consulta-bloque__pasos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}',
+      '.consulta-bloque__paso{display:flex;align-items:center;gap:9px;padding:10px;border:1px solid #d8e4f0;border-radius:12px;background:#fff;min-width:0}',
+      '.consulta-bloque__numero{width:27px;height:27px;display:grid;place-items:center;flex:0 0 27px;border-radius:50%;background:#edf2f7;color:#56708a;font-size:.78rem;font-weight:900}',
+      '.consulta-bloque__paso strong{display:block;color:#17324d;font-size:.78rem;line-height:1.2}',
+      '.consulta-bloque__paso small{display:block;margin-top:2px;color:#6a8097;font-size:.69rem}',
+      '.consulta-bloque__paso.is-completado{border-color:#a9ddc3;background:#f1fbf6}',
+      '.consulta-bloque__paso.is-completado .consulta-bloque__numero{background:#0c8a58;color:#fff}',
+      '.consulta-bloque__paso.is-trabajando{border-color:#82b8ec;background:#eef6ff;box-shadow:inset 0 0 0 1px rgba(11,93,167,.05)}',
+      '.consulta-bloque__paso.is-trabajando .consulta-bloque__numero{background:#0b5da7;color:#fff}',
+      '.consulta-bloque__paso.is-error{border-color:#efb9b9;background:#fff4f4}',
+      '.consulta-bloque__paso.is-error .consulta-bloque__numero{background:#b82c2c;color:#fff}',
+      '.consulta-bloque__error{margin-top:12px;padding:10px 12px;border-radius:10px;background:#fff1f1;color:#9e2525;font-size:.84rem;font-weight:700}',
+      '.consulta-bloque__error.is-hidden,.consulta-bloque__retry.is-hidden{display:none}',
+      '.consulta-bloque__retry{margin-top:10px}',
+      '@media(max-width:760px){.consulta-bloque__pasos{grid-template-columns:1fr 1fr}}',
+      '@media(max-width:460px){.consulta-bloque{padding:14px}.consulta-bloque__pasos{grid-template-columns:1fr}}'
+    ].join('');
+
+    document.head.appendChild(style);
+  }
+
+  function mostrarErrorCedula(mensaje) {
+    var input = obtenerInputCedula();
+    var ayuda = document.querySelector('#cedulaAyuda');
+    if (input) {
+      input.setAttribute('aria-invalid', 'true');
+      input.classList.add('is-invalid');
+    }
+    if (ayuda) {
+      ayuda.dataset.textoOriginal = ayuda.dataset.textoOriginal || ayuda.textContent;
+      ayuda.textContent = mensaje;
+      ayuda.style.color = '#a52323';
+    }
+  }
+
+  function limpiarErrorCedula() {
+    var input = obtenerInputCedula();
+    var ayuda = document.querySelector('#cedulaAyuda');
+    if (input) {
+      input.removeAttribute('aria-invalid');
+      input.classList.remove('is-invalid');
+    }
+    if (ayuda && ayuda.dataset.textoOriginal) {
+      ayuda.textContent = ayuda.dataset.textoOriginal;
+      ayuda.style.color = '';
+    }
+  }
+
+  function determinarPasoError(contexto) {
+    if (!contexto.estudiante) return 2;
+    if (contexto.envio === null) return 3;
+    return 4;
+  }
+
+  function resumenEstudiante(estudiante) {
+    return [estudiante.nombres || '', estudiante.carrera || '', estudiante.periodoLabel || estudiante.periodoId || '']
+      .filter(Boolean).join(' · ');
+  }
+
+  function textoEstado(estado) {
+    if (estado === 'completado') return 'Listo';
+    if (estado === 'trabajando') return 'Procesando';
+    if (estado === 'error') return 'Error';
+    return 'Pendiente';
   }
 
   function conTimeout(promesa, ms, mensaje) {
     var timer;
-
     return Promise.race([
       Promise.resolve(promesa),
       new Promise(function (_, reject) {
         timer = window.setTimeout(function () {
-          reject(new Error(mensaje || 'La consulta tardó demasiado. Intenta nuevamente.'));
+          reject(crearError('TIMEOUT', mensaje || 'La consulta tardó demasiado.'));
         }, Number(ms || 0));
       })
     ]).finally(function () {
-      if (timer) {
-        window.clearTimeout(timer);
-      }
+      if (timer) window.clearTimeout(timer);
     });
   }
 
-  function obtenerTextoEstadoPaso(estadoPaso) {
-    if (estadoPaso === 'completado') {
-      return 'Listo';
-    }
-
-    if (estadoPaso === 'trabajando') {
-      return 'Procesando';
-    }
-
-    return 'Pendiente';
+  function crearError(codigo, mensaje) {
+    var error = new Error(mensaje || codigo || 'Error de consulta.');
+    error.codigo = codigo || 'CONSULTA_ERROR';
+    return error;
   }
 
-  function setTextoSeguro(selector, texto) {
-    var element = document.querySelector(selector);
-
-    if (element) {
-      element.textContent = texto || '';
-    }
-  }
-
-  function setTextoEn(root, selector, texto) {
-    var element = root ? root.querySelector(selector) : null;
-
-    if (element) {
-      element.textContent = texto || '';
-    }
-  }
-
-  function hayOtroModalAbierto() {
-    return Array.prototype.slice.call(document.querySelectorAll('.modal, .ia-loading-modal'))
-      .some(function (modal) {
-        if (modal.id === 'consultaLoadingModal') {
-          return false;
-        }
-
-        return !modal.classList.contains('is-hidden');
-      });
+  function crearErrorCancelado() {
+    return crearError('CONSULTA_CANCELADA', 'Consulta cancelada por una nueva solicitud.');
   }
 
   function obtenerInputCedula() {
-    return document.querySelector('#cedulaInput') ||
-      document.querySelector('#cedula') ||
-      document.querySelector('#numeroIdentificacion') ||
-      document.querySelector('[name="cedula"]') ||
-      document.querySelector('[name="numeroIdentificacion"]');
+    return document.querySelector('#cedulaInput') || document.querySelector('#cedula') || document.querySelector('[name="cedula"]');
   }
 
   function obtenerBotonConsulta(event) {
-    if (event && event.submitter) {
-      return event.submitter;
-    }
-
-    return document.querySelector('#btnConsultar') ||
-      document.querySelector('[data-action="consultar"]') ||
-      document.querySelector('#consultaForm button[type="submit"]') ||
-      document.querySelector('#formConsulta button[type="submit"]');
+    if (event && event.submitter) return event.submitter;
+    return document.querySelector('#btnConsultar') || document.querySelector('#formConsulta button[type="submit"]');
   }
 
   function restaurarCedula(cedula) {
     var input = obtenerInputCedula();
-
-    if (input) {
-      input.value = cedula || '';
-    }
+    if (input) input.value = cedula || '';
   }
 
-  function limpiarSugerenciasVisuales() {
-    var sugerenciasService = window.TAEstudianteSugerencias;
-    var ui = window.TAEstudianteUI;
-
-    if (sugerenciasService && sugerenciasService.limpiarTodo) {
-      sugerenciasService.limpiarTodo();
-      return;
-    }
-
-    if (sugerenciasService && sugerenciasService.limpiar) {
-      sugerenciasService.limpiar();
-      return;
-    }
-
-    if (ui && ui.clearSuggestions) {
-      ui.clearSuggestions();
-    }
+  function normalizar(valor) {
+    return String(valor === undefined || valor === null ? '' : valor)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_').toUpperCase();
   }
 
   function escaparHtml(value) {
-    return String(value || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
-  function mostrarErrorDependencias() {
-    console.error('[Estudiantes] Faltan dependencias para consultar: UI, validaciones, estado o repositorio.');
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
   }
 
   function obtenerMensajeError(error) {
-    if (!error) {
-      return '';
-    }
+    return error && error.message ? String(error.message) : String(error || '');
+  }
 
-    if (error.message) {
-      return String(error.message);
-    }
+  function mostrarErrorDependencias() {
+    console.error('[Estudiantes] Faltan dependencias para la consulta por bloques.');
+  }
 
-    return String(error);
+  /* Compatibilidad: ya no existen popups de consulta; estas funciones manejan el bloque inline. */
+  function abrirPopupConsulta(info) {
+    prepararBloqueProceso();
+    actualizarBloqueProceso(Number(info && info.paso || 1), 'trabajando', info && info.titulo, info && info.detalle);
+  }
+
+  function actualizarPopupConsulta(info) {
+    actualizarBloqueProceso(Number(info && info.paso || 1), 'trabajando', info && info.titulo, info && info.detalle);
+  }
+
+  function cerrarPopupConsulta() {
+    ocultarBloqueProceso();
+  }
+
+  function fusionarAppConfig(appConfig) {
+    return Object.assign({}, (window.TA_ESTUDIANTES_CONFIG && window.TA_ESTUDIANTES_CONFIG.defaultAppConfig) || {}, appConfig || {});
+  }
+
+  function normalizarRespuestaConsulta(respuesta) {
+    if (!respuesta) return { ok: false, data: null, mensaje: 'No se encontró información.' };
+    if (respuesta.ok === false) return respuesta;
+    return { ok: true, data: respuesta.data || respuesta, mensaje: respuesta.mensaje || '' };
   }
 
   window.TAEstudianteConsultaController = Object.freeze({
