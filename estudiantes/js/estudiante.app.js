@@ -7,7 +7,7 @@
   - Precargar las dos Firebase mientras el usuario todavía está en la pantalla inicial.
   - Cargar el seguimiento de títulos existentes antes de conectar eventos.
   - Compatibilizar estados históricos de envíos anteriores.
-  - Activar la consulta rápida y el historial en segundo plano.
+  - Activar búsqueda paralela de envíos, consulta rápida e historial en segundo plano.
   - Cargar la capa visual compacta del seguimiento.
 */
 (function () {
@@ -25,7 +25,6 @@
       return;
     }
 
-    /* No bloquea la interfaz: la conexión empieza antes del primer clic del estudiante. */
     preconectarFirebase();
 
     cargarSeguimiento()
@@ -35,7 +34,7 @@
       })
       .then(function () {
         window.TAEstudianteEvents.iniciar();
-        console.info('[Estudiantes] Módulo iniciado con consulta rápida y seguimiento visual.');
+        console.info('[Estudiantes] Módulo iniciado con búsqueda paralela y seguimiento visual.');
       });
   }
 
@@ -64,7 +63,6 @@
         return ok;
       })
       .catch(function (error) {
-        /* La consulta normal volverá a intentar; no bloqueamos la carga inicial. */
         console.warn('[Estudiantes] Precarga Firebase pendiente:', error);
         return false;
       });
@@ -83,8 +81,14 @@
       );
     }).then(function () {
       return cargarScriptSeguimiento(
+        'ta-seguimiento-lookup',
+        'js/seguimiento.lookup.js?v=20261006-2',
+        function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__lookupParalelo); }
+      );
+    }).then(function () {
+      return cargarScriptSeguimiento(
         'ta-seguimiento-fast',
-        'js/seguimiento.fast.js?v=20261006-1',
+        'js/seguimiento.fast.js?v=20261006-2',
         function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__consultaRapida); }
       );
     }).then(function () {
