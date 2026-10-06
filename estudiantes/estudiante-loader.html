@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="robots" content="noindex" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="robots" content="noindex,nofollow" />
   <title>Cargando módulo de estudiantes…</title>
   <style>
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif;background:#071b34;color:#fff}
@@ -23,9 +26,13 @@
     (function () {
       'use strict';
       var BUILD = '20261006-14';
-      var url = 'estudiante.html?build=' + encodeURIComponent(BUILD);
+      var url = 'estudiante.html?build=' + encodeURIComponent(BUILD) + '&cb=' + Date.now();
 
-      fetch(url, { cache: 'no-store' })
+      fetch(url, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { 'Cache-Control': 'no-cache' }
+      })
         .then(function (response) {
           if (!response.ok) throw new Error('No se pudo cargar el módulo.');
           return response.text();
@@ -35,13 +42,16 @@
             return attr + '="' + path + '?v=' + BUILD + '"';
           });
 
+          html = html.replace(/<script\s+src="js\/estudiante\.app\.js[^\"]*"><\/script>/i,
+            '<script src="js/estudiante.app.js?v=' + BUILD + '"><\/script>');
+
           document.open();
           document.write(html);
           document.close();
         })
         .catch(function (error) {
           console.error('[Estudiantes] Error del cargador:', error);
-          window.location.replace(url);
+          window.location.replace('estudiante.html?build=' + encodeURIComponent(BUILD) + '&cb=' + Date.now());
         });
     })();
   </script>
