@@ -3,12 +3,14 @@
   Ruta: estudiantes/js/estudiante.app.js
   Funciones principales:
   - Iniciar el módulo público de estudiantes.
-  - Precargar Firebase académico/operativo sin usarlo para la consulta aislada del estado.
-  - Iniciar el motor aislado /consulta-estado/ antes de conectar eventos.
+  - Mantener el motor aislado fuera del arranque crítico.
+  - Precargar servicios en segundo plano sin bloquear la interfaz.
   - Mantener historial y visualización fuera del camino crítico.
 */
 (function () {
   'use strict';
+
+  var BUILD = '20261006-13';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -22,16 +24,23 @@
       return;
     }
 
+    ajustarLoadingConsulta();
     preconectarFirebase();
 
     cargarSeguimiento()
       .then(function () {
         window.TAEstudianteEvents.iniciar();
-        console.info('[Estudiantes] Módulo iniciado con motor aislado de consulta de Títulos.');
+        precalentarMotorAislado();
+        console.info('[Estudiantes] Módulo iniciado. El motor aislado se prepara en segundo plano.');
       })
       .catch(function (error) {
-        console.error('[Estudiantes] No se pudo preparar el motor aislado:', error);
-        mostrarErrorDependencias(['motor aislado de consulta de Títulos']);
+        console.error('[Estudiantes] No se pudo cargar la capa de seguimiento:', error);
+        /* La pantalla base sigue operativa; no se bloquea todo el módulo por el seguimiento. */
+        try {
+          window.TAEstudianteEvents.iniciar();
+        } catch (eventError) {
+          mostrarErrorDependencias(['eventos del módulo estudiantes']);
+        }
       });
   }
 
@@ -64,38 +73,85 @@
   function cargarSeguimiento() {
     return cargarScriptSeguimiento(
       'ta-consulta-estado-bridge',
-      'js/consulta-estado.bridge.js?v=20261006-12',
+      'js/consulta-estado.bridge.js?v=' + BUILD,
       function () { return Boolean(window.TAConsultaEstadoBridge); }
     ).then(function () {
-      return window.TAConsultaEstadoBridge.asegurarListo();
-    }).then(function () {
       return cargarScriptSeguimiento(
         'ta-seguimiento-service',
-        'js/seguimiento.service.js?v=20261006-12',
+        'js/seguimiento.service.js?v=' + BUILD,
         function () { return Boolean(window.TAEstudianteSeguimiento); }
       );
     }).then(function () {
       return cargarScriptSeguimiento(
         'ta-seguimiento-lookup',
-        'js/seguimiento.lookup.js?v=20261006-12',
+        'js/seguimiento.lookup.js?v=' + BUILD,
         function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__consultaAislada); }
       );
     }).then(function () {
       return cargarScriptSeguimiento(
         'ta-seguimiento-fast',
-        'js/seguimiento.fast.js?v=20261006-12',
+        'js/seguimiento.fast.js?v=' + BUILD,
         function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__consultaRapida); }
       );
     }).then(function () {
       return cargarScriptSeguimiento(
         'ta-seguimiento-visual',
-        'js/seguimiento.visual.js?v=20261006-12',
+        'js/seguimiento.visual.js?v=' + BUILD,
         function () { return Boolean(document.getElementById('seguimientoVisualV2Styles')); }
       ).catch(function (error) {
         console.warn('[Estudiantes] El seguimiento funcionará sin la capa visual adicional:', error);
         return false;
       });
     });
+  }
+
+  function precalentarMotorAislado() {
+    var bridge = window.TAConsultaEstadoBridge;
+    if (!bridge || typeof bridge.asegurarListo !== 'function') return;
+
+    window.setTimeout(function () {
+      bridge.asegurarListo().catch(function (error) {
+        console.warn('[Estudiantes] Motor aislado pendiente; se reintentará al consultar:', error);
+      });
+    }, 0);
+  }
+
+  function ajustarLoadingConsulta() {
+    var loading = window.TAEstudianteLoading;
+    var copia;
+    var originalAbrir;
+    var originalCerrar;
+    var consultaActiva = false;
+
+    if (!loading || loading.__consultaSinEspera) return;
+
+    copia = copiarObjeto(loading);
+    originalAbrir = loading.abrir;
+    originalCerrar = loading.cerrar;
+
+    if (typeof originalAbrir === 'function') {
+      copia.abrir = function (opciones) {
+        var opts = Object.assign({}, opciones || {});
+        var titulo = String(opts.titulo || '').toLowerCase();
+        consultaActiva = titulo.indexOf('consultando datos') !== -1 || titulo.indexOf('verificando titulación') !== -1;
+        if (consultaActiva) opts.minVisibleMs = 120;
+        return originalAbrir(opts);
+      };
+    }
+
+    if (typeof originalCerrar === 'function') {
+      copia.cerrar = function (opciones) {
+        var opts = Object.assign({}, opciones || {});
+        if (consultaActiva) {
+          opts.respetarMinimo = false;
+          consultaActiva = false;
+        }
+        return originalCerrar(opts);
+      };
+    }
+
+    copia.__consultaSinEspera = true;
+    window.TAEstudianteLoading = Object.freeze(copia);
   }
 
   function cargarScriptSeguimiento(id, src, verificar) {
@@ -196,10 +252,17 @@
     }
   }
 
+  function copiarObjeto(objeto) {
+    var copia = {};
+    Object.keys(objeto || {}).forEach(function (key) { copia[key] = objeto[key]; });
+    return copia;
+  }
+
   window.TAEstudianteApp = Object.freeze({
     iniciar: iniciar,
     verificarDependencias: verificarDependencias,
     cargarSeguimiento: cargarSeguimiento,
-    preconectarFirebase: preconectarFirebase
+    preconectarFirebase: preconectarFirebase,
+    precalentarMotorAislado: precalentarMotorAislado
   });
 })();
