@@ -31,6 +31,9 @@
 
     cargarFlujoTitulosExternos()
       .then(function () {
+        return cargarMarcaVisual();
+      })
+      .then(function () {
         return cargarSeguimientoVisual();
       })
       .catch(function (error) {
@@ -72,6 +75,14 @@
       'js/titulos.externos.service.js?v=' + BUILD,
       function () { return Boolean(window.TATitulosExternos); }
     );
+  }
+
+  function cargarMarcaVisual() {
+    return cargarScript(
+      'ta-brand-override',
+      'js/brand.override.js?v=' + BUILD,
+      function () { return Boolean(document.getElementById('taBrandOverrideStyles')); }
+    ).catch(function () { return false; });
   }
 
   function cargarSeguimientoVisual() {
