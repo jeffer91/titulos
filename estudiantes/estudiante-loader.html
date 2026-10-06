@@ -25,7 +25,7 @@
   <script>
     (function () {
       'use strict';
-      var BUILD = '20261006-15';
+      var BUILD = '20261006-16';
       var url = 'estudiante.html?build=' + encodeURIComponent(BUILD) + '&cb=' + Date.now();
 
       fetch(url, {
@@ -38,12 +38,17 @@
           return response.text();
         })
         .then(function (html) {
+          html = html.replace(/\.\.\/assets\/img\/logo-itsqmet\.png/g, 'assets/logo-instituto.png');
+
           html = html.replace(/(src|href)="((?:js|css)\/[^"?]+\.(?:js|css))(?:\?[^\"]*)?"/g, function (_, attr, path) {
-            return attr + '="' + path + '?v=' + BUILD + '"';
+            return attr + '=\"' + path + '?v=' + BUILD + '\"';
           });
 
           html = html.replace(/<script\s+src="js\/estudiante\.app\.js[^\"]*"><\/script>/i,
             '<script src="js/estudiante.app.js?v=' + BUILD + '"><\/script>');
+
+          html = html.replace('</body>',
+            '<script src="js/seguimiento.premium.js?v=' + BUILD + '"><\/script></body>');
 
           document.open();
           document.write(html);
