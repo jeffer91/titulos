@@ -4,9 +4,8 @@
   Funciones principales del archivo:
   - Iniciar el módulo público de estudiantes.
   - Verificar que los servicios principales estén cargados.
+  - Cargar el seguimiento de títulos existentes antes de conectar eventos.
   - Delegar eventos, consulta, recomendaciones, formulario, sugerencias, borrador y envío a controladores separados.
-  - Mantener este archivo como punto de arranque limpio y pequeño.
-  - Evitar que estudiante.app.js vuelva a concentrar toda la lógica del módulo.
 */
 (function () {
   'use strict';
@@ -23,9 +22,52 @@
       return;
     }
 
-    window.TAEstudianteEvents.iniciar();
+    cargarSeguimiento()
+      .catch(function (error) {
+        console.error('[Estudiantes] No se pudo cargar el seguimiento de títulos:', error);
+        return false;
+      })
+      .then(function () {
+        window.TAEstudianteEvents.iniciar();
+        console.info('[Estudiantes] Módulo iniciado correctamente con seguimiento de títulos existentes.');
+      });
+  }
 
-    console.info('[Estudiantes] Módulo iniciado correctamente con controladores separados.');
+  function cargarSeguimiento() {
+    if (window.TAEstudianteSeguimiento) {
+      return Promise.resolve(true);
+    }
+
+    return new Promise(function (resolve, reject) {
+      var existente = document.getElementById('ta-seguimiento-service');
+
+      if (existente) {
+        if (window.TAEstudianteSeguimiento) {
+          resolve(true);
+          return;
+        }
+
+        existente.addEventListener('load', function () { resolve(Boolean(window.TAEstudianteSeguimiento)); }, { once: true });
+        existente.addEventListener('error', function () { reject(new Error('No se pudo cargar seguimiento.service.js.')); }, { once: true });
+        return;
+      }
+
+      var script = document.createElement('script');
+      script.id = 'ta-seguimiento-service';
+      script.src = 'js/seguimiento.service.js?v=20261006-1';
+      script.async = false;
+      script.onload = function () {
+        if (!window.TAEstudianteSeguimiento) {
+          reject(new Error('El servicio de seguimiento no quedó disponible.'));
+          return;
+        }
+        resolve(true);
+      };
+      script.onerror = function () {
+        reject(new Error('No se pudo descargar seguimiento.service.js.'));
+      };
+      document.head.appendChild(script);
+    });
   }
 
   function verificarDependencias() {
@@ -103,6 +145,7 @@
 
   window.TAEstudianteApp = Object.freeze({
     iniciar: iniciar,
-    verificarDependencias: verificarDependencias
+    verificarDependencias: verificarDependencias,
+    cargarSeguimiento: cargarSeguimiento
   });
 })();
