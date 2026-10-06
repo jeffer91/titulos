@@ -4,10 +4,11 @@
   Funciones principales del archivo:
   - Iniciar el módulo público de estudiantes.
   - Verificar que los servicios principales estén cargados.
+  - Precargar las dos Firebase mientras el usuario todavía está en la pantalla inicial.
   - Cargar el seguimiento de títulos existentes antes de conectar eventos.
   - Compatibilizar estados históricos de envíos anteriores.
+  - Activar la consulta rápida y el historial en segundo plano.
   - Cargar la capa visual compacta del seguimiento.
-  - Delegar eventos, consulta, recomendaciones, formulario, sugerencias, borrador y envío a controladores separados.
 */
 (function () {
   'use strict';
@@ -24,6 +25,9 @@
       return;
     }
 
+    /* No bloquea la interfaz: la conexión empieza antes del primer clic del estudiante. */
+    preconectarFirebase();
+
     cargarSeguimiento()
       .catch(function (error) {
         console.error('[Estudiantes] No se pudo cargar el seguimiento de títulos:', error);
@@ -31,7 +35,38 @@
       })
       .then(function () {
         window.TAEstudianteEvents.iniciar();
-        console.info('[Estudiantes] Módulo iniciado correctamente con seguimiento visual de títulos existentes.');
+        console.info('[Estudiantes] Módulo iniciado con consulta rápida y seguimiento visual.');
+      });
+  }
+
+  function preconectarFirebase() {
+    var service = window.TAFirebaseService;
+    var config = window.TA_ESTUDIANTES_CONFIG || {};
+    var state = window.TAEstudianteState;
+
+    if (!service || typeof service.iniciar !== 'function') {
+      return Promise.resolve(false);
+    }
+
+    if (service.estaListo && service.estaListo()) {
+      if (state && typeof state.marcarFirebaseListo === 'function') {
+        state.marcarFirebaseListo(true);
+      }
+      return Promise.resolve(true);
+    }
+
+    return service.iniciar(config.firebase)
+      .then(function (resultado) {
+        var ok = !(resultado && resultado.ok === false);
+        if (ok && state && typeof state.marcarFirebaseListo === 'function') {
+          state.marcarFirebaseListo(true);
+        }
+        return ok;
+      })
+      .catch(function (error) {
+        /* La consulta normal volverá a intentar; no bloqueamos la carga inicial. */
+        console.warn('[Estudiantes] Precarga Firebase pendiente:', error);
+        return false;
       });
   }
 
@@ -48,8 +83,14 @@
       );
     }).then(function () {
       return cargarScriptSeguimiento(
+        'ta-seguimiento-fast',
+        'js/seguimiento.fast.js?v=20261006-1',
+        function () { return Boolean(window.TAEstudianteRepository && window.TAEstudianteRepository.__consultaRapida); }
+      );
+    }).then(function () {
+      return cargarScriptSeguimiento(
         'ta-seguimiento-visual',
-        'js/seguimiento.visual.js?v=20261006-1',
+        'js/seguimiento.visual.js?v=20261006-3',
         function () { return Boolean(document.getElementById('seguimientoVisualV2Styles')); }
       ).catch(function (error) {
         console.warn('[Estudiantes] El seguimiento funcionará sin la capa visual adicional:', error);
@@ -179,6 +220,7 @@
   window.TAEstudianteApp = Object.freeze({
     iniciar: iniciar,
     verificarDependencias: verificarDependencias,
-    cargarSeguimiento: cargarSeguimiento
+    cargarSeguimiento: cargarSeguimiento,
+    preconectarFirebase: preconectarFirebase
   });
 })();
