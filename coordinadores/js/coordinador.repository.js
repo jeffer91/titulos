@@ -325,11 +325,21 @@
   }
 
   function normalizarTipoTrabajo(value) {
+    var original = value;
+
+    if (value && typeof value === 'object') {
+      value = value.id || value.codigo || value.label || value.nombre || value.tipo || '';
+    }
+
     var texto = normalizarComparacion(value);
     if (!texto) return { id: 'SIN_TIPO', label: 'No registrado' };
     if (texto.indexOf('ARTIC') !== -1) return { id: 'ARTICULO', label: 'Artículo académico' };
     if (texto.indexOf('TRABAJO') !== -1 || texto.indexOf('TITULACION') !== -1) return { id: 'TRABAJO_TITULACION', label: 'Trabajo de Titulación' };
-    return { id: texto.replace(/\s+/g, '_'), label: limpiar(value) };
+
+    return {
+      id: texto.replace(/\s+/g, '_'),
+      label: limpiar(value || (original && original.label) || '')
+    };
   }
 
   function normalizarCarreras(value) {
