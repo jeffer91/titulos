@@ -6,7 +6,6 @@
   - Conectar consulta de cédula.
   - Conectar formulario de propuestas.
   - Conectar botones de resumen y confirmación.
-  - Conectar botones de generar sugerencias con IA.
   - Conectar validación de Telegram obligatorio.
   - Conectar guardado y limpieza de borrador.
   - Conectar copia de código y nueva consulta.
@@ -59,10 +58,6 @@
     conectar(qs('#btnCerrarAlerta'), 'click', cerrarAlerta, 'taCerrarAlertaClick');
     conectar(qs('#btnAceptarAlerta'), 'click', cerrarAlerta, 'taAceptarAlertaClick');
     conectar(qs('#modalAlerta .modal__backdrop'), 'click', cerrarAlerta, 'taBackdropAlertaClick');
-
-    conectar(qs('#btnCerrarSugerencias'), 'click', cerrarModalSugerencias, 'taCerrarSugerenciasClick');
-    conectar(qs('#btnCancelarSugerencias'), 'click', cerrarModalSugerencias, 'taCancelarSugerenciasClick');
-    conectar(qs('#modalSugerencias .modal__backdrop'), 'click', cerrarModalSugerencias, 'taBackdropSugerenciasClick');
 
     conectar(qs('#btnCerrarRecomendaciones'), 'click', cerrarRecomendaciones, 'taCerrarRecomendacionesClick');
     conectar(qs('#btnEntendidoRecomendaciones'), 'click', cerrarRecomendaciones, 'taEntendidoRecomendacionesClick');
@@ -201,7 +196,6 @@
       target.closest &&
       (
         target.closest('#modalResumen') ||
-        target.closest('#modalSugerencias') ||
         target.closest('#modalAlerta')
       )
     ) {
@@ -314,31 +308,6 @@
     enfocarCedula();
   }
 
-  function conectarBotonesSugerencias() {
-    qsa('.js-generar-sugerencias, [data-action="generar-sugerencias"]').forEach(function (button) {
-      conectar(button, 'click', function (event) {
-        var sugerenciasController = window.TAEstudianteSugerenciasController;
-        var numero = Number(button.getAttribute('data-propuesta') || button.dataset.propuesta || 0);
-
-        if (event && event.preventDefault) {
-          event.preventDefault();
-        }
-
-        if (!numero) {
-          numero = obtenerNumeroPropuestaDesdeBoton(button);
-        }
-
-        if (!sugerenciasController || typeof sugerenciasController.manejarSugerencias !== 'function') {
-          console.error('[Estudiantes] No está cargado estudiante.sugerencias.controller.js');
-          mostrarAlerta('No se pudieron generar sugerencias porque falta el controlador de IA.');
-          return;
-        }
-
-        sugerenciasController.manejarSugerencias(numero, button);
-      }, 'taGenerarSugerenciasClick');
-    });
-  }
-
   function prepararTelegram() {
     var telegramService = window.TAEstudianteTelegram;
 
@@ -388,14 +357,6 @@
     cerrarModalFallback('#modalAlerta');
   }
 
-  function cerrarModalSugerencias(event) {
-    if (event && event.preventDefault) {
-      event.preventDefault();
-    }
-
-    cerrarModalFallback('#modalSugerencias');
-  }
-
   function cerrarRecomendaciones(event) {
     var recomendacionesController = window.TAEstudianteRecomendacionesController;
 
@@ -417,16 +378,6 @@
     if (formularioController && typeof formularioController.actualizarResumenPreferido === 'function') {
       formularioController.actualizarResumenPreferido();
     }
-  }
-
-  function obtenerNumeroPropuestaDesdeBoton(button) {
-    var card = button && button.closest ? button.closest('[data-propuesta]') : null;
-
-    if (!card) {
-      return 0;
-    }
-
-    return Number(card.getAttribute('data-propuesta') || 0);
   }
 
   function obtenerPasosFlujo() {
@@ -540,7 +491,6 @@
     copiarCodigoRegistro: copiarCodigoRegistro,
     validarTelegram: validarTelegram,
     iniciarNuevaConsulta: iniciarNuevaConsulta,
-    conectarBotonesSugerencias: conectarBotonesSugerencias,
     prepararTelegram: prepararTelegram,
     prepararPaginacion: prepararPaginacion
   });
