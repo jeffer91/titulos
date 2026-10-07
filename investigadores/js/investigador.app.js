@@ -258,7 +258,7 @@
 
     if (!grupos.length) {
       body.innerHTML =
-        '<tr><td colspan="4" class="queue-empty">' +
+        '<tr><td colspan="3" class="queue-empty">' +
         '<strong>Todo al día</strong><span>No hay carreras con expedientes pendientes.</span>' +
         '</td></tr>';
       return;
@@ -266,12 +266,9 @@
 
     grupos.forEach(function (grupo) {
       var tr = document.createElement('tr');
-      var primer = grupo.items[0];
-
       tr.innerHTML =
         '<td><div class="career-name"><strong>' + escapeHtml(grupo.carrera) + '</strong></div></td>' +
         '<td class="text-center"><span class="queue-count">' + grupo.items.length + '</span></td>' +
-        '<td><span class="queue-date">' + escapeHtml(formatearFecha(primer.fechaColaInvestigacion || primer.fechaEnvio)) + '</span></td>' +
         '<td class="text-right"></td>';
 
       var button = document.createElement('button');
@@ -282,7 +279,7 @@
         entrarCarrera(grupo.carrera);
       });
 
-      tr.children[3].appendChild(button);
+      tr.children[2].appendChild(button);
       body.appendChild(tr);
     });
   }
