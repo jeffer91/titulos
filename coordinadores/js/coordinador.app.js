@@ -254,79 +254,155 @@
     wrap.className = 'detail-meta';
     wrap.appendChild(metaItem('Tipo', titulo.tipoTrabajo.label));
     wrap.appendChild(metaItem('Período', periodoVisible(titulo)));
-    wrap.appendChild(metaItem('Fecha de envío', fechaVisible(titulo.fechaEnvio, true)));
+    wrap.appendChild(metaItem('Fecha de envío', fechaVisible(titulo.fechaEnvio)));
     wrap.appendChild(metaItem('Estado', estadoVisible(titulo)));
     return wrap;
   }
 
   function renderPropuestas(titulo, editable) {
     var section = document.createElement('section');
-    section.className = 'detail-section';
+    section.className = 'detail-section proposals-section';
     var propuestas = titulo.titulosEnviados || [];
+
     if (!propuestas.length) {
       section.innerHTML = '<h3>Títulos enviados</h3><p class="muted">Este registro no contiene propuestas de título.</p>';
       return section;
     }
+
+    var grid = document.createElement('div');
+    grid.className = 'proposal-grid';
+
     propuestas.forEach(function (propuesta, index) {
       var numero = Number(propuesta.numero || index + 1);
       var card = document.createElement('article');
-      card.className = 'proposal-card';
+      var esPreferido = Number(titulo.tituloPreferidoNumero) === numero || propuesta.preferido;
+      var revision = titulo.revisionCoordinador || {};
+      var esSeleccionado = Number(revision.tituloSeleccionadoNumero || 0) === numero;
+      var fueCorregido = Boolean(propuesta.corregidoCoordinacion || (esSeleccionado && revision.corrigioTitulo));
+
+      card.className = 'proposal-card' +
+        (esPreferido ? ' is-favorite' : '') +
+        (esSeleccionado && !editable ? ' is-selected' : '') +
+        (fueCorregido ? ' is-corrected' : '');
+      card.dataset.numero = String(numero);
+
       var head = document.createElement('div');
       head.className = 'proposal-head';
+
       var title = document.createElement('h3');
       title.textContent = 'Título ' + numero;
       head.appendChild(title);
-      if (Number(titulo.tituloPreferidoNumero) === numero || propuesta.preferido) {
+
+      var tags = document.createElement('div');
+      tags.className = 'proposal-tags';
+
+      if (esPreferido) {
         var fav = document.createElement('span');
         fav.className = 'favorite';
-        fav.textContent = '★ Favorito del estudiante';
-        head.appendChild(fav);
+        fav.textContent = '★ Preferido';
+        tags.appendChild(fav);
       }
-      card.appendChild(head);
-      if (editable) {
-        var select = document.createElement('label');
-        select.className = 'select-title';
-        var radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'tituloCoordinacion';
-        radio.value = numero;
-        radio.addEventListener('change', function () {
-          estado.tituloSeleccionado = numero;
-          document.querySelectorAll('.proposal-card').forEach(function (node) { node.classList.remove('is-selected'); });
-          card.classList.add('is-selected');
-        });
-        select.appendChild(radio);
-        select.appendChild(document.createTextNode(' Seleccionar este título'));
-        card.appendChild(select);
-      } else if (titulo.revisionCoordinador && Number(titulo.revisionCoordinador.tituloSeleccionadoNumero) === numero) {
+
+      if (!editable && esSeleccionado) {
         var chosen = document.createElement('span');
         chosen.className = 'selected-label';
-        chosen.textContent = 'Título validado por Coordinación';
-        card.appendChild(chosen);
+        chosen.textContent = fueCorregido ? '✓ Seleccionado · corregido' : '✓ Seleccionado';
+        tags.appendChild(chosen);
       }
+
+      if (tags.children.length) head.appendChild(tags);
+      card.appendChild(head);
+
       var p = document.createElement('p');
       p.className = 'proposal-text';
       p.textContent = propuesta.tituloFinal || propuesta.titulo || 'Sin título registrado';
       card.appendChild(p);
-      section.appendChild(card);
+
+      if (fueCorregido && propuesta.tituloOriginalCoordinacion) {
+        var original = document.createElement('p');
+        original.className = 'proposal-original';
+        original.innerHTML = '<strong>Original:</strong> ' + escapeHtml(propuesta.tituloOriginalCoordinacion);
+        card.appendChild(original);
+      }
+
+      if (editable) {
+        var select = document.createElement('label');
+        select.className = 'select-title';
+
+        var radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'tituloCoordinacion';
+        radio.value = numero;
+
+        var labelText = document.createElement('span');
+        labelText.textContent = 'Seleccionar';
+
+        select.appendChild(radio);
+        select.appendChild(labelText);
+        card.appendChild(select);
+
+        var seleccionar = function (event) {
+          if (event && event.target && event.target.tagName === 'INPUT') {
+            // El change del radio continúa abajo.
+          } else {
+            radio.checked = true;
+          }
+
+          estado.tituloSeleccionado = numero;
+          document.querySelectorAll('.proposal-card').forEach(function (node) {
+            node.classList.remove('is-selected');
+          });
+          card.classList.add('is-selected');
+
+          var correctionPanel = document.querySelector('#correctionPanel');
+          if (correctionPanel && !correctionPanel.classList.contains('is-hidden')) {
+            prepararCorreccionSeleccionada(titulo);
+          }
+        };
+
+        radio.addEventListener('change', seleccionar);
+        card.addEventListener('click', function (event) {
+          if (event.target.closest('label, input, button, textarea')) return;
+          seleccionar(event);
+        });
+      }
+
+      grid.appendChild(card);
     });
+
+    section.appendChild(grid);
     return section;
   }
 
   function renderHistorial(titulo, historial) {
     var section = document.createElement('section');
     section.className = 'detail-section history-section';
-    var heading = document.createElement('div');
-    heading.className = 'section-heading';
-    heading.innerHTML = '<span class="eyebrow eyebrow--blue">Historial del proceso</span><h3>Envíos y revisiones anteriores</h3>';
-    section.appendChild(heading);
 
     var versiones = construirVersiones(titulo, historial);
+    var revisiones = versiones.filter(function (version) {
+      return Boolean(version.revisionCoordinador || version.revision);
+    }).length;
+
+    var details = document.createElement('details');
+    details.className = 'history-details';
+
+    var summary = document.createElement('summary');
+    summary.innerHTML =
+      '<span><strong>Historial</strong><small>' +
+      (revisiones ? revisiones + ' revisión' + (revisiones === 1 ? '' : 'es') : 'Primer envío') +
+      '</small></span><span class="history-details__action">Ver</span>';
+    details.appendChild(summary);
+
+    var content = document.createElement('div');
+    content.className = 'history-details__content';
+
     if (!versiones.length) {
       var empty = document.createElement('p');
-      empty.className = 'muted';
-      empty.textContent = 'Este es el primer envío y todavía no tiene revisiones anteriores.';
-      section.appendChild(empty);
+      empty.className = 'muted history-empty';
+      empty.textContent = 'Todavía no existen revisiones anteriores.';
+      content.appendChild(empty);
+      details.appendChild(content);
+      section.appendChild(details);
       return section;
     }
 
@@ -335,33 +411,47 @@
       box.className = 'history-version';
       var numero = Number(version.version || index + 1);
       var revision = version.revisionCoordinador || version.revision || null;
+
       box.innerHTML =
-        '<div class="history-title"><strong>VERSIÓN ' + numero + '</strong></div>' +
-        '<div class="history-counts"><span><b>1</b> Envíos</span><span><b>' + Math.max(numero - 1, 0) + '</b> Reenvíos</span><span><b>' + (revision ? 1 : 0) + '</b> Revisiones</span></div>';
+        '<div class="history-title"><strong>VERSIÓN ' + numero + '</strong></div>';
+
       if (revision) {
         var review = document.createElement('div');
         review.className = 'history-review';
         review.innerHTML =
-          '<strong>Revisión ' + numero + ' · ' + escapeHtml(labelEstadoRevision(revision.estado)) + '</strong>' +
+          '<strong>' + escapeHtml(labelEstadoRevision(revision.estado)) + '</strong>' +
           '<time>' + escapeHtml(fechaVisible(revision.fechaLocal || revision.fecha || revision.creadoEn)) + '</time>' +
-          '<span>' + escapeHtml(revision.coordinadorNombre || revision.investigadorNombre || 'Coordinador no registrado') + '</span>' +
+          '<span>' + escapeHtml(revision.coordinadorNombre || revision.investigadorNombre || 'Responsable no registrado') + '</span>' +
+          (revision.tituloSeleccionadoTexto
+            ? '<p><b>Título seleccionado:</b> ' + escapeHtml(revision.tituloSeleccionadoTexto) + '</p>'
+            : '') +
           (revision.observacion ? '<p>' + escapeHtml(revision.observacion) + '</p>' : '');
         box.appendChild(review);
       }
+
       var sent = document.createElement('div');
       sent.className = 'history-sent';
       var fechaEnvio = version.fechaEnvio || version.creadoEn || titulo.fechaEnvio;
-      sent.innerHTML = '<div class="history-sent-head"><strong>Envío ' + numero + '</strong><time>' + escapeHtml(fechaVisible(fechaEnvio)) + '</time></div>';
+      sent.innerHTML =
+        '<div class="history-sent-head"><strong>Envío ' + numero + '</strong><time>' +
+        escapeHtml(fechaVisible(fechaEnvio)) + '</time></div>';
+
       var ul = document.createElement('ul');
       (version.titulosEnviados || []).forEach(function (p) {
         var li = document.createElement('li');
-        li.textContent = (p.tituloFinal || p.titulo || 'Sin título') + (Number(p.numero) === Number(version.tituloPreferidoNumero) || p.preferido ? ' · Favorito' : '');
+        li.textContent =
+          (p.tituloFinal || p.titulo || 'Sin título') +
+          (Number(p.numero) === Number(version.tituloPreferidoNumero) || p.preferido ? ' · Preferido' : '');
         ul.appendChild(li);
       });
+
       if (ul.children.length) sent.appendChild(ul);
       box.appendChild(sent);
-      section.appendChild(box);
+      content.appendChild(box);
     });
+
+    details.appendChild(content);
+    section.appendChild(details);
     return section;
   }
 
@@ -399,67 +489,196 @@
     var section = document.createElement('section');
     section.className = 'detail-section decision-section';
     var revision = titulo.revisionCoordinador || {};
+
     if (!editable) {
       var estadoBox = document.createElement('div');
       estadoBox.className = 'readonly-box';
-      var validado = revision.tituloSeleccionadoTexto || (repository.clasificarTitulo(titulo) === 'VALIDADOS' || repository.clasificarTitulo(titulo) === 'APROBADOS' ? titulo.tituloPreferidoTexto : '');
+      var validado = revision.tituloSeleccionadoTexto || titulo.tituloCoordinador || '';
+      var resultado = revision.resultado || titulo.raw && titulo.raw.resultadoCoordinador || '';
+
       estadoBox.innerHTML =
-        (validado ? '<div><span>Título validado por Coordinación</span><strong>' + escapeHtml(validado) + '</strong></div>' : '') +
-        '<div><span>Comentario del coordinador</span><strong>' + escapeHtml(revision.observacion || 'Sin comentario') + '</strong></div>' +
+        (validado
+          ? '<div><span>Decisión de Coordinación</span><strong>' +
+            escapeHtml(resultado === 'APROBADO_CON_CORRECCION' ? 'Aprobado con corrección' : 'Aprobado') +
+            '</strong></div>' +
+            '<div><span>Título seleccionado</span><strong>' + escapeHtml(validado) + '</strong></div>'
+          : '') +
+        (revision.observacion
+          ? '<div><span>Observación</span><strong>' + escapeHtml(revision.observacion) + '</strong></div>'
+          : '') +
         '<p>Registro revisado. Esta vista es solo de lectura.</p>';
+
       section.appendChild(estadoBox);
       return section;
     }
+
     var note = document.createElement('p');
     note.className = 'decision-note';
-    note.textContent = 'El campo inferior registra una nueva decisión. Los comentarios anteriores no se reemplazan.';
+    note.textContent = 'Selecciona uno de los tres títulos y toma una decisión. Los tres continuarán en el expediente.';
+
+    var correctionPanel = document.createElement('div');
+    correctionPanel.id = 'correctionPanel';
+    correctionPanel.className = 'correction-panel is-hidden';
+    correctionPanel.innerHTML = [
+      '<div class="correction-panel__head">',
+      '  <div><span>APROBAR CON CORRECCIÓN</span><strong>Corrige únicamente el título seleccionado</strong></div>',
+      '  <button type="button" class="correction-panel__close" id="btnCerrarCorreccion" aria-label="Cerrar corrección">×</button>',
+      '</div>',
+      '<div class="correction-original"><span>Original</span><p id="tituloCorreccionOriginal">Selecciona un título.</p></div>',
+      '<label for="tituloCorreccionTexto">Título corregido por Coordinación</label>',
+      '<textarea id="tituloCorreccionTexto" rows="2" placeholder="Edita aquí el título seleccionado."></textarea>'
+    ].join('');
+
+    var commentWrap = document.createElement('div');
+    commentWrap.className = 'decision-comment';
+
     var label = document.createElement('label');
     label.className = 'decision-label';
     label.setAttribute('for', 'comentarioCoordinador');
-    label.textContent = 'Comentario del coordinador';
+    label.textContent = 'Observación';
+
     var textarea = document.createElement('textarea');
     textarea.id = 'comentarioCoordinador';
-    textarea.rows = 3;
-    textarea.placeholder = 'Escribe una observación. Es obligatoria si devuelves el título.';
+    textarea.rows = 2;
+    textarea.placeholder = 'Opcional al aprobar. Obligatoria al corregir o devolver.';
+
+    commentWrap.appendChild(label);
+    commentWrap.appendChild(textarea);
+
     var actions = document.createElement('div');
-    actions.className = 'decision-actions';
-    var validar = document.createElement('button');
-    validar.type = 'button';
-    validar.className = 'btn btn--primary';
-    validar.textContent = 'Validar y enviar a Investigación';
-    validar.addEventListener('click', function () { guardarDecision('VALIDAR', textarea, validar); });
+    actions.className = 'decision-actions decision-actions--sticky';
+
+    var aprobar = document.createElement('button');
+    aprobar.type = 'button';
+    aprobar.className = 'btn btn--success';
+    aprobar.textContent = 'Aprobar';
+    aprobar.addEventListener('click', function () {
+      guardarDecision('VALIDAR', textarea, aprobar, '');
+    });
+
+    var corregir = document.createElement('button');
+    corregir.type = 'button';
+    corregir.className = 'btn btn--warning';
+    corregir.textContent = 'Aprobar con corrección';
+    corregir.addEventListener('click', function () {
+      if (!estado.tituloSeleccionado) {
+        mostrarErrorModal('Selecciona el título que vas a corregir.');
+        return;
+      }
+
+      if (correctionPanel.classList.contains('is-hidden')) {
+        correctionPanel.classList.remove('is-hidden');
+        prepararCorreccionSeleccionada(titulo);
+        corregir.textContent = 'Confirmar corrección';
+        var correctionText = el('tituloCorreccionTexto');
+        if (correctionText) correctionText.focus();
+        return;
+      }
+
+      var correctionText = el('tituloCorreccionTexto');
+      guardarDecision('VALIDAR_CORRECCION', textarea, corregir, correctionText ? correctionText.value : '');
+    });
+
     var devolver = document.createElement('button');
     devolver.type = 'button';
     devolver.className = 'btn btn--danger';
-    devolver.textContent = 'Devolver al estudiante';
-    devolver.addEventListener('click', function () { guardarDecision('DEVOLVER', textarea, devolver); });
-    actions.appendChild(validar);
+    devolver.textContent = 'Devolver';
+    devolver.addEventListener('click', function () {
+      guardarDecision('DEVOLVER', textarea, devolver, '');
+    });
+
+    actions.appendChild(aprobar);
+    actions.appendChild(corregir);
     actions.appendChild(devolver);
+
     section.appendChild(note);
-    section.appendChild(label);
-    section.appendChild(textarea);
+    section.appendChild(correctionPanel);
+    section.appendChild(commentWrap);
     section.appendChild(actions);
+
+    window.setTimeout(function () {
+      var close = el('btnCerrarCorreccion');
+      if (close) {
+        close.addEventListener('click', function () {
+          correctionPanel.classList.add('is-hidden');
+          corregir.textContent = 'Aprobar con corrección';
+        });
+      }
+    }, 0);
+
     return section;
   }
 
-  function guardarDecision(accion, textarea, button) {
+  function prepararCorreccionSeleccionada(titulo) {
+    var numero = Number(estado.tituloSeleccionado || 0);
+    var propuesta = (titulo.titulosEnviados || []).filter(function (item) {
+      return Number(item.numero) === numero;
+    })[0] || null;
+
+    var texto = propuesta ? String(propuesta.tituloFinal || propuesta.titulo || '').trim() : '';
+    var original = el('tituloCorreccionOriginal');
+    var editor = el('tituloCorreccionTexto');
+
+    if (original) original.textContent = texto || 'Título no disponible';
+    if (editor) editor.value = texto;
+  }
+
+  function guardarDecision(accion, textarea, button, tituloCorregido) {
     var titulo = estado.tituloModal;
     if (!titulo || !estado.coordinador) return;
+
     var comentario = String(textarea && textarea.value || '').trim();
-    if (accion === 'VALIDAR' && !estado.tituloSeleccionado) {
-      mostrarErrorModal('Selecciona uno de los títulos antes de validarlo.');
+    var necesitaSeleccion = accion === 'VALIDAR' || accion === 'VALIDAR_CORRECCION';
+
+    if (necesitaSeleccion && !estado.tituloSeleccionado) {
+      mostrarErrorModal('Selecciona uno de los tres títulos antes de continuar.');
       return;
     }
+
     if (accion === 'DEVOLVER' && !comentario) {
-      mostrarErrorModal('Escribe un comentario indicando qué debe corregir el estudiante.');
+      mostrarErrorModal('Escribe qué debe corregir el estudiante antes de devolver.');
       if (textarea) textarea.focus();
       return;
     }
+
+    if (accion === 'VALIDAR_CORRECCION') {
+      var corregido = String(tituloCorregido || '').trim();
+
+      if (!corregido) {
+        mostrarErrorModal('Escribe el título corregido.');
+        var editor = el('tituloCorreccionTexto');
+        if (editor) editor.focus();
+        return;
+      }
+
+      if (!comentario) {
+        mostrarErrorModal('Escribe una observación breve que explique la corrección.');
+        if (textarea) textarea.focus();
+        return;
+      }
+    }
+
+    limpiarErrorModal();
     setLoadingElement(button, true, 'Guardando…');
-    repository.revisarTitulo(titulo, accion, comentario, estado.coordinador, estado.tituloSeleccionado)
+
+    repository.revisarTitulo(
+      titulo,
+      accion,
+      comentario,
+      estado.coordinador,
+      estado.tituloSeleccionado,
+      tituloCorregido
+    )
       .then(function () {
         cerrarDetalle();
-        mensaje(accion === 'VALIDAR' ? 'Título validado y enviado a Investigación.' : 'Título devuelto al estudiante.', 'success');
+
+        var mensajeExito = accion === 'DEVOLVER'
+          ? 'Título devuelto al estudiante.'
+          : accion === 'VALIDAR_CORRECCION'
+            ? 'Título corregido y enviado a Investigación junto con las tres propuestas.'
+            : 'Título aprobado y enviado a Investigación junto con las tres propuestas.';
+
+        mensaje(mensajeExito, 'success');
         return cargarTitulos();
       })
       .catch(function (error) {
@@ -469,6 +688,12 @@
         setLoadingElement(button, false);
       });
   }
+
+  function limpiarErrorModal() {
+    var existente = el('modalDecisionError');
+    if (existente && existente.parentNode) existente.parentNode.removeChild(existente);
+  }
+
 
   function mostrarErrorModal(texto) {
     var existente = el('modalDecisionError');
