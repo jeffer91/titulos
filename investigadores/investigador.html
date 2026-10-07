@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Investigadores | Revisión de títulos</title>
-  <link rel="stylesheet" href="css/investigador.css?v=4.5.1" />
+  <link rel="stylesheet" href="css/investigador.css?v=4.6.0" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
@@ -88,7 +88,7 @@
             <div>
               <span class="step">Cola de revisión</span>
               <h3>Carreras pendientes</h3>
-              <p id="periodoActualTexto">Los expedientes se atienden por orden de envío.</p>
+              <p id="periodoActualTexto">Los expedientes validados por Coordinación se atienden sin excluir períodos.</p>
             </div>
             <button class="btn btn--secondary" type="button" id="btnActualizarTitulos">Actualizar</button>
           </div>
@@ -124,7 +124,7 @@
             <span class="step">Siguiente expediente</span>
             <strong id="colaPosicion">Primero en la cola</strong>
           </div>
-          <span id="colaOrdenInfo">Ordenado por fecha de envío</span>
+          <span id="colaOrdenInfo">Ordenado por validación de Coordinación</span>
         </section>
 
         <section id="tituloActual"></section>
@@ -133,9 +133,9 @@
   </main>
 
   <script src="../administradores/js/firebase.config.js"></script>
-  <script src="js/app.config.js?v=4.5.1"></script>
+  <script src="js/app.config.js?v=4.6.0"></script>
   <script src="../administradores/js/firebase.service.js"></script>
-  <script src="js/investigador.repository.js?v=4.5.1"></script>
-  <script src="js/investigador.app.js?v=4.5.1"></script>
+  <script src="js/investigador.repository.js?v=4.6.0"></script>
+  <script src="js/investigador.app.js?v=4.6.0"></script>
 </body>
 </html>
