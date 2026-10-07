@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261007-43';
+  var BUILD = '20261007-44';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
