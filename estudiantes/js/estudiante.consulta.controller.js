@@ -32,7 +32,9 @@
     var contexto = {
       appConfig: null,
       estudiante: null,
-      envio: null
+      envio: null,
+      diagnosticoTitulos: null,
+      titulosConsultados: false
     };
 
     opciones = opciones || {};
@@ -126,8 +128,8 @@
 
         mostrarDiagnosticoTitulos(
           contexto.diagnosticoTitulos,
-          estudiante,
-          estudiante.cedula || resultadoCedula.data,
+          contexto.estudiante,
+          (contexto.estudiante && contexto.estudiante.cedula) || resultadoCedula.data,
           envio ? 'ENCONTRADO' : 'NO_ENCONTRADO'
         );
 
