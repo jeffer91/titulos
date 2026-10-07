@@ -81,24 +81,20 @@
       });
   }
 
-  function cargarPeriodoActivo() {
-    return firebaseService.leerDocumento(config.collections.config, config.documents.appConfig)
-      .then(function (doc) { return doc && (doc.periodoActivoId || (doc.periodoActivo && doc.periodoActivo.id) || doc.periodoActivo) || ''; })
-      .catch(function () { return ''; });
-  }
-
-  function listarTitulosHabilitados(investigador, periodoId) {
-    var opciones = { limit: 2500 };
-    if (periodoId) opciones.where = ['periodoId', '==', periodoId];
-
-    return firebaseService.listarDocumentos(config.collections.titulos, opciones)
+  function listarTitulosHabilitados(investigador) {
+    /*
+      Investigación trabaja por estado, no por el período activo global.
+      Un expediente entra a esta cola cuando Coordinación lo habilita,
+      aunque pertenezca a un período académico anterior o simultáneo.
+    */
+    return firebaseService.listarDocumentos(config.collections.titulos, { limit: 2500 })
       .then(function (docs) {
         return (docs || []).map(normalizarTitulo)
           .filter(estaHabilitadoPorCoordinador)
           .filter(function (titulo) { return perteneceAlInvestigador(titulo, investigador); })
           .sort(function (a, b) {
-            var fechaA = Number(a.fechaColaMs || 0);
-            var fechaB = Number(b.fechaColaMs || 0);
+            var fechaA = Number(a.fechaColaMs || Number.MAX_SAFE_INTEGER);
+            var fechaB = Number(b.fechaColaMs || Number.MAX_SAFE_INTEGER);
             if (fechaA !== fechaB) return fechaA - fechaB;
             return a.nombres.localeCompare(b.nombres);
           });
@@ -284,10 +280,29 @@
       nombres: limpiar(data.nombres || data.nombreCompleto || ''),
       carrera: limpiar(data.carreraNombre || data.carrera || data.nombreCarrera || ''),
       codigoCarrera: limpiar(data.carreraCodigo || data.codigoCarrera || ''),
-      periodoId: limpiar(data.periodoId || data.periodoCanonicoId || ''),
+      periodoId: limpiar(data.periodoId || data.periodoCanonicoId || data.periodoNombre || data.periodoLabel || ''),
+      periodoLabel: limpiar(data.periodoNombre || data.periodoLabel || data.periodoId || data.periodoCanonicoId || ''),
       fechaEnvio: fechaIso(data.fechaEnvio || data.actualizadoEnLocal || data.creadoEn || data.actualizadoEn),
-      fechaColaInvestigacion: fechaIso(data.fechaEnvio || data.actualizadoEnLocal || data.creadoEn || data.actualizadoEn),
-      fechaColaMs: fechaMs(data.fechaEnvio || data.actualizadoEnLocal || data.creadoEn || data.actualizadoEn),
+      fechaColaInvestigacion: fechaIso(
+        data.fechaValidacionCoordinador ||
+        (data.revisionCoordinador && (data.revisionCoordinador.fechaLocal || data.revisionCoordinador.fechaValidacion || data.revisionCoordinador.fechaRevision)) ||
+        data.revisadoEnLocal ||
+        data.fechaResolucion ||
+        data.fechaEnvio ||
+        data.actualizadoEnLocal ||
+        data.creadoEn ||
+        data.actualizadoEn
+      ),
+      fechaColaMs: fechaMs(
+        data.fechaValidacionCoordinador ||
+        (data.revisionCoordinador && (data.revisionCoordinador.fechaLocal || data.revisionCoordinador.fechaValidacion || data.revisionCoordinador.fechaRevision)) ||
+        data.revisadoEnLocal ||
+        data.fechaResolucion ||
+        data.fechaEnvio ||
+        data.actualizadoEnLocal ||
+        data.creadoEn ||
+        data.actualizadoEn
+      ),
       numeroEnvios: Number(data.numeroEnvios || data.intentosUsados || 1),
       numeroReenvios: Number(data.numeroReenvios || 0),
       estado: estado,
@@ -368,7 +383,6 @@
     buscarInvestigador: buscarInvestigador,
     crearPin: crearPin,
     validarAcceso: validarAcceso,
-    cargarPeriodoActivo: cargarPeriodoActivo,
     listarTitulosHabilitados: listarTitulosHabilitados,
     revisarTitulo: revisarTitulo,
     estaHabilitadoPorCoordinador: estaHabilitadoPorCoordinador,
