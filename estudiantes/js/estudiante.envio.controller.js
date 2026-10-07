@@ -162,9 +162,20 @@
       ui.showStatus('#envioMensaje', 'Guardando envío final...', 'info');
     }
 
+    var guardadoFirebase = false;
+    var resultadoVisible = null;
+
     return repository.guardarEnvioFinal(payload)
       .then(function (respuesta) {
         var data = respuesta && respuesta.data ? respuesta.data : respuesta;
+        guardadoFirebase = true;
+
+        resultadoVisible = {
+          id: obtenerIdResultado(respuesta),
+          firebase: respuesta,
+          payload: data || payload,
+          sheets: { ok: false, pendiente: true }
+        };
 
         if (state && typeof state.actualizar === 'function') {
           state.actualizar({
@@ -173,38 +184,51 @@
           });
         }
 
-        eliminarBorradorFinal();
-        cerrarModalResumen();
-
-        if (ui.showStatus) {
-          ui.showStatus('#envioMensaje', 'Propuestas registradas. Generando respaldo...', 'info');
-        }
-
-        return respaldarEnSheets(respuesta);
-      })
-      .then(function (resultadoFinal) {
         if (state && typeof state.guardarResultadoFinal === 'function') {
-          state.guardarResultadoFinal(resultadoFinal);
+          state.guardarResultadoFinal(resultadoVisible);
         }
 
         if (state && typeof state.marcarEnvioFinal === 'function') {
           state.marcarEnvioFinal(true);
         }
 
+        eliminarBorradorFinal();
+        cerrarModalResumen();
+
         if (ui.setFormDisabled) {
           ui.setFormDisabled('#formPropuestas', true);
           ui.setFormDisabled('#formTitulos', true);
         }
 
-        if (ui.renderComprobante) {
-          ui.renderComprobante(resultadoFinal);
+        /*
+          Firebase ya confirmó el envío. El estudiante debe ver el comprobante
+          inmediatamente; el respaldo secundario no puede bloquear esta pantalla.
+        */
+        try {
+          if (ui.renderComprobante) ui.renderComprobante(resultadoVisible);
+          mostrarMensajeFinal(resultadoVisible);
+          conectarVerEstado(resultadoVisible);
+        } catch (errorVisual) {
+          console.warn('[Estudiantes] El envío se guardó, pero falló una actualización visual:', errorVisual);
         }
 
-        mostrarMensajeFinal(resultadoFinal);
+        return respaldarEnSheets(respuesta)
+          .then(function (resultadoFinal) {
+            if (state && typeof state.guardarResultadoFinal === 'function') {
+              state.guardarResultadoFinal(resultadoFinal);
+            }
 
-        return resultadoFinal;
+            resultadoVisible = resultadoFinal || resultadoVisible;
+            conectarVerEstado(resultadoVisible);
+            return resultadoVisible;
+          });
       })
       .catch(function (error) {
+        if (guardadoFirebase) {
+          console.warn('[Estudiantes] El envío se guardó; un proceso posterior no terminó:', error);
+          return resultadoVisible;
+        }
+
         console.error('[Estudiantes] Error envío:', error);
         ui.showAlert('No se pudo guardar el envío. Revisa tu conexión e intenta nuevamente.', '');
         return null;
@@ -215,6 +239,63 @@
         if (ui.setLoading) {
           ui.setLoading(btnConfirmar, false);
           ui.setLoading(btnConfirmarModal, false);
+        }
+      });
+  }
+
+  function conectarVerEstado(resultadoFinal) {
+    var boton = qs('#btnVerEstadoTitulo');
+    if (!boton) return;
+
+    boton.onclick = function (event) {
+      if (event && event.preventDefault) event.preventDefault();
+      mostrarEstadoTrasEnvio(resultadoFinal);
+    };
+  }
+
+  function mostrarEstadoTrasEnvio(resultadoFinal) {
+    var state = window.TAEstudianteState;
+    var seguimientoService = window.TAEstudianteSeguimiento;
+    var estado = state && typeof state.obtener === 'function' ? state.obtener() : {};
+    var firebase = resultadoFinal && resultadoFinal.firebase ? resultadoFinal.firebase : {};
+    var envio = resultadoFinal && (resultadoFinal.payload || firebase.data || firebase.payload)
+      ? (resultadoFinal.payload || firebase.data || firebase.payload)
+      : (estado.envioExistente || {});
+    var estudiante = estado.estudiante || {
+      nombres: envio.nombres || envio.nombreCompleto || '',
+      cedula: envio.cedula || envio.numeroIdentificacion || '',
+      carrera: envio.carreraNombre || envio.carrera || '',
+      periodoLabel: envio.periodoNombre || envio.periodoLabel || envio.periodoId || ''
+    };
+
+    if (!seguimientoService || typeof seguimientoService.cargar !== 'function' || typeof seguimientoService.mostrar !== 'function') {
+      window.location.reload();
+      return;
+    }
+
+    var boton = qs('#btnVerEstadoTitulo');
+    if (boton) {
+      boton.disabled = true;
+      boton.textContent = 'Cargando estado...';
+    }
+
+    seguimientoService.cargar(envio, estudiante)
+      .then(function (seguimiento) {
+        seguimientoService.mostrar({
+          estudiante: estudiante,
+          envioExistente: envio,
+          seguimiento: seguimiento,
+          modoConsulta: 'SEGUIMIENTO'
+        });
+      })
+      .catch(function (error) {
+        console.warn('[Estudiantes] No se pudo abrir el seguimiento inmediato:', error);
+        window.location.reload();
+      })
+      .finally(function () {
+        if (boton) {
+          boton.disabled = false;
+          boton.textContent = 'Ver estado de mi título';
         }
       });
   }
@@ -410,25 +491,14 @@
   function mostrarMensajeFinal(resultadoFinal) {
     var ui = window.TAEstudianteUI;
     var codigo = obtenerIdResultado(resultadoFinal);
+    var mensaje = 'Tus títulos fueron recibidos correctamente y están pendientes de revisión.';
 
     if (!ui || !ui.showStatus) {
       return;
     }
 
-    if (resultadoFinal && resultadoFinal.sheets && resultadoFinal.sheets.ok) {
-      ui.showStatus(
-        '#envioMensaje',
-        'Propuestas enviadas correctamente y respaldadas. Código de registro: ' + codigo + '.',
-        'success'
-      );
-      return;
-    }
-
-    ui.showStatus(
-      '#envioMensaje',
-      'Propuestas enviadas correctamente. Código de registro: ' + codigo + '.',
-      'success'
-    );
+    ui.showStatus('#envioMensaje', mensaje + (codigo ? ' Código de registro: ' + codigo + '.' : ''), 'success');
+    ui.showStatus('#comprobanteMensaje', mensaje, 'success');
   }
 
   function obtenerIdResultado(resultadoFinal) {
