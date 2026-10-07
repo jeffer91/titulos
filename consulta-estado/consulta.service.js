@@ -10,30 +10,42 @@
     var inicio = Date.now();
     var rutasProbadas = [];
 
-    if (!periodoSolicitado) return Promise.reject(crearError('PERIODO_INVALIDO', 'Falta el período académico.'));
-    if (!cedula) return Promise.reject(crearError('CEDULA_INVALIDA', 'La cédula no es válida.'));
+    if (!periodoSolicitado) {
+      return Promise.reject(crearError('PERIODO_INVALIDO', 'Falta el período académico.'));
+    }
 
+    if (!cedula) {
+      return Promise.reject(crearError('CEDULA_INVALIDA', 'La cédula no es válida.'));
+    }
+
+    /*
+      BLOQUE 2 — estrategia definitiva de localización:
+      1) Identidad primero, en paralelo:
+         cedula (string / number) + numeroIdentificacion (string / number).
+      2) Se filtra por período y se elige el registro más reciente.
+      3) Solo si no hay coincidencia se prueban IDs canónicos/legacy como fallback.
+    */
     return ejecutarConTimeoutGlobal(function (signal) {
-      return buscarPorIds(periodoSolicitado, periodoCanonico, cedula, signal, rutasProbadas)
-        .then(function (directo) {
-          if (directo) {
+      return buscarPorIdentidad(periodoSolicitado, cedula, signal, rutasProbadas)
+        .then(function (porIdentidad) {
+          if (porIdentidad) {
             return completarResultado({
               ok: true,
               encontrado: true,
-              status: directo.status || 200,
-              envio: sanitizarEnvio(directo.envio)
-            }, inicio, directo.documentoId, directo.ruta, rutasProbadas, periodoCanonico);
+              status: porIdentidad.status || 200,
+              envio: sanitizarEnvio(porIdentidad.envio)
+            }, inicio, porIdentidad.documentoId, porIdentidad.ruta, rutasProbadas, periodoCanonico, 'IDENTIDAD_PRIMERO');
           }
 
-          return buscarPorIdentidad(periodoSolicitado, cedula, signal, rutasProbadas)
-            .then(function (encontrado) {
-              if (encontrado) {
+          return buscarPorIds(periodoSolicitado, periodoCanonico, cedula, signal, rutasProbadas)
+            .then(function (porId) {
+              if (porId) {
                 return completarResultado({
                   ok: true,
                   encontrado: true,
-                  status: encontrado.status || 200,
-                  envio: sanitizarEnvio(encontrado.envio)
-                }, inicio, encontrado.documentoId, encontrado.ruta, rutasProbadas, periodoCanonico);
+                  status: porId.status || 200,
+                  envio: sanitizarEnvio(porId.envio)
+                }, inicio, porId.documentoId, porId.ruta, rutasProbadas, periodoCanonico, 'FALLBACK_ID');
               }
 
               return completarResultado({
@@ -41,12 +53,13 @@
                 encontrado: false,
                 status: 404,
                 envio: null
-              }, inicio, periodoCanonico + '__' + cedula, 'NO_ENCONTRADO', rutasProbadas, periodoCanonico);
+              }, inicio, periodoCanonico + '__' + cedula, 'NO_ENCONTRADO', rutasProbadas, periodoCanonico, 'SIN_COINCIDENCIA');
             });
         });
     }).catch(function (error) {
       if (error && !error.diagnostico) {
         error.diagnostico = {
+          estrategia: 'IDENTIDAD_PRIMERO',
           base: cfg.projectId || 'titulos-ec2fa',
           coleccion: cfg.collection || 'envios',
           periodo: periodoSolicitado,
@@ -62,15 +75,15 @@
 
   function buscarPorIds(periodoOriginal, periodoCanonico, cedula, signal, rutasProbadas) {
     var ids = construirIdsCandidatos(periodoOriginal, periodoCanonico, cedula);
-    var cadena = Promise.resolve(null);
 
-    ids.forEach(function (id) {
-      cadena = cadena.then(function (encontrado) {
-        if (encontrado) return encontrado;
-        rutasProbadas.push('ID:' + id);
+    if (!ids.length) return Promise.resolve(null);
 
-        return leerDocumentoConSignal(id, signal).then(function (resultado) {
-          if (!resultado.encontrado) return null;
+    var lecturas = ids.map(function (id) {
+      rutasProbadas.push('FALLBACK_ID:' + id);
+
+      return leerDocumentoConSignal(id, signal)
+        .then(function (resultado) {
+          if (!resultado || !resultado.encontrado) return null;
           if (!periodoCompatibleDocumento(resultado.envio, periodoOriginal, true)) return null;
 
           return {
@@ -79,11 +92,26 @@
             status: resultado.status,
             envio: resultado.envio
           };
+        })
+        .catch(function (error) {
+          if (error && (error.codigo === 'PERMISSION_DENIED' || error.codigo === 'UNAUTHENTICATED')) {
+            throw error;
+          }
+          return null;
         });
-      });
     });
 
-    return cadena;
+    return Promise.all(lecturas).then(function (resultados) {
+      var encontrados = resultados.filter(Boolean);
+      if (!encontrados.length) return null;
+
+      encontrados.sort(function (a, b) {
+        return fechaMs(b.envio && (b.envio.fechaEnvio || b.envio.actualizadoEn || b.envio.actualizadoEnLocal || b.envio.creadoEn)) -
+          fechaMs(a.envio && (a.envio.fechaEnvio || a.envio.actualizadoEn || a.envio.actualizadoEnLocal || a.envio.creadoEn));
+      });
+
+      return encontrados[0];
+    });
   }
 
   function construirIdsCandidatos(periodoOriginal, periodoCanonico, cedula) {
@@ -100,76 +128,102 @@
   }
 
   function buscarPorIdentidad(periodoSolicitado, cedula, signal, rutasProbadas) {
-    var especificaciones = [];
-    var vistos = {};
     var numeroCedula = Number(cedula);
+    var especificaciones = [
+      { campo: 'cedula', valor: { stringValue: cedula }, tipo: 'STRING' },
+      { campo: 'numeroIdentificacion', valor: { stringValue: cedula }, tipo: 'STRING' }
+    ];
 
-    ['cedula', 'numeroIdentificacion'].forEach(function (campo) {
-      agregarSpec(campo, { stringValue: cedula }, 'STRING');
-
-      if (Number.isSafeInteger(numeroCedula)) {
-        agregarSpec(campo, { integerValue: String(numeroCedula) }, 'NUMBER');
-      }
-    });
-
-    function agregarSpec(campo, value, tipo) {
-      var key = campo + '|' + tipo;
-      if (vistos[key]) return;
-      vistos[key] = true;
-      especificaciones.push({ campo: campo, value: value, tipo: tipo });
+    if (Number.isSafeInteger(numeroCedula)) {
+      especificaciones.push(
+        { campo: 'cedula', valor: { integerValue: String(numeroCedula) }, tipo: 'NUMBER' },
+        { campo: 'numeroIdentificacion', valor: { integerValue: String(numeroCedula) }, tipo: 'NUMBER' }
+      );
     }
 
     var consultas = especificaciones.map(function (spec) {
-      rutasProbadas.push('QUERY:' + spec.campo + ':' + spec.tipo);
+      var ruta = 'IDENTIDAD:' + spec.campo + ':' + spec.tipo;
+      rutasProbadas.push(ruta);
 
-      return ejecutarRunQuery(spec.campo, spec.value, signal)
+      return ejecutarRunQuery(spec.campo, spec.valor, signal)
         .then(function (docs) {
-          return { ok: true, docs: docs || [] };
+          return {
+            ok: true,
+            ruta: ruta,
+            docs: docs || []
+          };
         })
         .catch(function (error) {
-          if (error && (error.codigo === 'PERMISSION_DENIED' || error.codigo === 'UNAUTHENTICATED')) throw error;
-          return { ok: false, docs: [], error: error };
+          if (error && (error.codigo === 'PERMISSION_DENIED' || error.codigo === 'UNAUTHENTICATED')) {
+            throw error;
+          }
+
+          return {
+            ok: false,
+            ruta: ruta,
+            docs: [],
+            error: error
+          };
         });
     });
 
     return Promise.all(consultas).then(function (resultados) {
       var exitosas = resultados.filter(function (item) { return item.ok; });
       var docs = [];
-      var ids = {};
+      var vistos = {};
 
       if (!exitosas.length) {
-        throw crearError('CONSULTA_IDENTIDAD_FALLIDA', 'No se pudo consultar envios por cédula o número de identificación.');
+        throw crearError(
+          'CONSULTA_IDENTIDAD_FALLIDA',
+          'No se pudo consultar envios por cédula o número de identificación.'
+        );
       }
 
       exitosas.forEach(function (resultado) {
         (resultado.docs || []).forEach(function (doc) {
-          var id = doc.id || doc._docId || '';
-          var key = id || JSON.stringify(doc);
-          if (ids[key]) return;
-          ids[key] = true;
+          var id = doc && (doc.id || doc._docId) || '';
+          var key = id || [
+            normalizarCedula(doc && (doc.cedula || doc.numeroIdentificacion)),
+            clavePeriodo(periodoDocumento(doc)),
+            fechaMs(doc && (doc.fechaEnvio || doc.actualizadoEn || doc.actualizadoEnLocal || doc.creadoEn))
+          ].join('|');
+
+          if (vistos[key]) return;
+          vistos[key] = true;
           docs.push(doc);
         });
       });
 
-      var exactos = docs.filter(function (doc) {
+      if (!docs.length) return null;
+
+      var compatibles = docs.filter(function (doc) {
         return periodoCompatibleDocumento(doc, periodoSolicitado, false);
       });
 
-      if (!exactos.length) {
+      /*
+        Compatibilidad legacy:
+        solo aceptamos un registro sin período si es inequívoco para esa identidad.
+        Nunca tomamos automáticamente un registro perteneciente a otro período.
+      */
+      if (!compatibles.length) {
         var sinPeriodo = docs.filter(function (doc) {
           return !limpiar(periodoDocumento(doc));
         });
-        if (docs.length === 1 && sinPeriodo.length === 1) exactos = sinPeriodo;
+
+        if (docs.length === 1 && sinPeriodo.length === 1) {
+          compatibles = sinPeriodo;
+        }
       }
 
-      if (!exactos.length) return null;
+      if (!compatibles.length) return null;
 
-      exactos.sort(function (a, b) {
+      compatibles.sort(function (a, b) {
         return fechaMs(b.fechaEnvio || b.actualizadoEn || b.actualizadoEnLocal || b.creadoEn) -
           fechaMs(a.fechaEnvio || a.actualizadoEn || a.actualizadoEnLocal || a.creadoEn);
       });
 
-      var elegido = exactos[0];
+      var elegido = compatibles[0];
+
       return {
         documentoId: elegido.id || elegido._docId || '',
         ruta: 'QUERY_IDENTIDAD',
@@ -485,10 +539,11 @@
     return value;
   }
 
-  function completarResultado(resultado, inicio, documentoId, ruta, rutasProbadas, periodoCanonico) {
+  function completarResultado(resultado, inicio, documentoId, ruta, rutasProbadas, periodoCanonico, estrategia) {
     return Object.assign({}, resultado, {
       documentoId: documentoId || '',
       ruta: ruta || '',
+      estrategia: estrategia || 'IDENTIDAD_PRIMERO',
       rutasProbadas: (rutasProbadas || []).slice(),
       periodoCanonico: periodoCanonico || '',
       base: cfg.projectId || 'titulos-ec2fa',
