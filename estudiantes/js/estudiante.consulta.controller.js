@@ -118,19 +118,30 @@
 
         state.guardarResultadoConsulta(resultado);
 
-        if (typeof ui.renderStudent === 'function') {
-          ui.renderStudent(resultado.estudiante);
-        }
-
-        actualizarBloqueProceso(4, 'completado', 'Consulta completada', resultado.envioExistente ? 'Seguimiento disponible.' : 'Puedes continuar con el proceso de titulación.');
+        actualizarBloqueProceso(
+          4,
+          'completado',
+          'Consulta completada',
+          resultado.envioExistente ? 'Seguimiento disponible.' : 'Puedes continuar con el proceso de titulación.'
+        );
 
         if (resultado.envioExistente) {
+          /*
+            Si ya existe un envío, no mostramos el Paso 2 como si fuera un registro nuevo.
+            El destino correcto es siempre el seguimiento del título.
+          */
+          ui.hide('#seccionEstudiante');
+          ui.hide('#formPropuestas');
           mostrarSeguimientoSinBloquear(resultado, token);
         } else {
+          if (typeof ui.renderStudent === 'function') {
+            ui.renderStudent(resultado.estudiante);
+          }
+
           window.setTimeout(function () {
             ocultarBloqueProceso();
             if (typeof opciones.onConsultaExitosa === 'function') opciones.onConsultaExitosa(resultado);
-          }, 220);
+          }, 120);
         }
 
         return resultado;
@@ -221,32 +232,49 @@
     var seguimiento = window.TAEstudianteSeguimiento;
 
     if (!seguimiento || typeof seguimiento.mostrar !== 'function') {
-      mostrarErrorProceso('Se encontró el registro, pero el bloque visual de seguimiento no está disponible. Recarga la página.', 4);
+      mostrarErrorProceso(
+        'Se encontró tu registro, pero no se pudo abrir el seguimiento. Recarga la página.',
+        4
+      );
       return;
     }
 
-    /* Primero se muestra el estado actual. El historial nunca bloquea. */
-    window.setTimeout(function () {
+    /*
+      El seguimiento debe abrirse inmediatamente. Antes se esperaba con setTimeout,
+      dejando visible el Paso 2 y permitiendo que el usuario quedara atrapado allí.
+    */
+    try {
       if (token !== consultaToken) return;
       ocultarBloqueProceso();
       seguimiento.mostrar(resultado);
-    }, 180);
+    } catch (error) {
+      console.error('[Estudiantes] No se pudo renderizar el seguimiento:', error);
+      mostrarErrorProceso(
+        'Se encontró tu registro, pero ocurrió un error al mostrar el seguimiento. Recarga la página.',
+        4
+      );
+      return;
+    }
 
+    /* El historial se completa después y nunca bloquea la pantalla principal. */
     if (typeof seguimiento.cargar !== 'function') return;
 
-    window.setTimeout(function () {
-      conTimeout(
-        seguimiento.cargar(resultado.envioExistente, resultado.estudiante),
-        TIMEOUT_HISTORIAL_MS,
-        'El historial tardó demasiado.'
-      ).then(function (data) {
-        if (token !== consultaToken || !data) return;
-        resultado.seguimiento = data;
+    conTimeout(
+      seguimiento.cargar(resultado.envioExistente, resultado.estudiante),
+      TIMEOUT_HISTORIAL_MS,
+      'El historial tardó demasiado.'
+    ).then(function (data) {
+      if (token !== consultaToken || !data) return;
+      resultado.seguimiento = data;
+
+      try {
         seguimiento.mostrar(resultado);
-      }).catch(function (error) {
-        console.warn('[Estudiantes] Historial omitido sin interrumpir el seguimiento:', error);
-      });
-    }, 0);
+      } catch (error) {
+        console.warn('[Estudiantes] El seguimiento ya está visible; se omitió el refresco del historial:', error);
+      }
+    }).catch(function (error) {
+      console.warn('[Estudiantes] Historial omitido sin interrumpir el seguimiento:', error);
+    });
   }
 
   function asegurarFirebase() {
