@@ -7,7 +7,7 @@
     databaseId: '(default)',
     collection: 'envios',
     apiKey: 'AIzaSyDkSOhJ552LwxQtt8GhP5iDJk49y0t4mOg',
-    timeoutMs: 7000,
+    timeoutMs: 4000,
     firestoreRestBase: 'https://firestore.googleapis.com/v1'
   });
 })();
