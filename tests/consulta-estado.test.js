@@ -181,7 +181,7 @@ async function run() {
     const result = await service.consultar(periodo, cedula);
     assert.strictEqual(result.encontrado, true);
     assert.strictEqual(result.ruta, 'QUERY_IDENTIDAD');
-    assert.strictEqual(result.estrategia, 'IDENTIDAD_PRIMERO');
+    assert.strictEqual(result.estrategia, 'FALLBACK_IDENTIDAD');
 
     const estados = calcularEstados(result.envio);
     assert.strictEqual(estados.canonico, 'COORDINACION_PENDIENTE');
@@ -283,24 +283,30 @@ async function run() {
   {
     const docs = [
       {
-        id: 'antiguo',
+        id: 'actualizado-por-investigacion',
+        cedula,
+        periodoId: periodo,
+        estado: 'APROBADO_FINAL',
+        estadoProceso: 'APROBADO_FINAL',
+        fechaEnvio: '2026-09-20T12:00:00.000Z',
+        actualizadoEn: '2026-10-07T20:00:00.000Z'
+      },
+      {
+        id: 'envio-mas-nuevo-pero-sin-revision',
         cedula,
         periodoId: periodo,
         estado: 'PENDIENTE_REVISION',
-        fechaEnvio: '2026-09-20T12:00:00.000Z'
-      },
-      {
-        id: 'reciente',
-        cedula,
-        periodoId: periodo,
-        estado: 'PENDIENTE_INVESTIGADOR',
-        estadoCoordinador: 'VALIDADO',
-        fechaEnvio: '2026-10-05T12:00:00.000Z'
+        fechaEnvio: '2026-10-05T12:00:00.000Z',
+        actualizadoEn: '2026-10-05T12:00:00.000Z'
       }
     ];
     const service = loadConsultaService(docs);
     const result = await service.consultar(periodo, cedula);
-    assert.strictEqual(result.documentoId, 'reciente', 'Debe elegir el registro compatible más reciente');
+    assert.strictEqual(
+      result.documentoId,
+      'actualizado-por-investigacion',
+      'El fallback debe priorizar la actualización más reciente del proceso, no solo fechaEnvio.'
+    );
   }
 
   {
@@ -314,8 +320,8 @@ async function run() {
     const service = loadConsultaService([doc]);
     const result = await service.consultar(periodo, cedula);
     assert.strictEqual(result.encontrado, true);
-    assert.strictEqual(result.estrategia, 'FALLBACK_ID');
-    assert.strictEqual(result.ruta, 'ID_DIRECTO');
+    assert.strictEqual(result.estrategia, 'ID_EXACTO_PRIMERO');
+    assert.strictEqual(result.ruta, 'ID_EXACTO');
   }
 
   {
@@ -330,7 +336,7 @@ async function run() {
     assert.strictEqual(error.codigo, 'PERMISSION_DENIED');
   }
 
-  console.log('OK consulta-estado: 8 escenarios de regresión aprobados.');
+  console.log('OK consulta-estado: ID exacto primero, fallback legacy y 8 escenarios aprobados.');
 }
 
 run().catch((error) => {
