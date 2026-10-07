@@ -28,6 +28,8 @@
       nombreCarrera: estudiante.nombreCarrera || estudiante.carrera || '',
       periodoId: periodoId,
       periodoLabel: estudiante.periodoLabel || '',
+      modalidadTitulacion: estudiante.modalidad || '',
+      tipoTrabajo: detectarTipoTrabajo(estudiante.modalidad || ''),
       estado: 'ENVIADO',
       contacto: {
         telegram: formData.telegram || ''
@@ -173,6 +175,18 @@
     }
 
     return null;
+  }
+
+
+  function detectarTipoTrabajo(valor) {
+    var texto = String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase();
+
+    if (texto.indexOf('ARTIC') !== -1) return 'ARTICULO';
+    if (texto.indexOf('TRABAJO') !== -1 && texto.indexOf('TITUL') !== -1) return 'TRABAJO_TITULACION';
+    return '';
   }
 
   function obtenerPeriodo(estudiante, appConfig) {
