@@ -274,13 +274,16 @@
       codigoCarrera: limpiar(data.carreraCodigo || data.codigoCarrera || ''),
       periodoId: limpiar(data.periodoId || data.periodoCanonicoId || data.periodo || ''),
       periodoLabel: limpiar(data.periodoNombre || data.periodoLabel || data.periodoId || ''),
-      tipoTrabajo: normalizarTipoTrabajo(data.tipoTrabajo || data.tipoTrabajoLabel || data.tipo || ''),
+      tipoTrabajo: normalizarTipoTrabajo(data.tipoTrabajo || data.tipoTrabajoLabel || data.modalidadTitulacion || data.modalidad || data.tipo || ''),
       estado: estadoGeneral,
       estadoProceso: estadoProceso,
       estadoCoordinador: estadoCoord,
       estadoInvestigador: estadoInv,
       revisionCoordinador: revisionCoord,
       revisionInvestigador: data.revisionInvestigador || null,
+      tituloCoordinadorNumero: Number(data.tituloCoordinadorNumero || (revisionCoord && revisionCoord.tituloSeleccionadoNumero) || 0),
+      tituloCoordinador: limpiar(data.tituloCoordinador || (revisionCoord && revisionCoord.tituloSeleccionadoTexto) || ''),
+      resultadoCoordinador: limpiar(data.resultadoCoordinador || (revisionCoord && revisionCoord.resultado) || ''),
       tituloPreferidoNumero: preferido,
       tituloPreferidoTexto: limpiar(data.tituloPreferidoTexto || data.tituloElegido || data.tituloCoordinador || propuestaPreferida.tituloFinal || ''),
       titulosEnviados: propuestas,
@@ -312,7 +315,7 @@
 
   function normalizarTipoTrabajo(value) {
     var texto = normalizarComparacion(value);
-    if (!texto) return { id: 'SIN_TIPO', label: 'Sin tipo' };
+    if (!texto) return { id: 'SIN_TIPO', label: 'No registrado' };
     if (texto.indexOf('ARTIC') !== -1) return { id: 'ARTICULO', label: 'Artículo académico' };
     if (texto.indexOf('TRABAJO') !== -1 || texto.indexOf('TITULACION') !== -1) return { id: 'TRABAJO_TITULACION', label: 'Trabajo de Titulación' };
     return { id: texto.replace(/\s+/g, '_'), label: limpiar(value) };
