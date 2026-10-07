@@ -26,6 +26,7 @@ const loader = read('estudiantes/estudiante-loader.html');
 const index = read('estudiantes/index.html');
 const repo = read('estudiantes/js/estudiante.repository.js');
 const controller = read('estudiantes/js/estudiante.consulta.controller.js');
+const firebaseService = read('estudiantes/js/firebase.service.js');
 const consultaConfig = read('consulta-estado/consulta.config.js');
 const consultaApp = read('consulta-estado/consulta.app.js');
 const workflow = read('.github/workflows/pages.yml');
@@ -65,7 +66,18 @@ eliminados.forEach((rel) => {
 
 assert(html.includes('../consulta-estado/consulta.config.js'), 'Estudiantes debe cargar consulta.config.js directamente');
 assert(html.includes('../consulta-estado/consulta.service.js'), 'Estudiantes debe cargar consulta.service.js directamente');
-assert(controller.includes('window.TAConsultaEstadoService'), 'Controlador debe usar TAConsultaEstadoService directamente');
+assert(
+  controller.includes('repository.consultarEnvio'),
+  'El controlador debe delegar la lectura optimizada al repository.'
+);
+assert(
+  repo.includes('ID_EXACTO_PRIMERO') && repo.includes('leerDocumentoServidor'),
+  'Repository debe leer primero envios/{periodo__cedula} desde el servidor.'
+);
+assert(
+  firebaseService.includes('function leerDocumentoServidor'),
+  'Firebase service debe ofrecer una lectura fresca desde servidor.'
+);
 assert.strictEqual(loader.includes('document.write'), false, 'Loader no debe volver a usar document.write');
 assert.strictEqual(html.includes('shared/css/base.css'), false, 'No debe existir referencia al CSS inexistente base.css');
 
