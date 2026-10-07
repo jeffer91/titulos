@@ -215,10 +215,8 @@
         var pendientes = titulos.filter(esPendiente).length;
         mensaje(
           'revisionMensaje',
-          pendientes
-            ? pendientes + ' expediente' + (pendientes === 1 ? '' : 's') + ' pendiente' + (pendientes === 1 ? '' : 's') + ' de revisión.'
-            : 'No hay expedientes pendientes de revisión.',
-          pendientes ? 'success' : 'info'
+          pendientes ? '' : 'No hay expedientes pendientes de revisión.',
+          pendientes ? '' : 'info'
         );
       })
       .catch(function (error) {
@@ -271,8 +269,7 @@
       var primer = grupo.items[0];
 
       tr.innerHTML =
-        '<td><div class="career-name"><strong>' + escapeHtml(grupo.carrera) + '</strong>' +
-        '<span>' + grupo.items.length + ' por revisar</span></div></td>' +
+        '<td><div class="career-name"><strong>' + escapeHtml(grupo.carrera) + '</strong></div></td>' +
         '<td class="text-center"><span class="queue-count">' + grupo.items.length + '</span></td>' +
         '<td><span class="queue-date">' + escapeHtml(formatearFecha(primer.fechaColaInvestigacion || primer.fechaEnvio)) + '</span></td>' +
         '<td class="text-right"></td>';
@@ -280,7 +277,7 @@
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'btn btn--primary btn--compact';
-      button.textContent = 'Ingresar →';
+      button.textContent = 'Revisar →';
       button.addEventListener('click', function () {
         entrarCarrera(grupo.carrera);
       });
@@ -309,7 +306,9 @@
       grupo.items.sort(compararPorEnvio);
       return grupo;
     }).sort(function (a, b) {
-      if (b.items.length !== a.items.length) return b.items.length - a.items.length;
+      var fechaA = Number(a.items[0] && a.items[0].fechaColaMs || Number.MAX_SAFE_INTEGER);
+      var fechaB = Number(b.items[0] && b.items[0].fechaColaMs || Number.MAX_SAFE_INTEGER);
+      if (fechaA !== fechaB) return fechaA - fechaB;
       return a.carrera.localeCompare(b.carrera);
     });
   }
@@ -522,10 +521,10 @@
       return new Intl.DateTimeFormat('es-EC', {
         day: '2-digit',
         month: 'short',
-        year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
-      }).format(fecha);
+        minute: '2-digit',
+        hour12: false
+      }).format(fecha).replace(',', ' ·');
     } catch (error) {
       return 'Sin fecha';
     }
@@ -535,11 +534,24 @@
     var texto = limpiar(valor);
     if (!texto) return 'Sin período';
 
+    var match = texto.match(/(\d{4})[-_](\d{2}).*?(\d{4})[-_](\d{2})/);
+    if (match) {
+      return nombreMes(Number(match[2])) + ' ' + match[1] + ' – ' + nombreMes(Number(match[4])) + ' ' + match[3];
+    }
+
     return texto
       .replace(/_/g, ' ')
       .replace(/\bA\b/i, 'a')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  function nombreMes(numero) {
+    var meses = [
+      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    return meses[numero] || String(numero || '');
   }
 
   function salir() {
