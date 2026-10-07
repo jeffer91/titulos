@@ -4,15 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Investigadores | Revisión de títulos</title>
-  <link rel="stylesheet" href="css/investigador.css?v=4.2.0" />
+  <link rel="stylesheet" href="css/investigador.css?v=4.3.0" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
-  <nav class="top-nav" aria-label="Navegación principal">
-    <a href="../index.html">Inicio</a>
-    <span>Segunda revisión · Investigadores</span>
-  </nav>
-
   <header class="app-header">
     <div>
       <span class="eyebrow">ITSQMET · Titulación</span>
@@ -27,7 +22,7 @@
       <div class="access-intro">
         <span class="step">Acceso seguro</span>
         <h2 id="accesoTitulo">Ingresa tu cédula</h2>
-        <p id="accesoAyuda">En tu primer ingreso podrás crear un PIN. El acceso quedará pendiente hasta que Administración lo active.</p>
+        <p id="accesoAyuda">Identifícate con tu cédula e ingresa el PIN asignado.</p>
       </div>
 
       <form id="formIdentificacion" class="access-form" autocomplete="off">
@@ -61,9 +56,9 @@
       </form>
 
       <div class="pending-box is-hidden" id="panelPendiente">
-        <strong>PIN creado · pendiente de activación</strong>
-        <p>Administración debe activar tu PIN antes de que puedas ingresar. No necesitas crear otro.</p>
-        <button class="btn btn--secondary" type="button" id="btnRevisarActivacion">Revisar activación</button>
+        <strong>PIN registrado</strong>
+        <p>Ingresa tu PIN para validar el acceso.</p>
+        <button class="btn btn--secondary" type="button" id="btnRevisarActivacion">Volver a validar</button>
       </div>
 
       <div class="message" id="accesoMensaje" role="status" aria-live="polite"></div>
@@ -107,9 +102,9 @@
   </main>
 
   <script src="../administradores/js/firebase.config.js"></script>
-  <script src="js/app.config.js"></script>
+  <script src="js/app.config.js?v=4.3.0"></script>
   <script src="../administradores/js/firebase.service.js"></script>
-  <script src="js/investigador.repository.js?v=4.2.0"></script>
-  <script src="js/investigador.app.js?v=4.2.0"></script>
+  <script src="js/investigador.repository.js?v=4.3.0"></script>
+  <script src="js/investigador.app.js?v=4.3.0"></script>
 </body>
 </html>
