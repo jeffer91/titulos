@@ -228,7 +228,7 @@
 
   function ejecutarConTimeoutGlobal(ejecutor) {
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timeoutMs = Number(cfg.timeoutMs || 4200);
+    var timeoutMs = Number(cfg.timeoutMs || 7000);
     var timer = null;
 
     if (controller) {
@@ -313,7 +313,7 @@
     var fields = doc && doc.fields ? doc.fields : {};
     var data = decodificarMapa(fields);
     var name = limpiar(doc && doc.name);
-    var id = name ? name.split('/').pop() : '';
+    var id = name ? decodeURIComponent(name.split('/').pop() || '') : '';
 
     data.id = data.id || id;
     data._docId = id;
@@ -324,7 +324,7 @@
     var salida = {};
     var permitidos = [
       'id', '_docId', 'cedula', 'numeroIdentificacion', 'nombres', 'nombreCompleto',
-      'carrera', 'carreraNombre', 'carreraCodigo', 'periodoId', 'periodoCanonicoId', 'periodoNombre',
+      'carrera', 'nombreCarrera', 'carreraNombre', 'carreraCodigo', 'periodoId', 'periodoCanonicoId', 'periodoNombre', 'periodoLabel',
       'estado', 'estadoProceso', 'estadoCoordinador', 'estadoInvestigador',
       'resultadoCoordinador', 'resultadoInvestigacion', 'requiereAccionDe', 'requiereRevision',
       'validadoCoordinador', 'validadoCoordinacion', 'coordinadorRevisado', 'investigacionRevisada',
@@ -333,7 +333,7 @@
       'comentarioCoordinador', 'comentarioInvestigador', 'observacionDevolucion', 'observacionInvestigacion',
       'devueltoPor', 'permitirReenvio', 'puedeReenviar', 'intentosUsados', 'numeroEnvios', 'numeroReenvios',
       'versionActual', 'fechaEnvio', 'fechaValidacionCoordinador', 'fechaResolucionInvestigacion',
-      'fechaRevisionCoordinador', 'fechaRevisionInvestigador', 'actualizadoEn', 'creadoEn'
+      'fechaRevisionCoordinador', 'fechaRevisionInvestigador', 'actualizadoEn', 'actualizadoEnLocal', 'creadoEn',\n      'tipoTrabajo', 'tipoTrabajoId', 'tipoTrabajoLabel', 'modalidadTitulacion'
     ];
 
     permitidos.forEach(function (key) {
@@ -368,13 +368,93 @@
     if (!revision || typeof revision !== 'object') return {};
     var salida = {};
     [
-      'estado', 'resultado', 'responsable', 'nombre', 'nombres', 'coordinador', 'investigador',
+      'estado', 'resultado', 'responsable', 'nombre', 'nombres', 'coordinador', 'investigador',\n      'coordinadorNombre', 'coordinadorEmail', 'investigadorNombre', 'investigadorEmail',
       'comentario', 'observacion', 'tituloSeleccionadoTexto', 'tituloSeleccionadoNumero',
-      'tituloFinal', 'fecha', 'fechaRevision', 'fechaValidacion', 'fechaResolucion'
+      'tituloFinal', 'fecha', 'fechaLocal', 'fechaRevision', 'fechaValidacion', 'fechaResolucion'
     ].forEach(function (key) {
       if (Object.prototype.hasOwnProperty.call(revision, key)) salida[key] = revision[key];
     });
     return salida;
+  }
+
+  function periodoCompatibleDocumento(doc, periodoSolicitado, permitirSinPeriodo) {
+    var delDocumento = periodoDocumento(doc);
+    if (!limpiar(delDocumento)) return Boolean(permitirSinPeriodo);
+    return periodosEquivalentes(delDocumento, periodoSolicitado);
+  }
+
+  function periodoDocumento(doc) {
+    doc = doc || {};
+    return doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || doc.periodoLabel ||
+      (doc.periodo && typeof doc.periodo === 'object' && (doc.periodo.id || doc.periodo.label)) ||
+      doc.periodo || '';
+  }
+
+  function construirVariantesPeriodo(value) {
+    var raw = limpiar(value);
+    var canon = clavePeriodo(raw);
+    var salida = [];
+
+    agregarUnico(salida, raw);
+    agregarUnico(salida, canon);
+
+    var fechas = raw.match(/\d{4}-\d{2}/g) || [];
+    if (fechas.length >= 2) {
+      agregarUnico(salida, fechas[0] + '__' + fechas[1]);
+      agregarUnico(salida, fechas[0] + '_' + fechas[1]);
+      agregarUnico(salida, fechas[0] + '-' + fechas[1]);
+      agregarUnico(salida, fechas[0] + ' ' + fechas[1]);
+    }
+
+    return salida.filter(Boolean);
+  }
+
+  function periodosEquivalentes(a, b) {
+    var claveA = clavePeriodo(a);
+    var claveB = clavePeriodo(b);
+
+    if (!claveA || !claveB) return false;
+    if (claveA === claveB) return true;
+    if (/^\d{4}-\d{2}$/.test(claveA) && claveB.indexOf(claveA + '__') === 0) return true;
+    if (/^\d{4}-\d{2}$/.test(claveB) && claveA.indexOf(claveB + '__') === 0) return true;
+
+    return false;
+  }
+
+  function clavePeriodo(value) {
+    var raw = value && typeof value === 'object'
+      ? (value.id || value.periodoId || value.label || value.periodoLabel || '')
+      : value;
+    var texto = limpiar(raw);
+    var fechas = texto.match(/\d{4}-\d{2}/g) || [];
+
+    if (fechas.length >= 2) return fechas[0] + '__' + fechas[1];
+    if (fechas.length === 1 && /^\s*\d{4}-\d{2}\s*$/.test(texto)) return fechas[0];
+
+    var normal = texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Za-z0-9]+/g, ' ')
+      .trim()
+      .toUpperCase();
+
+    var meses = {
+      ENERO: '01', FEBRERO: '02', MARZO: '03', ABRIL: '04',
+      MAYO: '05', JUNIO: '06', JULIO: '07', AGOSTO: '08',
+      SEPTIEMBRE: '09', SETIEMBRE: '09', OCTUBRE: '10',
+      NOVIEMBRE: '11', DICIEMBRE: '12'
+    };
+    var patron = /(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(\d{4})/g;
+    var partes = [];
+    var match;
+
+    while ((match = patron.exec(normal)) !== null) {
+      partes.push(match[2] + '-' + meses[match[1]]);
+      if (partes.length === 2) break;
+    }
+
+    if (partes.length === 2) return partes[0] + '__' + partes[1];
+    return normal;
   }
 
   function decodificarMapa(map) {
@@ -403,10 +483,14 @@
     return value;
   }
 
-  function completarResultado(resultado, inicio, documentoId, ruta) {
+  function completarResultado(resultado, inicio, documentoId, ruta, rutasProbadas, periodoCanonico) {
     return Object.assign({}, resultado, {
-      documentoId: documentoId,
-      ruta: ruta,
+      documentoId: documentoId || '',
+      ruta: ruta || '',
+      rutasProbadas: (rutasProbadas || []).slice(),
+      periodoCanonico: periodoCanonico || '',
+      base: cfg.projectId || 'titulos-ec2fa',
+      coleccion: cfg.collection || 'envios',
       duracionMs: Date.now() - inicio
     });
   }
@@ -446,6 +530,18 @@
   function normalizarCedula(value) {
     var cedula = String(value || '').replace(/\D/g, '');
     return cedula.length === 9 ? '0' + cedula : cedula;
+  }
+
+  function fechaMs(value) {
+    if (!value) return 0;
+    if (value && typeof value.seconds === 'number') return Number(value.seconds) * 1000;
+    var ms = new Date(value).getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  }
+
+  function agregarUnico(lista, value) {
+    var texto = limpiar(value);
+    if (texto && lista.indexOf(texto) === -1) lista.push(texto);
   }
 
   function limpiar(value) {
