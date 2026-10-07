@@ -71,12 +71,18 @@ assert(
   'El controlador debe delegar la lectura optimizada al repository.'
 );
 assert(
-  repo.includes('ID_EXACTO_PRIMERO') && repo.includes('leerDocumentoServidor'),
-  'Repository debe leer primero envios/{periodo__cedula} desde el servidor.'
+  repo.includes("motor: 'REST_DIRECTO'") && repo.includes('service.consultar(periodoId, cedulaIngresada)'),
+  'Repository debe consultar el estado exclusivamente mediante REST.'
 );
-assert(
+assert.strictEqual(
+  repo.includes('leerDocumentoServidor'),
+  false,
+  'Repository no debe volver a leer envios mediante Firestore SDK.'
+);
+assert.strictEqual(
   firebaseService.includes('function leerDocumentoServidor'),
-  'Firebase service debe ofrecer una lectura fresca desde servidor.'
+  false,
+  'La lectura SDK especial de envios debe permanecer eliminada.'
 );
 assert.strictEqual(loader.includes('document.write'), false, 'Loader no debe volver a usar document.write');
 assert.strictEqual(html.includes('shared/css/base.css'), false, 'No debe existir referencia al CSS inexistente base.css');
