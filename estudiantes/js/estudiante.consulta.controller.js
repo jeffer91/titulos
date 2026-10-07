@@ -22,7 +22,8 @@
     var ui = window.TAEstudianteUI;
     var validaciones = window.TAEstudianteValidaciones;
     var state = window.TAEstudianteState;
-    var repository = window.TAEstudianteRepository;\n    var bridgeTitulos = window.TAConsultaEstadoBridge;
+    var repository = window.TAEstudianteRepository;
+    var bridgeTitulos = window.TAConsultaEstadoBridge;
     var inputCedula;
     var cedulaOriginal;
     var resultadoCedula;
