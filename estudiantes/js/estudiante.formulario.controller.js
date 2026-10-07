@@ -29,6 +29,46 @@
       return;
     }
 
+    /*
+      Un envío existente se muestra en seguimiento. El formulario solo puede
+      abrirse si el propio estudiante pulsa "Corregir mis títulos" sobre un
+      expediente devuelto y el registro permite reenvío.
+    */
+    if (
+      datos.envioExistente &&
+      datos.forzarReenvio !== true
+    ) {
+      var seguimiento = window.TAEstudianteSeguimiento;
+
+      if (seguimiento && typeof seguimiento.mostrar === 'function') {
+        seguimiento.mostrar({
+          estudiante: datos.estudiante || estado.estudiante || {},
+          appConfig: datos.appConfig || estado.appConfig || {},
+          envioExistente: datos.envioExistente,
+          seguimiento: {
+            envio: datos.envioExistente,
+            estudiante: datos.estudiante || estado.estudiante || {},
+            versiones: [],
+            eventos: [],
+            historialProceso: Array.isArray(datos.envioExistente.historialProceso)
+              ? datos.envioExistente.historialProceso.slice()
+              : []
+          },
+          modoConsulta: 'SEGUIMIENTO'
+        });
+      }
+
+      return;
+    }
+
+    if (
+      datos.envioExistente &&
+      datos.forzarReenvio === true &&
+      !(datos.envioExistente.puedeReenviar === true || datos.envioExistente.permitirReenvio === true)
+    ) {
+      return;
+    }
+
     limpiarFormularioVisual();
 
     if (datos.estudiante && typeof ui.renderStudent === 'function') {
