@@ -21,8 +21,8 @@
     var finalCard = panel.querySelector('.seguimiento-section--final');
     var selectedCard = panel.querySelector('.seguimiento-section--selected');
     var studentGrid = panel.querySelector('.seguimiento-student-grid');
-    var proposalsSection = buscarSeccion(panel, 'Tus propuestas');
-    var historySection = buscarSeccion(panel, 'Versiones y movimientos anteriores');
+    var proposalsSection = buscarSeccion(panel, 'Tus títulos');
+    var historySection = buscarSeccion(panel, 'Historial');
 
     panel.classList.add('seguimiento-v3');
 
