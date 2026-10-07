@@ -237,16 +237,19 @@
   function guardarDocumento(collectionName, documentId, data, options) {
     var merge = Boolean(options && options.merge);
     if (!collectionName || !documentId) return Promise.reject(new Error('No se pudo guardar: colección o documento inválido.'));
+    asegurarColeccionTitulos(collectionName);
     return getDbTitulos().collection(collectionName).doc(String(documentId)).set(agregarFechas(data || {}, merge), { merge: merge });
   }
 
   function actualizarDocumento(collectionName, documentId, data) {
     if (!collectionName || !documentId) return Promise.reject(new Error('No se pudo actualizar: colección o documento inválido.'));
+    asegurarColeccionTitulos(collectionName);
     return getDbTitulos().collection(collectionName).doc(String(documentId)).update(Object.assign({}, data || {}, { actualizadoEn: serverTimestamp() }));
   }
 
   function agregarDocumento(collectionName, data) {
     if (!collectionName) return Promise.reject(new Error('No se pudo agregar: colección inválida.'));
+    asegurarColeccionTitulos(collectionName);
     return getDbTitulos().collection(collectionName).add(agregarFechas(data || {}, false));
   }
 
