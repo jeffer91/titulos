@@ -22,7 +22,7 @@
     var ui = window.TAEstudianteUI;
     var validaciones = window.TAEstudianteValidaciones;
     var state = window.TAEstudianteState;
-    var repository = window.TAEstudianteRepository;
+    var repository = window.TAEstudianteRepository;\n    var bridgeTitulos = window.TAConsultaEstadoBridge;
     var inputCedula;
     var cedulaOriginal;
     var resultadoCedula;
@@ -38,7 +38,7 @@
 
     if (event && event.preventDefault) event.preventDefault();
 
-    if (!ui || !validaciones || !state || !repository) {
+    if (!ui || !validaciones || !state || !repository || !bridgeTitulos) {
       mostrarErrorDependencias();
       return Promise.resolve(null);
     }
@@ -94,22 +94,47 @@
         actualizarBloqueProceso(3, 'trabajando', 'Consultando estado del título', 'Consultando tu envío en la base de Títulos para el período ' + (estudiante.periodoLabel || estudiante.periodoId || '') + '.');
 
         return conTimeout(
-          repository.consultarEnvio(estudiante.periodoId, estudiante.cedula || resultadoCedula.data),
+          consultarEstadoTituloAislado(
+            estudiante.periodoId,
+            estudiante.cedula || resultadoCedula.data,
+            bridgeTitulos
+          ),
           TIMEOUT_TITULO_MS,
-          'No se pudo confirmar el estado del título a tiempo. Intenta nuevamente.'
+          'El motor independiente de Títulos no respondió a tiempo. Intenta nuevamente.'
         );
       })
-      .then(function (envio) {
+      .then(function (resultadoTitulo) {
+        var envio;
+
         if (token !== consultaToken) throw crearErrorCancelado();
 
-        contexto.envio = envio || null;
+        resultadoTitulo = resultadoTitulo || {};
+        envio = resultadoTitulo.envio || null;
+        contexto.envio = envio;
+        contexto.diagnosticoTitulos = resultadoTitulo.diagnostico || null;
+
         actualizarBloqueProceso(
           3,
           'completado',
           envio ? 'Registro de título encontrado' : 'Sin envío previo',
-          envio ? 'Se encontró el registro actual del estudiante.' : 'No existe un envío previo para esta cédula y período.'
+          envio
+            ? 'El motor independiente encontró el registro en titulos-ec2fa / envios.'
+            : 'El motor independiente no encontró un envío compatible para esta cédula y período.'
         );
-        actualizarBloqueProceso(4, 'trabajando', 'Preparando resultado', envio ? 'Mostrando seguimiento de titulación.' : 'Habilitando el siguiente bloque del proceso.');
+
+        mostrarDiagnosticoTitulos(
+          contexto.diagnosticoTitulos,
+          estudiante,
+          estudiante.cedula || resultadoCedula.data,
+          envio ? 'ENCONTRADO' : 'NO_ENCONTRADO'
+        );
+
+        actualizarBloqueProceso(
+          4,
+          'trabajando',
+          'Preparando resultado',
+          envio ? 'Mostrando seguimiento de titulación.' : 'Habilitando el siguiente bloque del proceso.'
+        );
 
         return construirResultado(contexto);
       })
@@ -158,11 +183,62 @@
           determinarPasoError(contexto)
         );
 
+        if (determinarPasoError(contexto) === 3) {
+          mostrarDiagnosticoTitulos(
+            error && error.diagnostico || contexto.diagnosticoTitulos,
+            contexto.estudiante,
+            resultadoCedula.data,
+            error && error.codigo || 'ERROR_CONSULTA',
+            error
+          );
+        }
+
         return null;
       })
       .finally(function () {
         ui.setLoading(button, false);
       });
+  }
+
+  function consultarEstadoTituloAislado(periodoId, cedula, bridge) {
+    if (!bridge || typeof bridge.consultar !== 'function') {
+      return Promise.reject(crearError(
+        'MOTOR_TITULOS_NO_DISPONIBLE',
+        'No se pudo iniciar el motor independiente de consulta de Títulos.'
+      ));
+    }
+
+    return bridge.consultar({
+      periodoId: periodoId,
+      cedula: cedula
+    }).then(function (respuesta) {
+      if (!respuesta || respuesta.ok === false) {
+        var error = crearError(
+          respuesta && respuesta.error && respuesta.error.codigo || 'CONSULTA_TITULOS_ERROR',
+          respuesta && respuesta.error && respuesta.error.mensaje || 'No se pudo consultar la base de Títulos.'
+        );
+        error.diagnostico = respuesta && respuesta.diagnostico || null;
+        throw error;
+      }
+
+      return {
+        envio: respuesta.encontrado ? (respuesta.envio || null) : null,
+        diagnostico: respuesta.diagnostico || {
+          base: 'titulos-ec2fa',
+          coleccion: 'envios'
+        }
+      };
+    }).catch(function (error) {
+      if (error && !error.diagnostico) {
+        error.diagnostico = {
+          base: 'titulos-ec2fa',
+          coleccion: 'envios',
+          periodoCanonico: String(periodoId || ''),
+          duracionMs: 0
+        };
+      }
+      throw error;
+    });
   }
 
   function cargarConfiguracionSegura(repository) {
@@ -441,6 +517,10 @@
         pasoHtml(3, 'Estado del título'),
         pasoHtml(4, 'Resultado'),
       '</div>',
+      '<details class="consulta-bloque__diagnostico is-hidden" data-proceso-diagnostico>',
+        '<summary>Detalles de la consulta de títulos</summary>',
+        '<pre data-diagnostico-texto></pre>',
+      '</details>',
       '<div class="consulta-bloque__error is-hidden" data-proceso-error></div>',
       '<button type="button" class="btn btn--secondary consulta-bloque__retry is-hidden" data-proceso-retry>Reintentar consulta</button>'
     ].join('');
@@ -494,11 +574,55 @@
       '.consulta-bloque__error{margin-top:12px;padding:10px 12px;border-radius:10px;background:#fff1f1;color:#9e2525;font-size:.84rem;font-weight:700}',
       '.consulta-bloque__error.is-hidden,.consulta-bloque__retry.is-hidden{display:none}',
       '.consulta-bloque__retry{margin-top:10px}',
+      '.consulta-bloque__diagnostico{margin-top:12px;border:1px solid #c9dff3;border-radius:12px;background:#fff;overflow:hidden}',
+      '.consulta-bloque__diagnostico.is-hidden{display:none}',
+      '.consulta-bloque__diagnostico summary{cursor:pointer;padding:10px 12px;font-size:.8rem;font-weight:850;color:#17324d;background:#f5f9fd}',
+      '.consulta-bloque__diagnostico pre{margin:0;padding:11px 12px;white-space:pre-wrap;word-break:break-word;font:600 .74rem/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;color:#425b73;background:#fff}',
       '@media(max-width:760px){.consulta-bloque__pasos{grid-template-columns:1fr 1fr}}',
       '@media(max-width:460px){.consulta-bloque{padding:14px}.consulta-bloque__pasos{grid-template-columns:1fr}}'
     ].join('');
 
     document.head.appendChild(style);
+  }
+
+  function mostrarDiagnosticoTitulos(diagnostico, estudiante, cedula, resultado, error) {
+    var bloque = obtenerBloqueProceso();
+    var details = bloque.querySelector('[data-proceso-diagnostico]');
+    var pre = bloque.querySelector('[data-diagnostico-texto]');
+    var info = diagnostico || {};
+    var lineas = [
+      'Base: ' + (info.base || 'titulos-ec2fa'),
+      'Colección: ' + (info.coleccion || 'envios'),
+      'Cédula: ' + String(cedula || (estudiante && estudiante.cedula) || ''),
+      'Período: ' + String(info.periodoCanonico || (estudiante && estudiante.periodoId) || ''),
+      'Resultado: ' + String(resultado || 'SIN_RESULTADO'),
+      'Ruta: ' + String(info.ruta || '—'),
+      'Documento: ' + String(info.documentoId || '—'),
+      'Tiempo: ' + String(info.duracionMs || 0) + ' ms'
+    ];
+
+    if (Array.isArray(info.rutasProbadas) && info.rutasProbadas.length) {
+      lineas.push('Rutas probadas: ' + info.rutasProbadas.join(' → '));
+    }
+
+    if (error && error.message) {
+      lineas.push('Mensaje: ' + String(error.message));
+    }
+
+    if (pre) pre.textContent = lineas.join('\n');
+    if (details) details.classList.remove('is-hidden');
+  }
+
+  function limpiarDiagnosticoTitulos() {
+    var bloque = obtenerBloqueProceso();
+    var details = bloque.querySelector('[data-proceso-diagnostico]');
+    var pre = bloque.querySelector('[data-diagnostico-texto]');
+
+    if (details) {
+      details.classList.add('is-hidden');
+      details.removeAttribute('open');
+    }
+    if (pre) pre.textContent = '';
   }
 
   function mostrarErrorCedula(mensaje) {
