@@ -557,13 +557,25 @@
   function periodosEquivalentes(a, b) {
     var claveA = clavePeriodo(a);
     var claveB = clavePeriodo(b);
-    return Boolean(claveA && claveB && claveA === claveB);
+
+    if (!claveA || !claveB) return false;
+    if (claveA === claveB) return true;
+
+    /*
+      Compatibilidad con registros históricos que guardaron únicamente
+      el mes inicial, por ejemplo 2026-04 frente a 2026-04__2026-09.
+    */
+    if (/^\d{4}-\d{2}$/.test(claveA) && claveB.indexOf(claveA + '__') === 0) return true;
+    if (/^\d{4}-\d{2}$/.test(claveB) && claveA.indexOf(claveB + '__') === 0) return true;
+
+    return false;
   }
 
   function clavePeriodo(value) {
     var texto = limpiarTexto(value);
     var fechas = texto.match(/\d{4}-\d{2}/g) || [];
     if (fechas.length >= 2) return fechas[0] + '__' + fechas[1];
+    if (fechas.length === 1 && /^\s*\d{4}-\d{2}\s*$/.test(texto)) return fechas[0];
 
     var normal = texto
       .normalize('NFD')
