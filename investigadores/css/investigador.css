@@ -438,3 +438,304 @@ textarea { resize: vertical; }
     padding: 11px;
   }
 }
+
+
+/* =========================================================
+   Vista compacta 4.5 · tablero de Investigación
+   ========================================================= */
+.app-header {
+  padding-top: 14px;
+  padding-bottom: 38px;
+}
+
+.app-header h1 {
+  margin: 3px 0 2px;
+  font-size: clamp(1.45rem, 2.6vw, 2rem);
+}
+
+.app-header p {
+  font-size: .86rem;
+}
+
+.eyebrow {
+  font-size: .68rem;
+}
+
+.status-pill {
+  padding: 6px 10px;
+  font-size: .72rem;
+}
+
+.container {
+  margin-top: -24px;
+  margin-bottom: 30px;
+}
+
+.workspace {
+  gap: 9px;
+}
+
+.welcome-row {
+  padding: 10px 14px;
+  min-height: 68px;
+}
+
+.welcome-row .step {
+  font-size: .66rem;
+}
+
+.welcome-row h2 {
+  margin: 2px 0 1px;
+  font-size: 1.08rem;
+}
+
+.welcome-row p {
+  font-size: .78rem;
+}
+
+.welcome-row .btn {
+  min-height: 34px;
+  padding: 7px 11px;
+  font-size: .78rem;
+}
+
+.queue-summary {
+  gap: 8px;
+}
+
+.queue-summary .summary {
+  min-height: 68px;
+  padding: 9px 12px;
+  border-radius: 13px;
+}
+
+.queue-summary .summary span {
+  margin-bottom: 2px;
+  font-size: .7rem;
+}
+
+.queue-summary .summary strong {
+  font-size: 1.3rem;
+}
+
+.workspace > .message:empty {
+  display: none;
+}
+
+.workspace > .message {
+  margin: 1px 2px 4px;
+  min-height: 0;
+  font-size: .78rem;
+}
+
+.careers-card {
+  border-radius: 14px;
+}
+
+.queue-section-head {
+  padding: 10px 14px 9px;
+}
+
+.queue-section-head .step {
+  font-size: .64rem;
+}
+
+.queue-section-head h3 {
+  margin: 1px 0;
+  font-size: .98rem;
+}
+
+.queue-section-head p {
+  font-size: .72rem;
+}
+
+.queue-section-head .btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: .72rem;
+}
+
+.career-table th,
+.career-table td {
+  padding: 7px 12px;
+}
+
+.career-table th {
+  font-size: .64rem;
+}
+
+.career-name {
+  gap: 0;
+}
+
+.career-name strong {
+  font-size: .78rem;
+  line-height: 1.2;
+}
+
+.queue-date {
+  font-size: .68rem;
+  white-space: nowrap;
+}
+
+.queue-count {
+  min-width: 29px;
+  height: 25px;
+  padding: 0 7px;
+  font-size: .7rem;
+}
+
+.btn--compact {
+  min-height: 30px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: .68rem;
+}
+
+.queue-toolbar {
+  padding: 8px 10px;
+}
+
+.queue-toolbar .btn {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: .72rem;
+}
+
+.queue-toolbar__info span {
+  font-size: .8rem;
+}
+
+.queue-toolbar__info strong {
+  padding: 4px 7px;
+  font-size: .62rem;
+}
+
+.queue-position {
+  margin-top: 7px;
+  padding: 7px 10px;
+}
+
+.queue-position .step {
+  font-size: .62rem;
+}
+
+.queue-position strong {
+  font-size: .8rem;
+}
+
+.queue-position > span {
+  font-size: .66rem;
+}
+
+.queue-title-card {
+  margin-top: 7px;
+  padding: 11px;
+}
+
+.queue-card-head h3 {
+  margin-top: 5px;
+  font-size: .98rem;
+}
+
+.queue-arrival {
+  min-width: 170px;
+  padding: 7px 9px;
+}
+
+.proposals--review {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.proposals--review .proposal {
+  padding: 7px 8px;
+}
+
+.proposals--review .proposal p {
+  font-size: .8rem;
+}
+
+.queue-decision {
+  margin-top: 8px;
+  padding: 9px;
+}
+
+.queue-decision textarea {
+  min-height: 54px;
+  padding: 8px 10px;
+}
+
+.actions--review {
+  margin-top: 6px;
+}
+
+.actions--review .btn {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: .7rem;
+}
+
+@media (min-width: 861px) {
+  .career-table th:first-child,
+  .career-table td:first-child {
+    width: 54%;
+  }
+
+  .career-table th:nth-child(2),
+  .career-table td:nth-child(2) {
+    width: 12%;
+  }
+
+  .career-table th:nth-child(3),
+  .career-table td:nth-child(3) {
+    width: 20%;
+  }
+
+  .career-table th:nth-child(4),
+  .career-table td:nth-child(4) {
+    width: 14%;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    padding-top: 12px;
+    padding-bottom: 34px;
+  }
+
+  .welcome-row {
+    gap: 7px;
+  }
+
+  .queue-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .queue-summary .summary {
+    min-height: 64px;
+  }
+
+  .queue-summary .summary span {
+    font-size: .64rem;
+  }
+
+  .queue-summary .summary strong {
+    font-size: 1.15rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .queue-summary {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 5px;
+  }
+
+  .queue-summary .summary {
+    padding: 8px;
+  }
+
+  .queue-summary .summary span {
+    font-size: .58rem;
+  }
+}
