@@ -19,7 +19,7 @@
     return ejecutarConTimeoutGlobal(function (signal) {
       rutasProbadas.push('ID_EXACTO:' + documentoId);
 
-      return leerDocumentoConSignal(documentoId, signal)
+      return leerDocumentoExactoConReintento(documentoId, signal, rutasProbadas)
         .then(function (directo) {
           if (directo && directo.encontrado) {
             return completarResultado({
@@ -335,6 +335,53 @@
   function leerDocumento(documentoId) {
     return ejecutarConTimeoutGlobal(function (signal) {
       return leerDocumentoConSignal(documentoId, signal);
+    });
+  }
+
+  function leerDocumentoExactoConReintento(documentoId, signal, rutasProbadas) {
+    return leerDocumentoConSignal(documentoId, signal)
+      .catch(function (error) {
+        if (
+          error &&
+          (
+            error.codigo === 'PERMISSION_DENIED' ||
+            error.codigo === 'UNAUTHENTICATED' ||
+            error.codigo === 'HTTP_400' ||
+            error.name === 'AbortError'
+          )
+        ) {
+          throw error;
+        }
+
+        rutasProbadas.push('ID_EXACTO_REINTENTO:' + documentoId);
+
+        return esperar(120, signal).then(function () {
+          return leerDocumentoConSignal(documentoId, signal);
+        });
+      });
+  }
+
+  function esperar(ms, signal) {
+    return new Promise(function (resolve, reject) {
+      if (signal && signal.aborted) {
+        var abortError = new Error('Abortado');
+        abortError.name = 'AbortError';
+        reject(abortError);
+        return;
+      }
+
+      var timer = window.setTimeout(function () {
+        resolve();
+      }, Number(ms || 0));
+
+      if (signal && typeof signal.addEventListener === 'function') {
+        signal.addEventListener('abort', function () {
+          window.clearTimeout(timer);
+          var error = new Error('Abortado');
+          error.name = 'AbortError';
+          reject(error);
+        }, { once: true });
+      }
     });
   }
 
