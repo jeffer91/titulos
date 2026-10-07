@@ -5,7 +5,9 @@
   var BASE_URL = 'https://registroinduccionesitsqmet.netlify.app/cronogramas/vista/cedula-solicitud.html';
   var TARGET_ORIGIN = 'https://registroinduccionesitsqmet.netlify.app';
   var LEGACY_VALUE = '@cronograma';
-  var ultimo = { cedula: '', url: '', abiertoEn: '', cargado: false };
+  var STORAGE_KEY = 'itsqmet_titulacion_cedula';
+  var SESSION_KEY = 'itsqmet_titulacion_cedula_sesion';
+  var ultimo = { cedula: '', url: '', abiertoEn: '', cargado: false, cargas: 0, consultaSolicitada: false };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', instalar, { once: true });
@@ -22,7 +24,7 @@
     conectarBoton();
 
     var hero = document.querySelector('.student-hero__text p');
-    if (hero) hero.textContent = 'Consulta tus datos académicos, revisa tu cronograma, genera tres propuestas y confirma el envío final.';
+    if (hero) hero.textContent = 'Consulta tus datos académicos, revisa tu cronograma, registra tus tres títulos y confirma el envío final.';
   }
 
   function transformarPaso() {
@@ -59,24 +61,39 @@
     if (legacy) legacy.value = LEGACY_VALUE;
     if (!cedula || !frame) return false;
 
+    guardarCedula(cedula);
+
     ultimo.cedula = cedula;
     ultimo.url = construirUrl(cedula);
     ultimo.abiertoEn = new Date().toISOString();
-    if (dato) dato.textContent = cedula;
-    estadoVisible('Cargando automáticamente el cronograma para la cédula ' + cedula + '…', 'info');
+    ultimo.cargado = false;
+    ultimo.cargas = 0;
+    ultimo.consultaSolicitada = false;
 
-    if (frame.dataset.url !== ultimo.url) {
-      frame.dataset.url = ultimo.url;
-      frame.src = ultimo.url;
-    }
+    if (dato) dato.textContent = cedula;
+    estadoVisible('Cédula recuperada. Abriendo y consultando el cronograma automáticamente…', 'info');
 
     if (frame.dataset.bound !== '1') {
       frame.dataset.bound = '1';
       frame.addEventListener('load', function () {
+        ultimo.cargas += 1;
         ultimo.cargado = true;
-        enviarCedula(frame, cedulaActual());
-        estadoVisible('Cronograma cargado. Revisa o completa tu registro y continúa.', 'success');
+
+        solicitarConsultaAutomatica(frame, cedulaActual());
+
+        if (ultimo.cargas > 1) {
+          estadoVisible('Cronograma consultado automáticamente. Revisa la información y continúa.', 'success');
+        } else {
+          estadoVisible('Cédula cargada. Consultando cronograma automáticamente…', 'info');
+        }
       });
+    }
+
+    if (frame.dataset.url !== ultimo.url) {
+      frame.dataset.url = ultimo.url;
+      frame.src = ultimo.url;
+    } else {
+      solicitarConsultaAutomatica(frame, cedula);
     }
 
     return true;
@@ -91,27 +108,69 @@
     }
     url.searchParams.set('auto', '1');
     url.searchParams.set('autoconsulta', '1');
+    url.searchParams.set('autoSubmit', '1');
+    url.searchParams.set('autoConsultar', '1');
+    url.searchParams.set('consultar', '1');
     url.searchParams.set('embed', '1');
     url.searchParams.set('origen', 'titulos');
     return url.toString();
   }
 
   function enviarCedula(frame, cedula) {
-    if (!frame || !frame.contentWindow || !cedula) return;
-    var data = {
-      type: 'ITSQMET_CRONOGRAMA_PREFILL',
-      cedula: cedula,
-      numeroIdentificacion: cedula,
-      autoSubmit: true,
-      autoConsultar: true,
-      embed: true,
-      origen: 'titulos'
-    };
-    [0, 400, 1000].forEach(function (ms) {
+    solicitarConsultaAutomatica(frame, cedula);
+  }
+
+  function solicitarConsultaAutomatica(frame, cedula) {
+    cedula = limpiarCedula(cedula || cedulaActual());
+
+    if (!frame || !frame.contentWindow || !cedula) return false;
+
+    guardarCedula(cedula);
+    ultimo.consultaSolicitada = true;
+
+    var mensajes = [
+      {
+        type: 'ITSQMET_CRONOGRAMA_PREFILL',
+        action: 'prefill',
+        cedula: cedula,
+        numeroIdentificacion: cedula,
+        autoSubmit: true,
+        autoConsultar: true,
+        consultar: true,
+        embed: true,
+        origen: 'titulos'
+      },
+      {
+        type: 'ITSQMET_CRONOGRAMA_AUTOCONSULTAR',
+        action: 'consultar',
+        cedula: cedula,
+        numeroIdentificacion: cedula,
+        autoSubmit: true,
+        autoConsultar: true,
+        consultar: true,
+        origen: 'titulos'
+      },
+      {
+        type: 'CRONOGRAMA_CONSULTAR',
+        evento: 'CONSULTAR_CRONOGRAMA',
+        action: 'consultarCronograma',
+        cedula: cedula,
+        numeroIdentificacion: cedula,
+        autoSubmit: true,
+        autoConsultar: true,
+        origen: 'titulos'
+      }
+    ];
+
+    [0, 250, 650, 1200, 2200, 3500].forEach(function (ms) {
       setTimeout(function () {
-        try { frame.contentWindow.postMessage(data, TARGET_ORIGIN); } catch (e) {}
+        mensajes.forEach(function (data) {
+          try { frame.contentWindow.postMessage(data, TARGET_ORIGIN); } catch (e) {}
+        });
       }, ms);
     });
+
+    return true;
   }
 
   function conectarMensajes() {
@@ -121,10 +180,13 @@
       if (event.origin !== TARGET_ORIGIN) return;
       var type = String(event.data && (event.data.type || event.data.evento) || '').toUpperCase();
       if (type === 'ITSQMET_CRONOGRAMA_READY' || type === 'CRONOGRAMA_READY') {
-        enviarCedula(document.querySelector('#cronogramaFrame'), cedulaActual());
+        solicitarConsultaAutomatica(document.querySelector('#cronogramaFrame'), cedulaActual());
       }
-      if (/COMPLETADO|REGISTRADO/.test(type)) {
-        estadoVisible('Registro de cronograma confirmado. Puedes continuar.', 'success');
+      if (/CONSULTA_INICIADA|CONSULTANDO|BUSCANDO/.test(type)) {
+        estadoVisible('Consultando cronograma automáticamente…', 'info');
+      }
+      if (/COMPLETADO|REGISTRADO|RESULTADO|CRONOGRAMA_CARGADO|CONSULTA_COMPLETA/.test(type)) {
+        estadoVisible('Cronograma consultado automáticamente. Revisa la información y continúa.', 'success');
       }
     });
   }
@@ -147,6 +209,13 @@
     var read = ui.readFormData;
     var fill = ui.fillFormData;
     var summary = ui.renderSummary;
+    var renderStudent = ui.renderStudent;
+
+    copia.renderStudent = function (student) {
+      var cedula = limpiarCedula(student && (student.cedula || student.numeroIdentificacion || student.identificacion));
+      if (cedula) guardarCedula(cedula);
+      return renderStudent ? renderStudent(student) : undefined;
+    };
 
     copia.readFormData = function (total) {
       var data = read(total) || {};
@@ -214,7 +283,7 @@
     };
     copia.limpiarFormularioVisual = function () {
       var r = limpiar ? limpiar() : undefined;
-      ultimo = { cedula: '', url: '', abiertoEn: '', cargado: false };
+      ultimo = { cedula: cedulaGuardada(), url: '', abiertoEn: '', cargado: false, cargas: 0, consultaSolicitada: false };
       var input = document.querySelector('#telegramInput');
       if (input) input.value = LEGACY_VALUE;
       return r;
@@ -238,7 +307,37 @@
     var state = window.TAEstudianteState;
     var data = state && state.obtener ? state.obtener() : {};
     var est = data.estudiante || {};
-    return limpiarCedula(est.cedula || est.numeroIdentificacion || (document.querySelector('#datoCedula') || {}).textContent || '');
+    var desdeEstado = limpiarCedula(est.cedula || est.numeroIdentificacion || est.identificacion || '');
+    var desdeVista = limpiarCedula((document.querySelector('#datoCedula') || {}).textContent || '');
+    var desdeConsulta = limpiarCedula((document.querySelector('#cedulaInput') || {}).value || '');
+    var guardada = cedulaGuardada();
+    var cedula = desdeEstado || desdeVista || desdeConsulta || guardada;
+
+    if (cedula) guardarCedula(cedula);
+    return cedula;
+  }
+
+  function guardarCedula(cedula) {
+    cedula = limpiarCedula(cedula);
+    if (!cedula) return '';
+
+    ultimo.cedula = cedula;
+
+    try { sessionStorage.setItem(SESSION_KEY, cedula); } catch (e) {}
+    try { localStorage.setItem(STORAGE_KEY, cedula); } catch (e) {}
+
+    return cedula;
+  }
+
+  function cedulaGuardada() {
+    var valor = '';
+
+    try { valor = sessionStorage.getItem(SESSION_KEY) || ''; } catch (e) {}
+    if (!valor) {
+      try { valor = localStorage.getItem(STORAGE_KEY) || ''; } catch (e2) {}
+    }
+
+    return limpiarCedula(valor);
   }
 
   function limpiarCedula(v) { return String(v || '').replace(/\D/g, '').slice(0, 10); }
@@ -272,6 +371,9 @@
     abrirCronogramaIntegrado: abrirIntegrado,
     obtenerDatosRegistro: datosRegistro,
     obtenerCedulaActual: cedulaActual,
+    guardarCedula: guardarCedula,
+    cedulaGuardada: cedulaGuardada,
+    solicitarConsultaAutomatica: solicitarConsultaAutomatica,
     urlBase: BASE_URL
   });
 })();
