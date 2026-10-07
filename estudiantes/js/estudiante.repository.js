@@ -141,123 +141,69 @@
 
   function consultarEnvio(periodoId, cedulaIngresada) {
     var service = window.TAConsultaEstadoService;
-    var documentoId = construirTituloId(periodoId, cedulaIngresada);
     var inicio = Date.now();
-    var lectorDirecto = firebaseService && (
-      firebaseService.leerDocumentoServidor ||
-      firebaseService.leerDocumento
-    );
 
     ultimoDiagnosticoEnvio = null;
 
-    if (!firebaseService || typeof lectorDirecto !== 'function') {
-      return consultarEnvioPorRespaldo(service, periodoId, cedulaIngresada, inicio, 'SDK_NO_DISPONIBLE');
-    }
-
     /*
-      Ruta normal y rápida:
-      1 lectura exacta al documento periodo__cedula en titulos-ec2fa/envios.
-      Se fuerza source:'server' cuando el SDK lo permite para reflejar
-      inmediatamente los cambios de Coordinación e Investigación.
+      Consulta pública de estado: UN SOLO TRANSPORTE.
+      No usa Firestore SDK para leer envios.
+      TAConsultaEstadoService realiza:
+      1) GET REST exacto a envios/{periodo__cedula}
+      2) fallback legacy únicamente ante 404
+      3) un reintento corto solo ante fallo transitorio de red
     */
-    return conTimeoutRepo(
-      lectorDirecto.call(firebaseService, config.collections.titulos, documentoId),
-      2400,
-      'ENVIO_DIRECTO'
-    )
-      .then(function (doc) {
-        if (doc) {
-          ultimoDiagnosticoEnvio = {
-            motor: 'FIRESTORE_SDK',
-            estrategia: 'ID_EXACTO_PRIMERO',
-            base: 'titulos-ec2fa',
-            coleccion: config.collections.titulos,
-            documentoId: documentoId,
-            ruta: 'SDK_ID_EXACTO',
-            rutasProbadas: ['SDK_ID_EXACTO:' + documentoId],
-            periodoCanonico: obtenerPeriodoIdDesdeValor(periodoId),
-            status: 200,
-            duracionMs: Date.now() - inicio
-          };
-
-          var envio = normalizarEnvioExistente(doc);
-          envio._consultaDiagnostico = Object.assign({}, ultimoDiagnosticoEnvio);
-          return envio;
-        }
-
-        /*
-          El ID exacto no existe: recién aquí entra compatibilidad histórica.
-          No se penaliza la ruta normal con búsquedas por campos.
-        */
-        return consultarEnvioLegacy(service, periodoId, cedulaIngresada, inicio, documentoId);
-      })
-      .catch(function (error) {
-        /*
-          Si el SDK tuvo un problema de red/timeout, el servicio REST funciona
-          como segundo transporte. Esto equivale a un único reintento controlado.
-        */
-        return consultarEnvioPorRespaldo(
-          service,
-          periodoId,
-          cedulaIngresada,
-          inicio,
-          error && error.message || 'SDK_ERROR'
-        );
-      });
-  }
-
-  function consultarEnvioLegacy(service, periodoId, cedulaIngresada, inicio, documentoId) {
-    if (!service || typeof service.consultarLegacy !== 'function') {
-      return consultarEnvioPorRespaldo(service, periodoId, cedulaIngresada, inicio, 'LEGACY_NO_DISPONIBLE');
-    }
-
-    return service.consultarLegacy(periodoId, cedulaIngresada)
-      .then(function (resultado) {
-        return normalizarResultadoRespaldo(resultado, periodoId, inicio, documentoId, 'FALLBACK_LEGACY');
-      });
-  }
-
-  function consultarEnvioPorRespaldo(service, periodoId, cedulaIngresada, inicio, motivo) {
     if (!service || typeof service.consultar !== 'function') {
-      var error = new Error('No se pudo consultar la base de Títulos.');
+      var error = new Error('No se pudo iniciar el servicio REST de Títulos.');
       error.codigo = 'SERVICIO_TITULOS_NO_DISPONIBLE';
-      throw error;
+      return Promise.reject(error);
     }
 
     return service.consultar(periodoId, cedulaIngresada)
       .then(function (resultado) {
-        return normalizarResultadoRespaldo(resultado, periodoId, inicio, '', 'REST_REINTENTO', motivo);
+        resultado = resultado || {};
+
+        if (resultado.ok === false) {
+          var error = new Error(resultado.mensaje || 'No se pudo consultar el estado del título.');
+          error.codigo = resultado.codigo || 'CONSULTA_TITULOS_ERROR';
+          throw error;
+        }
+
+        ultimoDiagnosticoEnvio = {
+          motor: 'REST_DIRECTO',
+          estrategia: resultado.estrategia || 'ID_EXACTO_PRIMERO',
+          base: resultado.base || 'titulos-ec2fa',
+          coleccion: resultado.coleccion || config.collections.titulos,
+          documentoId: resultado.documentoId || construirTituloId(periodoId, cedulaIngresada),
+          ruta: resultado.ruta || (resultado.encontrado ? 'ID_EXACTO' : 'NO_ENCONTRADO'),
+          rutasProbadas: resultado.rutasProbadas || [],
+          periodoCanonico: resultado.periodoCanonico || obtenerPeriodoIdDesdeValor(periodoId),
+          status: resultado.status || (resultado.encontrado ? 200 : 404),
+          duracionMs: Number(resultado.duracionMs || (Date.now() - inicio))
+        };
+
+        if (!resultado.encontrado || !resultado.envio) return null;
+
+        var envio = normalizarEnvioExistente(resultado.envio);
+        envio._consultaDiagnostico = Object.assign({}, ultimoDiagnosticoEnvio);
+        return envio;
+      })
+      .catch(function (error) {
+        error = error || new Error('No se pudo consultar el estado del título.');
+        if (!error.codigo) error.codigo = 'CONSULTA_TITULOS_ERROR';
+        if (!error.diagnostico) {
+          error.diagnostico = {
+            motor: 'REST_DIRECTO',
+            estrategia: 'ID_EXACTO_PRIMERO',
+            base: 'titulos-ec2fa',
+            coleccion: config.collections.titulos,
+            documentoId: construirTituloId(periodoId, cedulaIngresada),
+            periodoCanonico: obtenerPeriodoIdDesdeValor(periodoId),
+            duracionMs: Date.now() - inicio
+          };
+        }
+        throw error;
       });
-  }
-
-  function normalizarResultadoRespaldo(resultado, periodoId, inicio, documentoId, estrategiaLocal, motivo) {
-    resultado = resultado || {};
-
-    if (resultado.ok === false) {
-      var error = new Error(resultado.mensaje || 'No se pudo consultar el estado del título.');
-      error.codigo = resultado.codigo || 'CONSULTA_TITULOS_ERROR';
-      throw error;
-    }
-
-    ultimoDiagnosticoEnvio = {
-      motor: 'CONSULTA_ESTADO_REST',
-      estrategia: resultado.estrategia || estrategiaLocal || 'FALLBACK_LEGACY',
-      base: resultado.base || 'titulos-ec2fa',
-      coleccion: resultado.coleccion || config.collections.titulos,
-      documentoId: resultado.documentoId || documentoId || '',
-      ruta: resultado.ruta || (resultado.encontrado ? 'FALLBACK_ENCONTRADO' : 'NO_ENCONTRADO'),
-      rutasProbadas: resultado.rutasProbadas || [],
-      periodoCanonico: resultado.periodoCanonico || obtenerPeriodoIdDesdeValor(periodoId),
-      status: resultado.status || (resultado.encontrado ? 200 : 404),
-      duracionMs: Date.now() - inicio,
-      motivoRespaldo: motivo || ''
-    };
-
-    if (!resultado.encontrado || !resultado.envio) return null;
-
-    var envio = normalizarEnvioExistente(resultado.envio);
-    envio._consultaDiagnostico = Object.assign({}, ultimoDiagnosticoEnvio);
-    return envio;
   }
 
   function obtenerDiagnosticoEnvio() {
