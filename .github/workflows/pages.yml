@@ -34,6 +34,7 @@ jobs:
       - name: Probar flujos críticos
         run: |
           node tests/consulta-estado.test.js
+          node tests/estudiante-envio-rapido.test.js
           node tests/arquitectura-estudiantes.test.js
           node tests/investigacion-cola.test.js
 
