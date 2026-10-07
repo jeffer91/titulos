@@ -132,7 +132,7 @@
   function configurarFirestore(db) {
     if (!db || !db.settings || db.__taSettingsApplied) return;
     try {
-      db.settings({ ignoreUndefinedProperties: true });
+      db.settings({ ignoreUndefinedProperties: true, merge: true });
       db.__taSettingsApplied = true;
     } catch (error) {
       /* Si la instancia ya fue usada, no se altera ni se bloquea el flujo. */
