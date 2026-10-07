@@ -21,7 +21,7 @@
           <span class="eyebrow">Titulación académica</span>
           <h1>Registro de propuestas de título</h1>
           <p>
-            Consulta tus datos académicos, revisa tu cronograma, genera tres propuestas y confirma el envío final.
+            Consulta tus datos académicos, registra tus tres títulos y confirma el envío final.
           </p>
         </div>
       </div>
@@ -427,29 +427,57 @@
       </form>
     </div>
 
-    <section class="card card--success is-hidden" id="comprobanteFinal" aria-hidden="true">
-      <div class="section-heading">
-        <p class="section-kicker">Registro completado</p>
-        <h2>Comprobante de envío</h2>
-        <p>
-          Guarda este código como respaldo de tu envío.
-        </p>
+    <section class="card card--success envio-success is-hidden" id="comprobanteFinal" aria-hidden="true">
+      <div class="envio-success__hero">
+        <div class="envio-success__icon" aria-hidden="true">✓</div>
+        <div class="envio-success__copy">
+          <p class="section-kicker">Envío completado</p>
+          <h2>Títulos enviados correctamente</h2>
+          <p>Tu registro fue recibido. No necesitas volver a enviar tus títulos.</p>
+        </div>
+        <div class="envio-success__status">
+          <span>Estado actual</span>
+          <strong id="reciboEstado">Pendiente de revisión</strong>
+        </div>
       </div>
 
-      <div class="summary-box">
-        <p><strong>Código de registro:</strong> <span id="codigoRegistroTexto">—</span></p>
-        <p><strong>Estudiante:</strong> <span id="reciboEstudiante">—</span></p>
-        <p><strong>Cédula:</strong> <span id="reciboCedula">—</span></p>
-        <p><strong>Carrera:</strong> <span id="reciboCarrera">—</span></p>
-        <p><strong>Título preferido:</strong> <span id="reciboTituloPreferido">—</span></p>
+      <div class="envio-success__notice" id="comprobanteMensaje" role="status">
+        Tus títulos están esperando la primera revisión.
       </div>
 
-      <div class="form-actions step-actions">
+      <div class="envio-success__grid">
+        <div class="envio-success__item envio-success__item--wide">
+          <span>Título preferido</span>
+          <strong id="reciboTituloPreferido">—</strong>
+        </div>
+        <div class="envio-success__item">
+          <span>Código de registro</span>
+          <strong id="codigoRegistroTexto">—</strong>
+        </div>
+        <div class="envio-success__item">
+          <span>Estudiante</span>
+          <strong id="reciboEstudiante">—</strong>
+        </div>
+        <div class="envio-success__item">
+          <span>Cédula</span>
+          <strong id="reciboCedula">—</strong>
+        </div>
+        <div class="envio-success__item">
+          <span>Carrera</span>
+          <strong id="reciboCarrera">—</strong>
+        </div>
+      </div>
+
+      <div class="form-actions step-actions envio-success__actions">
+        <button class="btn btn--primary" type="button" id="btnVerEstadoTitulo">
+          Ver estado de mi título
+        </button>
+
         <button class="btn btn--ghost" type="button" id="btnCopiarRegistro">
           Copiar código
         </button>
 
-        <button class="btn btn--primary" type="button" id="btnNuevaConsulta">
+        <button class="btn btn--ghost" type="button" id="btnNuevaConsulta">
           Nueva consulta
         </button>
       </div>
