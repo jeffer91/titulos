@@ -708,31 +708,38 @@ small {
 }
 
 
-/* PIN de investigadores */
-.bulk-pin-card {
-  border-color: #c9d9ea;
-  background: linear-gradient(180deg, #ffffff, #fbfdff);
-}
 
-.bulk-pin-card textarea {
-  min-height: 150px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: .84rem;
-  line-height: 1.45;
-}
 
-.bulk-pin-actions {
-  margin-top: 10px;
-}
-
+/* Gestión simple de investigadores */
+.investigador-modal .modal__header,
 .pin-modal .modal__header {
   margin-bottom: 10px;
 }
 
+.investigador-create-grid {
+  grid-template-columns: 1fr 1fr;
+}
+
 .pin-change-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
+}
+
+.pin-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.pin-input-row .btn {
+  min-width: 116px;
+}
+
+.field-optional {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
 }
 
 .pin-verify-note {
@@ -746,8 +753,79 @@ small {
   line-height: 1.45;
 }
 
+.pin-receipt {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid #b9dec9;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #effbf4, #ffffff);
+}
+
+.pin-receipt > span {
+  color: #397158;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.pin-receipt > strong {
+  grid-column: 1;
+  color: var(--success);
+  font-size: 1.9rem;
+  line-height: 1;
+  letter-spacing: .14em;
+}
+
+.pin-receipt > .btn {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.pin-receipt > small {
+  grid-column: 1 / -1;
+}
+
+.pin-visible-chip {
+  border: 1px solid #b7d8c4;
+  border-radius: 999px;
+  background: #edf9f2;
+  color: #12683c;
+  padding: 6px 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+
+.pin-visible-chip:hover {
+  background: #dff4e8;
+}
+
 @media (max-width: 640px) {
-  .pin-change-grid {
+  .investigador-create-grid {
     grid-template-columns: 1fr;
+  }
+
+  .pin-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pin-input-row .btn {
+    width: 100%;
+  }
+
+  .pin-receipt {
+    grid-template-columns: 1fr;
+  }
+
+  .pin-receipt > .btn,
+  .pin-receipt > strong,
+  .pin-receipt > small {
+    grid-column: 1;
+    grid-row: auto;
   }
 }
