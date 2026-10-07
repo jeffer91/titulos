@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#071b34" />
-  <meta name="description" content="Registro de propuestas de título del Instituto Superior Tecnológico Quito Metropolitano." />
-  <title>Registro de propuestas de título | ITSQMET</title>
+  <meta name="description" content="Registro de títulos de titulación del Instituto Superior Tecnológico Quito Metropolitano." />
+  <title>Registro de títulos de titulación | ITSQMET</title>
 
   <link rel="icon" href="assets/logo-instituto.webp" type="image/webp" />
   <link rel="stylesheet" href="../shared/css/base.css" />
@@ -19,7 +19,7 @@
 
         <div class="student-hero__text">
           <span class="eyebrow">Titulación académica</span>
-          <h1>Registro de propuestas de título</h1>
+          <h1>Registro de títulos de titulación</h1>
           <p>
             Consulta tus datos académicos, registra tus tres títulos y confirma el envío final.
           </p>
@@ -105,7 +105,7 @@
             <p class="section-kicker">Paso 3</p>
             <h2>Telegram obligatorio</h2>
             <p>
-              Completa tu usuario de Telegram. Este dato es obligatorio para continuar con las propuestas.
+              Completa tu usuario de Telegram. Este dato es obligatorio para continuar con el registro de títulos.
             </p>
           </div>
 
@@ -148,223 +148,120 @@
           </div>
         </section>
 
-        <section class="card is-hidden" data-step="propuesta1">
-          <div class="section-heading">
-            <p class="section-kicker">Paso 4</p>
-            <h2>Propuesta 1</h2>
-            <p>
-              Completa los campos base, genera sugerencias, espera la carga de IA y elige una opción para llenar el título final.
-            </p>
+        <section class="card is-hidden" data-step="propuesta1" data-titulo-externo="true">
+          <div class="titulo-externo__sticky-nav" data-ronda="1">
+            <button class="btn btn--ghost" type="button" data-action="prev">← Regresar</button>
+            <button class="btn btn--primary titulo-externo__continuar" type="button" data-action="next" data-nav-lock="true" disabled>Continuar →</button>
           </div>
 
-          <article class="proposal-card" data-propuesta="1">
-            <header class="proposal-card__header proposal-card__top">
-              <div>
-                <span class="proposal-card__badge">Propuesta 1</span>
-                <h3>Idea principal</h3>
-              </div>
+          <div class="section-heading titulo-externo__heading">
+            <p class="section-kicker">Ronda 1</p>
+            <h2>Título 1</h2>
+          </div>
 
-              <button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="1">
-                Generar sugerencias
-              </button>
-            </header>
-
-            <div class="proposal-card__grid form-grid">
-              <div class="field">
-                <label for="p1Tema">Tema general</label>
-                <input id="p1Tema" name="p1Tema" type="text" placeholder="Ejemplo: fallas de motores" />
-              </div>
-
-              <div class="field">
-                <label for="p1Grupo">Grupo de estudio</label>
-                <input id="p1Grupo" name="p1Grupo" type="text" placeholder="Ejemplo: vehículos atendidos" />
-              </div>
-
-              <div class="field">
-                <label for="p1Contexto">Lugar o contexto</label>
-                <input id="p1Contexto" name="p1Contexto" type="text" placeholder="Ejemplo: taller automotriz del sur de Quito" />
-              </div>
-
-              <div class="field">
-                <label for="p1Periodo">Año o período</label>
-                <input id="p1Periodo" name="p1Periodo" type="text" placeholder="Ejemplo: 2026" />
-              </div>
+          <article class="titulo-externo-card titulo-externo-card--principal">
+            <label for="p1Titulo">Pega el título que elegiste</label>
+            <textarea id="p1Titulo" name="p1Titulo" rows="3" maxlength="360" placeholder="Pega aquí tu título elegido."></textarea>
+            <div class="titulo-externo-card__footer">
+              <span class="titulo-externo-card__contador" id="p1Contador">0 palabras</span>
+              <span class="titulo-externo-card__estado" id="p1Estado">Pega un título para continuar.</span>
             </div>
-
-            <div class="field">
-              <label for="p1Problema">Problema o necesidad</label>
-              <textarea id="p1Problema" name="p1Problema" rows="3" placeholder="Describe brevemente qué problema quieres estudiar."></textarea>
+            <div class="titulo-externo-card__meta">
+              <span>10–25 palabras</span>
+              <span>1 finalidad · 1 objeto</span>
             </div>
-
-            <div class="field">
-              <label for="p1Objetivo">Objetivo simple</label>
-              <textarea id="p1Objetivo" name="p1Objetivo" rows="3" placeholder="Explica qué quieres lograr con este tema."></textarea>
-            </div>
-
-            <div class="field field--title-final">
-              <label for="p1Titulo">Título final de la propuesta 1</label>
-              <textarea id="p1Titulo" name="p1Titulo" rows="3" placeholder="Se llenará automáticamente al elegir una sugerencia." readonly></textarea>
-              <small>Debes elegir una sugerencia generada para llenar este título final.</small>
-            </div>
-
-            <div class="suggestions-container suggestions" id="p1Sugerencias"></div>
           </article>
 
-          <div class="form-actions step-actions">
-            <button class="btn btn--ghost" type="button" data-action="prev">
-              Regresar
-            </button>
-
-            <button class="btn btn--primary" type="button" data-action="next">
-              Continuar
-            </button>
-          </div>
+          <article class="prompt-institucional">
+            <div class="prompt-institucional__top">
+              <div>
+                <span class="prompt-institucional__eyebrow">AYUDA OPCIONAL</span>
+                <h3>¿Aún no tienes tu título?</h3>
+                <p>Copia el prompt y úsalo en la IA que prefieras.</p>
+              </div>
+              <button class="btn btn--prompt" type="button" id="btnCopiarPromptTitulos">Copiar prompt</button>
+            </div>
+            <div class="prompt-institucional__flow"><span>1 Copia</span><i>→</i><span>2 Responde</span><i>→</i><span>3 Elige</span><i>→</i><span>4 Pega</span></div>
+            <details class="prompt-institucional__preview">
+              <summary>Ver prompt</summary>
+              <pre id="promptTitulosPreview"></pre>
+            </details>
+            <p class="prompt-institucional__status" id="promptTitulosEstado" role="status"></p>
+          </article>
         </section>
 
-        <section class="card is-hidden" data-step="propuesta2">
-          <div class="section-heading">
-            <p class="section-kicker">Paso 5</p>
-            <h2>Propuesta 2</h2>
-            <p>
-              Completa los campos base, genera sugerencias, espera la carga de IA y elige una opción para llenar el título final.
-            </p>
+        <section class="card is-hidden" data-step="propuesta2" data-titulo-externo="true">
+          <div class="titulo-externo__sticky-nav" data-ronda="2">
+            <button class="btn btn--ghost" type="button" data-action="prev">← Regresar</button>
+            <button class="btn btn--primary titulo-externo__continuar" type="button" data-action="next" data-nav-lock="true" disabled>Continuar →</button>
           </div>
 
-          <article class="proposal-card" data-propuesta="2">
-            <header class="proposal-card__header proposal-card__top">
-              <div>
-                <span class="proposal-card__badge">Propuesta 2</span>
-                <h3>Segunda propuesta</h3>
-              </div>
+          <div class="section-heading titulo-externo__heading">
+            <p class="section-kicker">Ronda 2</p>
+            <h2>Título 2</h2>
+          </div>
 
-              <button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="2">
-                Generar sugerencias
-              </button>
-            </header>
-
-            <div class="proposal-card__grid form-grid">
-              <div class="field">
-                <label for="p2Tema">Tema general</label>
-                <input id="p2Tema" name="p2Tema" type="text" placeholder="Ejemplo: tiempos de espera" />
-              </div>
-
-              <div class="field">
-                <label for="p2Grupo">Grupo de estudio</label>
-                <input id="p2Grupo" name="p2Grupo" type="text" placeholder="Ejemplo: clientes del taller" />
-              </div>
-
-              <div class="field">
-                <label for="p2Contexto">Lugar o contexto</label>
-                <input id="p2Contexto" name="p2Contexto" type="text" placeholder="Ejemplo: centro automotriz Quito norte" />
-              </div>
-
-              <div class="field">
-                <label for="p2Periodo">Año o período</label>
-                <input id="p2Periodo" name="p2Periodo" type="text" placeholder="Ejemplo: 2026" />
-              </div>
+          <article class="titulo-externo-card titulo-externo-card--principal">
+            <label for="p2Titulo">Pega el título que elegiste</label>
+            <textarea id="p2Titulo" name="p2Titulo" rows="3" maxlength="360" placeholder="Pega aquí tu título elegido."></textarea>
+            <div class="titulo-externo-card__footer">
+              <span class="titulo-externo-card__contador" id="p2Contador">0 palabras</span>
+              <span class="titulo-externo-card__estado" id="p2Estado">Pega un título para continuar.</span>
             </div>
-
-            <div class="field">
-              <label for="p2Problema">Problema o necesidad</label>
-              <textarea id="p2Problema" name="p2Problema" rows="3" placeholder="Describe brevemente qué problema quieres estudiar."></textarea>
+            <div class="titulo-externo-card__meta">
+              <span>10–25 palabras</span>
+              <span>1 finalidad · 1 objeto</span>
             </div>
-
-            <div class="field">
-              <label for="p2Objetivo">Objetivo simple</label>
-              <textarea id="p2Objetivo" name="p2Objetivo" rows="3" placeholder="Explica qué quieres lograr con este tema."></textarea>
-            </div>
-
-            <div class="field field--title-final">
-              <label for="p2Titulo">Título final de la propuesta 2</label>
-              <textarea id="p2Titulo" name="p2Titulo" rows="3" placeholder="Se llenará automáticamente al elegir una sugerencia." readonly></textarea>
-              <small>Debes elegir una sugerencia generada para llenar este título final.</small>
-            </div>
-
-            <div class="suggestions-container suggestions" id="p2Sugerencias"></div>
           </article>
 
-          <div class="form-actions step-actions">
-            <button class="btn btn--ghost" type="button" data-action="prev">
-              Regresar
-            </button>
-
-            <button class="btn btn--primary" type="button" data-action="next">
-              Continuar
-            </button>
-          </div>
+          <article class="ronda-recordatorio">
+            <div>
+              <strong>¿La IA perdió el hilo?</strong>
+              <p>Copia la instrucción corta y continúa en la misma conversación.</p>
+            </div>
+            <div class="ronda-recordatorio__acciones">
+              <button class="btn btn--secondary btn--compact" type="button" data-copy-continuacion="2">Continuar Ronda 2</button>
+              <button class="btn btn--ghost btn--compact" type="button" data-copy-maestro="true">Prompt maestro</button>
+            </div>
+            <p class="ronda-recordatorio__status" id="ronda2Estado" role="status"></p>
+          </article>
         </section>
 
-        <section class="card is-hidden" data-step="propuesta3">
-          <div class="section-heading">
-            <p class="section-kicker">Paso 6</p>
-            <h2>Propuesta 3</h2>
-            <p>
-              Completa los campos base, genera sugerencias, espera la carga de IA y elige una opción para llenar el título final.
-            </p>
+        <section class="card is-hidden" data-step="propuesta3" data-titulo-externo="true">
+          <div class="titulo-externo__sticky-nav" data-ronda="3">
+            <button class="btn btn--ghost" type="button" data-action="prev">← Regresar</button>
+            <button class="btn btn--primary titulo-externo__continuar" type="button" data-action="next" data-nav-lock="true" disabled>Continuar →</button>
           </div>
 
-          <article class="proposal-card" data-propuesta="3">
-            <header class="proposal-card__header proposal-card__top">
-              <div>
-                <span class="proposal-card__badge">Propuesta 3</span>
-                <h3>Tercera propuesta</h3>
-              </div>
+          <div class="section-heading titulo-externo__heading">
+            <p class="section-kicker">Ronda 3</p>
+            <h2>Título 3</h2>
+          </div>
 
-              <button class="btn btn--secondary js-generar-sugerencias" type="button" data-propuesta="3">
-                Generar sugerencias
-              </button>
-            </header>
-
-            <div class="proposal-card__grid form-grid">
-              <div class="field">
-                <label for="p3Tema">Tema general</label>
-                <input id="p3Tema" name="p3Tema" type="text" placeholder="Ejemplo: mantenimiento preventivo" />
-              </div>
-
-              <div class="field">
-                <label for="p3Grupo">Grupo de estudio</label>
-                <input id="p3Grupo" name="p3Grupo" type="text" placeholder="Ejemplo: vehículos livianos" />
-              </div>
-
-              <div class="field">
-                <label for="p3Contexto">Lugar o contexto</label>
-                <input id="p3Contexto" name="p3Contexto" type="text" placeholder="Ejemplo: taller automotriz de Quito" />
-              </div>
-
-              <div class="field">
-                <label for="p3Periodo">Año o período</label>
-                <input id="p3Periodo" name="p3Periodo" type="text" placeholder="Ejemplo: 2026" />
-              </div>
+          <article class="titulo-externo-card titulo-externo-card--principal">
+            <label for="p3Titulo">Pega el título que elegiste</label>
+            <textarea id="p3Titulo" name="p3Titulo" rows="3" maxlength="360" placeholder="Pega aquí tu título elegido."></textarea>
+            <div class="titulo-externo-card__footer">
+              <span class="titulo-externo-card__contador" id="p3Contador">0 palabras</span>
+              <span class="titulo-externo-card__estado" id="p3Estado">Pega un título para continuar.</span>
             </div>
-
-            <div class="field">
-              <label for="p3Problema">Problema o necesidad</label>
-              <textarea id="p3Problema" name="p3Problema" rows="3" placeholder="Describe brevemente qué problema quieres estudiar."></textarea>
+            <div class="titulo-externo-card__meta">
+              <span>10–25 palabras</span>
+              <span>1 finalidad · 1 objeto</span>
             </div>
-
-            <div class="field">
-              <label for="p3Objetivo">Objetivo simple</label>
-              <textarea id="p3Objetivo" name="p3Objetivo" rows="3" placeholder="Explica qué quieres lograr con este tema."></textarea>
-            </div>
-
-            <div class="field field--title-final">
-              <label for="p3Titulo">Título final de la propuesta 3</label>
-              <textarea id="p3Titulo" name="p3Titulo" rows="3" placeholder="Se llenará automáticamente al elegir una sugerencia." readonly></textarea>
-              <small>Debes elegir una sugerencia generada para llenar este título final.</small>
-            </div>
-
-            <div class="suggestions-container suggestions" id="p3Sugerencias"></div>
           </article>
 
-          <div class="form-actions step-actions">
-            <button class="btn btn--ghost" type="button" data-action="prev">
-              Regresar
-            </button>
-
-            <button class="btn btn--primary" type="button" data-action="next">
-              Continuar
-            </button>
-          </div>
+          <article class="ronda-recordatorio">
+            <div>
+              <strong>¿La IA perdió el hilo?</strong>
+              <p>Copia la instrucción corta y continúa en la misma conversación.</p>
+            </div>
+            <div class="ronda-recordatorio__acciones">
+              <button class="btn btn--secondary btn--compact" type="button" data-copy-continuacion="3">Continuar Ronda 3</button>
+              <button class="btn btn--ghost btn--compact" type="button" data-copy-maestro="true">Prompt maestro</button>
+            </div>
+            <p class="ronda-recordatorio__status" id="ronda3Estado" role="status"></p>
+          </article>
         </section>
 
         <section class="card card--summary is-hidden" data-step="resumen">
@@ -372,12 +269,12 @@
             <p class="section-kicker">Paso 7</p>
             <h2>Ver resumen y elegir título preferido</h2>
             <p>
-              Revisa las tres propuestas completas y elige la que más te guste antes de confirmar el envío.
+              Revisa tus tres títulos y elige cuál prefieres antes de confirmar el envío.
             </p>
           </div>
 
           <div id="resumenEnvio" class="summary-box">
-            Completa las tres propuestas para ver el resumen y elegir tu título preferido.
+            Completa los tres títulos para ver el resumen y elegir tu título preferido.
           </div>
 
           <div class="form-actions step-actions">
@@ -404,7 +301,7 @@
             <p class="section-kicker">Paso 8</p>
             <h2>Confirmar envío</h2>
             <p>
-              Confirma el envío final. Después de enviar no podrás modificar tus propuestas desde esta pantalla.
+              Confirma el envío final. Después de enviar no podrás modificar tus títulos desde esta pantalla.
             </p>
           </div>
 
@@ -508,31 +405,6 @@
     </div>
   </section>
 
-  <section class="modal is-hidden" id="modalSugerencias" aria-hidden="true">
-    <div class="modal__backdrop"></div>
-
-    <div class="modal__panel modal__panel--wide" role="dialog" aria-modal="true" aria-labelledby="modalSugerenciasTitulo">
-      <button class="modal__close" type="button" id="btnCerrarSugerencias" aria-label="Cerrar">×</button>
-
-      <div class="modal__content">
-        <div class="section-heading">
-          <p class="section-kicker">Sugerencias generadas</p>
-          <h2 id="modalSugerenciasTitulo">Sugerencias académicas generadas</h2>
-          <p class="muted" id="modalSugerenciasSubtitulo">
-            Selecciona la opción académica que prefieras para usarla como título final.
-          </p>
-        </div>
-
-        <div class="suggestion-modal-list" id="modalSugerenciasLista"></div>
-
-        <div class="modal__actions">
-          <button class="btn btn--ghost" type="button" id="btnCancelarSugerencias">
-            Cancelar
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <section class="modal is-hidden" id="modalResumen" aria-hidden="true">
     <div class="modal__backdrop"></div>
@@ -583,49 +455,6 @@
     </div>
   </section>
 
-  <section class="ia-loading-modal is-hidden" id="modalLoadingIA" aria-hidden="true">
-    <div class="ia-loading-modal__backdrop"></div>
-
-    <div class="ia-loading-modal__panel" role="dialog" aria-modal="true" aria-labelledby="iaLoadingTitulo">
-      <div class="ia-loading-modal__spinner" aria-hidden="true"></div>
-
-      <p class="section-kicker">Titulación académica</p>
-      <h2 id="iaLoadingTitulo">IA de Titulación trabajando</h2>
-      <p id="iaLoadingDetalle">Analizando la propuesta del estudiante.</p>
-
-      <div class="ia-loading-modal__status" id="iaLoadingEstado">
-        Procesando solicitud académica...
-      </div>
-
-      <div class="ia-loading-progress" aria-hidden="true">
-        <div class="ia-loading-progress__bar" id="iaLoadingProgressBar"></div>
-      </div>
-
-      <div class="ia-loading-steps" id="iaLoadingSteps">
-        <div class="ia-loading-step ia-loading-step--pendiente" data-step="diagnostico">
-          <span class="ia-loading-step__dot" aria-hidden="true"></span>
-          <strong class="ia-loading-step__label">Diagnóstico</strong>
-          <em class="ia-loading-step__state">Pendiente</em>
-        </div>
-
-        <div class="ia-loading-step ia-loading-step--pendiente" data-step="propuesta">
-          <span class="ia-loading-step__dot" aria-hidden="true"></span>
-          <strong class="ia-loading-step__label">Propuesta o mejora</strong>
-          <em class="ia-loading-step__state">Pendiente</em>
-        </div>
-
-        <div class="ia-loading-step ia-loading-step--pendiente" data-step="evaluacion">
-          <span class="ia-loading-step__dot" aria-hidden="true"></span>
-          <strong class="ia-loading-step__label">Evaluación o impacto</strong>
-          <em class="ia-loading-step__state">Pendiente</em>
-        </div>
-      </div>
-
-      <p class="ia-loading-modal__hint" id="iaLoadingNota">
-        Este proceso puede tardar unos segundos. No cierres esta pantalla.
-      </p>
-    </div>
-  </section>
 
   <script
     id="firebase-app-compat"
@@ -663,7 +492,7 @@
   <script src="js/estudiante.events.js"></script>
 
   <!-- Capa visual cargada de forma explícita para evitar que el navegador reutilice una versión antigua. -->
-  <script src="js/seguimiento.visual.js?v=20261006-31"></script>
-  <script src="js/estudiante.app.js?v=20261006-31"></script>
+  <script src="js/seguimiento.visual.js?v=20261006-32"></script>
+  <script src="js/estudiante.app.js?v=20261006-32"></script>
 </body>
 </html>

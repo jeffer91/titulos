@@ -111,7 +111,6 @@
     };
 
     ui.fillFormData(formDataVacio);
-    limpiarSugerenciasVisuales();
     limpiarTitulosFinales();
     limpiarSeleccionPreferida();
 
@@ -352,7 +351,7 @@
 
       if (!resumen) {
         ui.showAlert(
-          'Antes de confirmar, completa las tres propuestas y elige el título que más te gusta en el resumen.',
+          'Antes de confirmar, completa los tres títulos y elige el título que más te gusta en el resumen.',
           '#resumenEnvio'
         );
         return false;
@@ -465,25 +464,6 @@
     return propuestas;
   }
 
-  function limpiarSugerenciasVisuales() {
-    var sugerenciasService = window.TAEstudianteSugerencias;
-    var ui = window.TAEstudianteUI;
-
-    if (sugerenciasService && typeof sugerenciasService.limpiarTodo === 'function') {
-      sugerenciasService.limpiarTodo();
-      return;
-    }
-
-    if (sugerenciasService && typeof sugerenciasService.limpiar === 'function') {
-      sugerenciasService.limpiar();
-      return;
-    }
-
-    if (ui && typeof ui.clearSuggestions === 'function') {
-      ui.clearSuggestions();
-    }
-  }
-
   function limpiarTitulosFinales() {
     for (var i = 1; i <= obtenerTotalPropuestas(); i += 1) {
       limpiarTituloFinal(i);
@@ -498,12 +478,12 @@
     }
 
     campo.value = '';
-    campo.setAttribute('readonly', 'readonly');
+    campo.removeAttribute('readonly');
     campo.removeAttribute('data-sugerencia-seleccionada');
     campo.removeAttribute('data-sugerencia-index');
     campo.removeAttribute('data-sugerencia-enfoque');
     campo.removeAttribute('data-sugerencia-fecha');
-    campo.classList.remove('title-final-selected', 'title-final-selected--stable');
+    campo.classList.remove('title-final-selected', 'title-final-selected--stable', 'is-ready');
   }
 
   function limpiarSeleccionPreferida() {
@@ -524,10 +504,8 @@
       }
 
       if (limpiarTexto(propuesta.tituloFinal)) {
-        campo.setAttribute('data-sugerencia-seleccionada', 'true');
-        campo.setAttribute('data-sugerencia-index', 'restaurado');
-        campo.setAttribute('readonly', 'readonly');
-        campo.classList.add('title-final-selected--stable');
+        campo.removeAttribute('readonly');
+        campo.classList.add('is-ready');
       }
     });
   }
@@ -546,7 +524,7 @@
         '<label class="summary-option">',
         '<input type="radio" name="tituloPreferido" value="' + escapeHtml(propuesta.numero) + '"' + (Number(formData.tituloPreferidoNumero) === Number(propuesta.numero) ? ' checked' : '') + '>',
         '<span>',
-        '<strong>Propuesta ' + escapeHtml(propuesta.numero) + '</strong>',
+        '<strong>Título ' + escapeHtml(propuesta.numero) + '</strong>',
         '<em>' + escapeHtml(propuesta.tituloFinal || 'Título final pendiente') + '</em>',
         '</span>',
         '</label>'

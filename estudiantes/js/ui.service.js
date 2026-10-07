@@ -455,14 +455,14 @@
     propuestas = Array.isArray(formData.propuestas) ? formData.propuestas : [];
 
     if (!propuestas.length) {
-      container.innerHTML = '<p class="muted">Completa las tres propuestas para ver el resumen.</p>';
+      container.innerHTML = '<p class="muted">Completa los tres títulos para ver el resumen.</p>';
       return;
     }
 
     container.innerHTML = [
       '<div class="summary-block">',
       '<h3>Elige el título que más te gusta</h3>',
-      '<p class="muted">Selecciona una de las tres propuestas antes de confirmar el envío.</p>',
+      '<p class="muted">Selecciona uno de los tres títulos antes de confirmar el envío.</p>',
       '</div>',
       propuestas.map(function (propuesta) {
         return renderTituloPreferidoOption(propuesta, formData.tituloPreferidoNumero);
@@ -479,7 +479,7 @@
       '<label class="summary-title-option summary-option">',
       '<input type="radio" name="tituloPreferido" value="' + numero + '"' + (checked ? ' checked' : '') + ' />',
       '<span>',
-      '<strong>Propuesta ' + numero + '</strong>',
+      '<strong>Título ' + numero + '</strong>',
       '<em>' + escapeHtml(titulo) + '</em>',
       '</span>',
       '</label>'
@@ -514,15 +514,12 @@
       '<p>' + escapeHtml(preferida ? preferida.tituloFinal : 'No seleccionado') + '</p>',
       '</div>',
       '<div class="summary-block">',
-      '<h3>Propuestas registradas</h3>',
+      '<h3>Títulos registrados</h3>',
       propuestas.map(function (propuesta) {
         return [
           '<article class="summary-proposal">',
-          '<h4>Propuesta ' + escapeHtml(propuesta.numero) + '</h4>',
-          '<p><strong>Título final:</strong> ' + escapeHtml(propuesta.tituloFinal || '') + '</p>',
-          '<p><strong>Tema:</strong> ' + escapeHtml(propuesta.temaGeneral || '') + '</p>',
-          '<p><strong>Problema:</strong> ' + escapeHtml(propuesta.problemaNecesidad || '') + '</p>',
-          '<p><strong>Objetivo:</strong> ' + escapeHtml(propuesta.objetivo || '') + '</p>',
+          '<h4>Título ' + escapeHtml(propuesta.numero) + '</h4>',
+          '<p>' + escapeHtml(propuesta.tituloFinal || 'Título pendiente') + '</p>',
           '</article>'
         ].join('');
       }).join(''),

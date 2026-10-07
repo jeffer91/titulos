@@ -175,7 +175,7 @@
     numero = Number(numero || 0);
 
     if (!numero || numero < 1 || numero > 3) {
-      return error('No se pudo identificar la propuesta que debes completar.', '');
+      return error('No se pudo identificar el título que debes completar.', '');
     }
 
     return validarPropuestaDesdeObjeto(leerPropuestaDesdeDom(numero), numero);
@@ -259,7 +259,7 @@
     }
 
     if (!Array.isArray(formData.propuestas) || formData.propuestas.length < total) {
-      return error('Debes completar las tres propuestas.', '');
+      return error('Debes completar los tres títulos.', '');
     }
 
     contacto = validarDatosContacto();
@@ -268,12 +268,27 @@
       return contacto;
     }
 
+    var titulosVistos = {};
+
     for (var i = 0; i < total; i += 1) {
       resultado = validarPropuestaDesdeObjeto(formData.propuestas[i], i + 1);
 
       if (!resultado.ok) {
         return resultado;
       }
+
+      var claveTitulo = limpiarTitulo(formData.propuestas[i].tituloFinal)
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+
+      if (titulosVistos[claveTitulo]) {
+        return error('Los tres títulos deben ser diferentes. Revisa el Título ' + (i + 1) + '.', '#p' + (i + 1) + 'Titulo');
+      }
+
+      titulosVistos[claveTitulo] = true;
     }
 
     preferidoNumero = Number(formData.tituloPreferidoNumero || 0);
@@ -297,63 +312,18 @@
   }
 
   function validarPropuestaDesdeObjeto(propuesta, numero) {
-    var validacionTitulo;
-    var validacionSugerencia;
-
     propuesta = propuesta || {};
     numero = Number(numero || propuesta.numero || 0);
 
     if (!numero || numero < 1 || numero > 3) {
-      return error('No se pudo identificar la propuesta que debes completar.', '');
+      return error('No se pudo identificar el título que debes completar.', '');
     }
 
     propuesta.numero = numero;
-    propuesta.temaGeneral = limpiarTexto(propuesta.temaGeneral);
-    propuesta.problemaNecesidad = limpiarTexto(propuesta.problemaNecesidad);
-    propuesta.lugarContexto = limpiarTexto(propuesta.lugarContexto);
-    propuesta.grupoEstudio = limpiarTexto(propuesta.grupoEstudio);
-    propuesta.anioPeriodo = limpiarTexto(propuesta.anioPeriodo);
-    propuesta.objetivo = limpiarTexto(propuesta.objetivo);
     propuesta.tituloFinal = limpiarTitulo(propuesta.tituloFinal);
 
-    if (!propuesta.temaGeneral) {
-      return error('Completa el tema general de la propuesta ' + numero + '.', '#p' + numero + 'Tema');
-    }
-
-    if (!propuesta.problemaNecesidad) {
-      return error('Completa el problema o necesidad de la propuesta ' + numero + '.', '#p' + numero + 'Problema');
-    }
-
-    if (!propuesta.lugarContexto) {
-      return error('Completa el lugar o contexto de la propuesta ' + numero + '.', '#p' + numero + 'Contexto');
-    }
-
-    if (!propuesta.grupoEstudio) {
-      return error('Completa el grupo de estudio de la propuesta ' + numero + '.', '#p' + numero + 'Grupo');
-    }
-
-    if (!propuesta.anioPeriodo) {
-      return error('Completa el año o período de la propuesta ' + numero + '.', '#p' + numero + 'Periodo');
-    }
-
-    if (!propuesta.objetivo) {
-      return error('Completa el objetivo simple de la propuesta ' + numero + '.', '#p' + numero + 'Objetivo');
-    }
-
     if (!propuesta.tituloFinal) {
-      return error('Genera sugerencias y elige una opción para completar el título final de la propuesta ' + numero + '.', '#p' + numero + 'Sugerencias');
-    }
-
-    validacionSugerencia = validarSugerenciaElegida(propuesta, numero);
-
-    if (!validacionSugerencia.ok) {
-      return validacionSugerencia;
-    }
-
-    validacionTitulo = validarTituloAcademico(propuesta, numero);
-
-    if (!validacionTitulo.ok) {
-      return validacionTitulo;
+      return error('Pega el Título ' + numero + ' para continuar.', '#p' + numero + 'Titulo');
     }
 
     return {
@@ -365,138 +335,27 @@
   }
 
   function validarSugerenciaElegida(propuesta, numero) {
-    var sugerenciasService = window.TAEstudianteSugerencias;
-    var seleccion = sugerenciasService && typeof sugerenciasService.obtenerSeleccion === 'function'
-      ? sugerenciasService.obtenerSeleccion(numero)
-      : null;
-    var campoTitulo = document.querySelector('#p' + numero + 'Titulo');
-    var tituloFinal = limpiarTitulo(propuesta && propuesta.tituloFinal);
-    var tituloSeleccionado = seleccion ? limpiarTitulo(seleccion.texto || seleccion.titulo || seleccion.sugerencia || '') : '';
-    var selectorSugerencias = '#p' + numero + 'Sugerencias';
+    var titulo = limpiarTitulo(propuesta && propuesta.tituloFinal);
 
-    if (!tituloFinal) {
-      return error('Genera sugerencias y elige una opción para completar el título final de la propuesta ' + numero + '.', selectorSugerencias);
+    if (!titulo) {
+      return error('Pega el Título ' + numero + ' para continuar.', '#p' + numero + 'Titulo');
     }
 
-    if (seleccion && tituloSeleccionado) {
-      return {
-        ok: true,
-        data: seleccion,
-        mensaje: '',
-        selector: ''
-      };
-    }
-
-    if (
-      campoTitulo &&
-      campoTitulo.classList &&
-      (
-        campoTitulo.classList.contains('title-final-selected') ||
-        campoTitulo.classList.contains('title-final-selected--stable')
-      )
-    ) {
-      return {
-        ok: true,
-        data: {
-          titulo: tituloFinal
-        },
-        mensaje: '',
-        selector: ''
-      };
-    }
-
-    return error(
-      'Antes de continuar, genera sugerencias y elige una opción para la propuesta ' + numero + '. El título final debe bajar desde la pantalla de sugerencias.',
-      selectorSugerencias
-    );
+    return { ok: true, data: { titulo: titulo }, mensaje: '', selector: '' };
   }
 
   function validarTituloAcademico(propuesta, numero) {
-    var titulo = limpiarTitulo(propuesta.tituloFinal);
-    var palabras = contarPalabras(titulo);
-    var selector = '#p' + numero + 'Titulo';
-    var validador = window.TATitulosAcademicValidator;
-    var contexto;
-    var evaluacion;
-    var mensajes = [];
+    var titulo = limpiarTitulo(propuesta && propuesta.tituloFinal);
 
     if (!titulo) {
-      return error('Completa el título final de la propuesta ' + numero + '.', selector);
-    }
-
-    if (palabras < 10) {
-      return error('El título final de la propuesta ' + numero + ' debe tener al menos 10 palabras.', selector);
-    }
-
-    if (palabras > 29) {
-      return error('El título final de la propuesta ' + numero + ' es demasiado largo. Debe tener entre 10 y 25 palabras, máximo 29 solo si la idea lo exige.', selector);
-    }
-
-    if (incluyeJustificacion(titulo)) {
-      return error('El título final de la propuesta ' + numero + ' no debe incluir justificación, explicación ni texto adicional.', selector);
-    }
-
-    if (terminaEnIdeaIncompleta(titulo)) {
-      return error('El título final de la propuesta ' + numero + ' termina con una idea incompleta. Reescríbelo completo.', selector);
-    }
-
-    if (contienePalabraCortada(titulo)) {
-      return error('El título final de la propuesta ' + numero + ' parece tener una palabra cortada. Reescríbelo completo.', selector);
-    }
-
-    if (!contieneDatoObligatorio(titulo, propuesta.grupoEstudio)) {
-      return error('El título final de la propuesta ' + numero + ' debe incluir el grupo de estudio de forma natural.', selector);
-    }
-
-    if (!contieneDatoObligatorio(titulo, propuesta.lugarContexto)) {
-      return error('El título final de la propuesta ' + numero + ' debe incluir el lugar o contexto de forma natural.', selector);
-    }
-
-    if (!contienePeriodoObligatorio(titulo, propuesta.anioPeriodo)) {
-      return error('El título final de la propuesta ' + numero + ' debe incluir el año o período indicado.', selector);
-    }
-
-    if (/correcci[oó]n\s+de\s+ruidos/i.test(titulo)) {
-      return error('El título final de la propuesta ' + numero + ' debe usar una redacción más precisa, por ejemplo “corrección de fallas asociadas a ruidos”.', selector);
-    }
-
-    if (validador && typeof validador.evaluarTitulo === 'function') {
-      contexto = {
-        propuesta: propuesta,
-        enfoque: obtenerEnfoquePorNumero(numero),
-        estudiante: obtenerEstudianteActual()
-      };
-
-      try {
-        evaluacion = validador.evaluarTitulo(titulo, contexto);
-      } catch (e) {
-        evaluacion = null;
-      }
-
-      mensajes = obtenerMensajesEvaluacion(evaluacion);
-
-      if (evaluacion && evaluacion.ok === false) {
-        return error('El título final de la propuesta ' + numero + ' no cumple las reglas académicas: ' + mensajes.join(' '), selector);
-      }
-
-      if (evaluacion && evaluacion.valido === false) {
-        return error('El título final de la propuesta ' + numero + ' no cumple las reglas académicas: ' + mensajes.join(' '), selector);
-      }
-
-      if (evaluacion && evaluacion.calidad === 'mala') {
-        return error('El título final de la propuesta ' + numero + ' necesita mejorar: ' + mensajes.join(' '), selector);
-      }
-
-      if (evaluacion && Number(evaluacion.puntos || evaluacion.score || 100) < 70) {
-        return error('El título final de la propuesta ' + numero + ' no alcanza la calidad mínima: ' + mensajes.join(' '), selector);
-      }
+      return error('Pega el Título ' + numero + ' para continuar.', '#p' + numero + 'Titulo');
     }
 
     return {
       ok: true,
       data: {
         titulo: titulo,
-        palabras: palabras
+        palabras: contarPalabras(titulo)
       },
       mensaje: '',
       selector: ''

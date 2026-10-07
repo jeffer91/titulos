@@ -31,33 +31,39 @@
     if (!section) return;
 
     var ayuda = numero === 1 ? construirAyudaPrincipal() : construirAyudaContinuacion(numero);
+    var yaEstructurado = section.getAttribute('data-titulo-externo') === 'true' &&
+      Boolean(section.querySelector('#p' + numero + 'Titulo'));
 
-    section.innerHTML = [
-      '<div class="titulo-externo__sticky-nav" data-ronda="' + numero + '">',
-      '  <button class="btn btn--ghost" type="button" data-action="prev">← Regresar</button>',
-      '  <button class="btn btn--primary titulo-externo__continuar" type="button" data-action="next" data-nav-lock="true" disabled>Continuar →</button>',
-      '</div>',
-      '<div class="section-heading titulo-externo__heading">',
-      '  <p class="section-kicker">' + ronda + '</p>',
-      '  <h2>' + titulo + '</h2>',
-      '</div>',
-      '<article class="titulo-externo-card titulo-externo-card--principal">',
-      '  <label for="p' + numero + 'Titulo">Pega el título que elegiste</label>',
-      '  <textarea id="p' + numero + 'Titulo" name="p' + numero + 'Titulo" rows="3" maxlength="360" placeholder="Pega aquí tu título elegido."></textarea>',
-      '  <div class="titulo-externo-card__footer">',
-      '    <span class="titulo-externo-card__contador" id="p' + numero + 'Contador">0 palabras</span>',
-      '    <span class="titulo-externo-card__estado" id="p' + numero + 'Estado">Pega un título para continuar.</span>',
-      '  </div>',
-      '  <div class="titulo-externo-card__meta">',
-      '    <span>10–25 palabras</span>',
-      '    <span>1 finalidad · 1 objeto</span>',
-      '  </div>',
-      '</article>',
-      ayuda
-    ].join('');
+    if (!yaEstructurado) {
+      section.innerHTML = [
+        '<div class="titulo-externo__sticky-nav" data-ronda="' + numero + '">',
+        '  <button class="btn btn--ghost" type="button" data-action="prev">← Regresar</button>',
+        '  <button class="btn btn--primary titulo-externo__continuar" type="button" data-action="next" data-nav-lock="true" disabled>Continuar →</button>',
+        '</div>',
+        '<div class="section-heading titulo-externo__heading">',
+        '  <p class="section-kicker">' + ronda + '</p>',
+        '  <h2>' + titulo + '</h2>',
+        '</div>',
+        '<article class="titulo-externo-card titulo-externo-card--principal">',
+        '  <label for="p' + numero + 'Titulo">Pega el título que elegiste</label>',
+        '  <textarea id="p' + numero + 'Titulo" name="p' + numero + 'Titulo" rows="3" maxlength="360" placeholder="Pega aquí tu título elegido."></textarea>',
+        '  <div class="titulo-externo-card__footer">',
+        '    <span class="titulo-externo-card__contador" id="p' + numero + 'Contador">0 palabras</span>',
+        '    <span class="titulo-externo-card__estado" id="p' + numero + 'Estado">Pega un título para continuar.</span>',
+        '  </div>',
+        '  <div class="titulo-externo-card__meta">',
+        '    <span>10–25 palabras</span>',
+        '    <span>1 finalidad · 1 objeto</span>',
+        '  </div>',
+        '</article>',
+        ayuda
+      ].join('');
+      section.setAttribute('data-titulo-externo', 'true');
+    }
 
     var campo = section.querySelector('#p' + numero + 'Titulo');
-    if (campo) {
+    if (campo && campo.dataset.tituloExternoBound !== 'true') {
+      campo.dataset.tituloExternoBound = 'true';
       campo.addEventListener('input', function () { actualizarEstadoTitulo(numero); });
       campo.addEventListener('paste', function () {
         window.setTimeout(function () { actualizarEstadoTitulo(numero); }, 0);
@@ -66,14 +72,26 @@
 
     if (numero === 1) {
       var copiarMaestro = section.querySelector('#btnCopiarPromptTitulos');
-      if (copiarMaestro) copiarMaestro.addEventListener('click', copiarPromptMaestro);
+      if (copiarMaestro && copiarMaestro.dataset.tituloExternoBound !== 'true') {
+        copiarMaestro.dataset.tituloExternoBound = 'true';
+        copiarMaestro.addEventListener('click', copiarPromptMaestro);
+      }
       var details = section.querySelector('.prompt-institucional__preview');
-      if (details) details.addEventListener('toggle', actualizarVistaPrompt);
+      if (details && details.dataset.tituloExternoBound !== 'true') {
+        details.dataset.tituloExternoBound = 'true';
+        details.addEventListener('toggle', actualizarVistaPrompt);
+      }
     } else {
       var copiarContinuacion = section.querySelector('[data-copy-continuacion="' + numero + '"]');
       var copiarMaestroSec = section.querySelector('[data-copy-maestro="true"]');
-      if (copiarContinuacion) copiarContinuacion.addEventListener('click', function (event) { copiarContinuacionRonda(event, numero); });
-      if (copiarMaestroSec) copiarMaestroSec.addEventListener('click', copiarPromptMaestro);
+      if (copiarContinuacion && copiarContinuacion.dataset.tituloExternoBound !== 'true') {
+        copiarContinuacion.dataset.tituloExternoBound = 'true';
+        copiarContinuacion.addEventListener('click', function (event) { copiarContinuacionRonda(event, numero); });
+      }
+      if (copiarMaestroSec && copiarMaestroSec.dataset.tituloExternoBound !== 'true') {
+        copiarMaestroSec.dataset.tituloExternoBound = 'true';
+        copiarMaestroSec.addEventListener('click', copiarPromptMaestro);
+      }
     }
   }
 
