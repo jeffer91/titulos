@@ -47,21 +47,26 @@
       ocultar('formIdentificacion');
 
       if (!data.pinCreado) {
-        setText('accesoAyuda', 'Es tu primer ingreso. Crea un PIN personal; después Administración deberá activarlo.');
+        setText('accesoAyuda', 'Tu registro existe, pero todavía no tiene un PIN asignado. Puedes crear uno para continuar.');
         mostrar('formCrearPin');
         mensaje('accesoMensaje', 'Registro encontrado. Crea tu PIN para continuar.', 'success');
         return;
       }
 
-      if (!data.pinActivo) {
-        mostrarPendiente();
-        return;
-      }
-
-      setText('accesoAyuda', 'Tu acceso está activo. Ingresa tu PIN.');
+      ocultar('panelPendiente');
+      setText(
+        'accesoAyuda',
+        data.pinActivo
+          ? 'Ingresa tu PIN para acceder.'
+          : 'Ingresa tu PIN. Si es correcto, tu acceso se activará automáticamente.'
+      );
       mostrar('formLoginPin');
       el('pinInput').focus();
-      mensaje('accesoMensaje', 'PIN activo.', 'success');
+      mensaje(
+        'accesoMensaje',
+        data.pinActivo ? 'Acceso listo.' : 'PIN registrado. Valídalo para ingresar.',
+        data.pinActivo ? 'success' : 'info'
+      );
     }).catch(function (error) {
       investigador = null;
       mensaje('accesoMensaje', error.message || 'No se pudo validar el registro.', 'error');
@@ -81,13 +86,17 @@
 
     setLoading(button, true, 'Creando...');
     repository.crearPin(investigador, pin).then(function () {
-      investigador.pinCreado = true;
-      investigador.pinActivo = false;
-      investigador.pinHash = '';
       valueSet('nuevoPinInput', '');
       valueSet('confirmarPinInput', '');
       ocultar('formCrearPin');
-      mostrarPendiente();
+
+      return repository.buscarInvestigador(investigador.cedula).then(function (actualizado) {
+        investigador = actualizado;
+        setText('accesoAyuda', 'PIN creado. Ingresa el mismo PIN para activar tu acceso.');
+        mostrar('formLoginPin');
+        mensaje('accesoMensaje', 'PIN creado correctamente. Ya puedes validarlo e ingresar.', 'success');
+        el('pinInput').focus();
+      });
     }).catch(function (error) {
       mensaje('accesoMensaje', error.message || 'No se pudo crear el PIN.', 'error');
     }).finally(function () {
