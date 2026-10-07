@@ -16,6 +16,7 @@
   instalarValidacionesExternas();
   envolverFormularioController();
   instalarEstilos();
+  instalarModalConfirmacion();
   habilitarTitulosEditables();
   actualizarTodosLosEstados();
 
@@ -389,7 +390,166 @@
       };
     }
 
+    if (typeof originalFormularioController.validarAntesDeAvanzar === 'function') {
+      copia.validarAntesDeAvanzar = function (pasoActual, pasoDestino) {
+        var numero = obtenerNumeroRondaDesdePaso(pasoActual);
+
+        if (!numero) {
+          return originalFormularioController.validarAntesDeAvanzar.apply(originalFormularioController, arguments);
+        }
+
+        var titulo = valor('#p' + numero + 'Titulo');
+        var validacion = validarTituloPresente(numero, titulo);
+
+        if (!validacion.ok) {
+          enfocarTitulo(numero);
+          return false;
+        }
+
+        return mostrarConfirmacionTitulo(numero, limpiarTitulo(titulo))
+          .then(function (confirmado) {
+            if (!confirmado) {
+              enfocarTitulo(numero);
+              return false;
+            }
+
+            if (typeof originalFormularioController.actualizarResumenPreferido === 'function') {
+              originalFormularioController.actualizarResumenPreferido();
+              ajustarResumen();
+            }
+
+            return true;
+          });
+      };
+    }
+
     window.TAEstudianteFormularioController = Object.freeze(copia);
+  }
+
+  var resolverConfirmacionTitulo = null;
+
+  function obtenerNumeroRondaDesdePaso(paso) {
+    var match = /^propuesta([1-3])$/.exec(String(paso || ''));
+    return match ? Number(match[1]) : 0;
+  }
+
+  function instalarModalConfirmacion() {
+    if (document.getElementById('modalConfirmarTitulo')) return;
+
+    var modal = document.createElement('div');
+    modal.id = 'modalConfirmarTitulo';
+    modal.className = 'titulo-confirmacion-modal is-hidden';
+    modal.setAttribute('aria-hidden', 'true');
+    modal.innerHTML = [
+      '<div class="titulo-confirmacion-modal__backdrop" data-confirmacion-cancelar="true"></div>',
+      '<section class="titulo-confirmacion-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tituloConfirmacionHeading">',
+      '  <button type="button" class="titulo-confirmacion-modal__close" aria-label="Cerrar" data-confirmacion-cancelar="true">×</button>',
+      '  <span class="titulo-confirmacion-modal__eyebrow" id="tituloConfirmacionEyebrow">CONFIRMACIÓN · TÍTULO 1</span>',
+      '  <h2 id="tituloConfirmacionHeading">¿Este es el título que quieres registrar?</h2>',
+      '  <p class="titulo-confirmacion-modal__intro" id="tituloConfirmacionIntro">Revísalo antes de continuar.</p>',
+      '  <div class="titulo-confirmacion-modal__titulo" id="tituloConfirmacionTexto"></div>',
+      '  <div class="titulo-confirmacion-modal__actions">',
+      '    <button type="button" class="btn btn--ghost" id="btnEditarTituloConfirmacion">Editar título</button>',
+      '    <button type="button" class="btn btn--primary" id="btnConfirmarTituloContinuar">Confirmar y continuar</button>',
+      '  </div>',
+      '</section>'
+    ].join('');
+
+    document.body.appendChild(modal);
+
+    var cancelar = modal.querySelectorAll('[data-confirmacion-cancelar="true"]');
+    Array.prototype.forEach.call(cancelar, function (elemento) {
+      elemento.addEventListener('click', function (event) {
+        if (event && event.preventDefault) event.preventDefault();
+        cerrarConfirmacionTitulo(false);
+      });
+    });
+
+    var editar = modal.querySelector('#btnEditarTituloConfirmacion');
+    if (editar) {
+      editar.addEventListener('click', function (event) {
+        if (event && event.preventDefault) event.preventDefault();
+        cerrarConfirmacionTitulo(false);
+      });
+    }
+
+    var confirmar = modal.querySelector('#btnConfirmarTituloContinuar');
+    if (confirmar) {
+      confirmar.addEventListener('click', function (event) {
+        if (event && event.preventDefault) event.preventDefault();
+        cerrarConfirmacionTitulo(true);
+      });
+    }
+
+    document.addEventListener('keydown', function (event) {
+      if (!event || event.key !== 'Escape') return;
+      var abierto = document.getElementById('modalConfirmarTitulo');
+      if (abierto && !abierto.classList.contains('is-hidden')) {
+        cerrarConfirmacionTitulo(false);
+      }
+    });
+  }
+
+  function mostrarConfirmacionTitulo(numero, titulo) {
+    instalarModalConfirmacion();
+
+    var modal = document.getElementById('modalConfirmarTitulo');
+    if (!modal) return Promise.resolve(true);
+
+    var eyebrow = modal.querySelector('#tituloConfirmacionEyebrow');
+    var intro = modal.querySelector('#tituloConfirmacionIntro');
+    var texto = modal.querySelector('#tituloConfirmacionTexto');
+    var confirmar = modal.querySelector('#btnConfirmarTituloContinuar');
+
+    if (eyebrow) eyebrow.textContent = 'CONFIRMACIÓN · TÍTULO ' + numero;
+    if (intro) intro.textContent = 'Confirma que este sea el título que elegiste en la Ronda ' + numero + '.';
+    if (texto) texto.textContent = titulo;
+    if (confirmar) confirmar.textContent = 'Confirmar y continuar';
+
+    modal.dataset.numeroTitulo = String(numero);
+    modal.classList.remove('is-hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('has-open-modal');
+
+    return new Promise(function (resolve) {
+      resolverConfirmacionTitulo = resolve;
+      window.setTimeout(function () {
+        if (confirmar && typeof confirmar.focus === 'function') confirmar.focus();
+      }, 50);
+    });
+  }
+
+  function cerrarConfirmacionTitulo(confirmado) {
+    var modal = document.getElementById('modalConfirmarTitulo');
+    var numero = modal ? Number(modal.dataset.numeroTitulo || 0) : 0;
+
+    if (modal) {
+      modal.classList.add('is-hidden');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    if (!document.querySelector('.modal:not(.is-hidden), .ia-loading-modal:not(.is-hidden), .titulo-confirmacion-modal:not(.is-hidden)')) {
+      document.body.classList.remove('has-open-modal');
+    }
+
+    var resolver = resolverConfirmacionTitulo;
+    resolverConfirmacionTitulo = null;
+
+    if (resolver) resolver(Boolean(confirmado));
+
+    if (!confirmado && numero) {
+      window.setTimeout(function () { enfocarTitulo(numero); }, 80);
+    }
+  }
+
+  function enfocarTitulo(numero) {
+    var campo = document.querySelector('#p' + numero + 'Titulo');
+    if (!campo) return;
+
+    if (typeof campo.focus === 'function') campo.focus();
+    if (typeof campo.scrollIntoView === 'function') {
+      campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   }
 
   function habilitarTitulosEditables() {
@@ -489,7 +649,20 @@
       '.ronda-recordatorio__acciones{display:flex;gap:6px;align-items:center}',
       '.ronda-recordatorio__status{grid-column:1/-1;margin:0!important;color:#087443!important;font-size:.67rem!important;font-weight:850!important}',
       '.btn--compact{min-height:32px!important;padding:5px 9px!important;font-size:.68rem!important;width:auto!important}',
+      '.titulo-confirmacion-modal{position:fixed;inset:0;z-index:1005;display:grid;place-items:center;padding:18px}',
+      '.titulo-confirmacion-modal.is-hidden{display:none!important}',
+      '.titulo-confirmacion-modal__backdrop{position:absolute;inset:0;background:rgba(4,18,37,.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}',
+      '.titulo-confirmacion-modal__dialog{position:relative;z-index:1;width:min(720px,100%);border-radius:20px;background:#fff;border:1px solid #d7e2ed;box-shadow:0 28px 80px rgba(3,20,42,.28);padding:22px}',
+      '.titulo-confirmacion-modal__close{position:absolute;right:14px;top:13px;width:36px;height:36px;border-radius:50%;border:1px solid #d5e1ed;background:#fff;color:#102a49;font-size:1.45rem;font-weight:900;line-height:1;cursor:pointer}',
+      '.titulo-confirmacion-modal__eyebrow{display:block;padding-right:46px;color:#9a6b00;font-size:.66rem;font-weight:950;letter-spacing:.09em;margin-bottom:7px}',
+      '.titulo-confirmacion-modal__dialog h2{margin:0 48px 6px 0;color:#0b294d;font-size:1.42rem;line-height:1.18}',
+      '.titulo-confirmacion-modal__intro{margin:0 0 13px;color:#68798e;font-size:.88rem;line-height:1.4}',
+      '.titulo-confirmacion-modal__titulo{padding:15px 16px;border:1px solid #b9d0e5;border-left:5px solid #0b5da7;border-radius:13px;background:linear-gradient(90deg,#f3f8ff,#fff);color:#102b49;font-size:1rem;line-height:1.48;font-weight:800;overflow-wrap:anywhere}',
+      '.titulo-confirmacion-modal__actions{display:grid;grid-template-columns:1fr 1.25fr;gap:10px;margin-top:16px}',
+      '.titulo-confirmacion-modal__actions .btn{min-height:42px!important;width:100%!important}',
+      '.titulo-confirmacion-modal__actions .btn--primary{background:#08294f!important;color:#fff!important}',
       '@media(max-width:800px){.prompt-institucional__top{grid-template-columns:1fr auto}.ronda-recordatorio{grid-template-columns:1fr}.ronda-recordatorio__acciones{justify-content:flex-start}.titulo-externo__sticky-nav{top:5px}}',
+      '@media(max-width:560px){.titulo-confirmacion-modal{padding:12px}.titulo-confirmacion-modal__dialog{padding:18px 15px;border-radius:16px}.titulo-confirmacion-modal__dialog h2{font-size:1.16rem;margin-right:38px}.titulo-confirmacion-modal__intro{font-size:.8rem}.titulo-confirmacion-modal__titulo{font-size:.88rem;padding:12px 13px}.titulo-confirmacion-modal__actions{grid-template-columns:1fr;gap:7px}.titulo-confirmacion-modal__actions .btn{min-height:39px!important}}',
       '@media(max-width:560px){.titulo-externo__sticky-nav{padding:6px 7px;gap:7px;margin-bottom:8px}.titulo-externo__sticky-nav .btn{min-width:0;flex:1;font-size:.75rem!important;padding:6px 8px!important}.titulo-externo__heading{gap:7px!important}.titulo-externo__heading h2{font-size:1.16rem!important}.titulo-externo-card{padding:11px 12px}.titulo-externo-card textarea{min-height:96px!important}.titulo-externo-card__footer{align-items:flex-start;flex-direction:column;gap:3px}.titulo-externo-card__estado{text-align:left}.prompt-institucional{padding:10px 11px}.prompt-institucional__top{grid-template-columns:1fr}.prompt-institucional__flow{gap:5px}.prompt-institucional__flow i{display:none}.prompt-institucional__flow span{font-size:.62rem;padding:3px 6px}.btn--prompt{width:100%!important}.ronda-recordatorio__acciones{display:grid;grid-template-columns:1fr 1fr}.ronda-recordatorio__acciones .btn{width:100%!important}}'
     ].join('');
 
