@@ -13,37 +13,14 @@ const CODE = fs.readFileSync(
 
 function loadRepository(options) {
   options = options || {};
-  let directCalls = 0;
-  let legacyCalls = 0;
-  let fullFallbackCalls = 0;
-  let lastDocumentId = '';
-
-  const firebaseService = {
-    leerDocumentoServidor: async function (collection, documentId) {
-      directCalls += 1;
-      lastDocumentId = documentId;
-      if (options.directError) throw new Error('NETWORK_FAIL');
-      return options.directDoc || null;
-    }
-  };
+  let restCalls = 0;
 
   const consultaService = {
-    consultarLegacy: async function () {
-      legacyCalls += 1;
-      return options.legacyResult || {
-        ok: true,
-        encontrado: false,
-        status: 404,
-        envio: null,
-        estrategia: 'SIN_COINCIDENCIA',
-        ruta: 'NO_ENCONTRADO',
-        base: 'titulos-ec2fa',
-        coleccion: 'envios'
-      };
-    },
-    consultar: async function () {
-      fullFallbackCalls += 1;
-      return options.fullFallbackResult || {
+    consultar: async function (periodo, cedula) {
+      restCalls += 1;
+      assert.strictEqual(periodo, '2026-04__2026-09');
+      assert.strictEqual(cedula, '1754049383');
+      return options.result || {
         ok: true,
         encontrado: false,
         status: 404,
@@ -55,6 +32,12 @@ function loadRepository(options) {
       };
     }
   };
+
+  const firebaseService = new Proxy({}, {
+    get() {
+      throw new Error('La consulta pública de envios no debe usar Firestore SDK.');
+    }
+  });
 
   const context = {
     console,
@@ -93,9 +76,7 @@ function loadRepository(options) {
 
   return {
     repository: context.window.TAEstudianteRepository,
-    stats: function () {
-      return { directCalls, legacyCalls, fullFallbackCalls, lastDocumentId };
-    }
+    restCalls: function () { return restCalls; }
   };
 }
 
@@ -105,91 +86,49 @@ async function run() {
   const id = periodo + '__' + cedula;
 
   {
-    const directDoc = {
-      id,
-      cedula,
-      periodoId: periodo,
-      estado: 'APROBADO_FINAL',
-      estadoProceso: 'APROBADO_FINAL',
-      estadoInvestigador: 'APROBADO',
-      investigacionRevisada: true,
-      tituloFinal: 'Título aprobado'
-    };
-
-    const env = loadRepository({ directDoc });
-    const result = await env.repository.consultarEnvio(periodo, cedula);
-    const stats = env.stats();
-
-    assert(result, 'La lectura directa debe devolver el envío.');
-    assert.strictEqual(result.estado, 'APROBADO_FINAL');
-    assert.strictEqual(stats.lastDocumentId, id);
-    assert.strictEqual(stats.directCalls, 1);
-    assert.strictEqual(stats.legacyCalls, 0, 'No debe ejecutar fallback si existe el ID exacto.');
-    assert.strictEqual(stats.fullFallbackCalls, 0);
-    assert.strictEqual(result._consultaDiagnostico.estrategia, 'ID_EXACTO_PRIMERO');
-    assert.strictEqual(result._consultaDiagnostico.ruta, 'SDK_ID_EXACTO');
-  }
-
-  {
-    const legacyResult = {
-      ok: true,
-      encontrado: true,
-      status: 200,
-      estrategia: 'FALLBACK_IDENTIDAD',
-      ruta: 'QUERY_IDENTIDAD',
-      documentoId: 'legacy-1754049383',
-      base: 'titulos-ec2fa',
-      coleccion: 'envios',
-      envio: {
-        id: 'legacy-1754049383',
-        cedula,
-        periodoId: periodo,
-        estado: 'PENDIENTE_INVESTIGADOR'
-      }
-    };
-
-    const env = loadRepository({ directDoc: null, legacyResult });
-    const result = await env.repository.consultarEnvio(periodo, cedula);
-    const stats = env.stats();
-
-    assert(result, 'El fallback legacy debe recuperar documentos históricos.');
-    assert.strictEqual(stats.directCalls, 1);
-    assert.strictEqual(stats.legacyCalls, 1);
-    assert.strictEqual(stats.fullFallbackCalls, 0);
-  }
-
-  {
-    const fullFallbackResult = {
-      ok: true,
-      encontrado: true,
-      status: 200,
-      estrategia: 'ID_EXACTO_PRIMERO',
-      ruta: 'ID_EXACTO',
-      documentoId: id,
-      base: 'titulos-ec2fa',
-      coleccion: 'envios',
-      envio: {
-        id,
-        cedula,
-        periodoId: periodo,
-        estado: 'APROBADO_FINAL'
-      }
-    };
-
     const env = loadRepository({
-      directError: true,
-      fullFallbackResult
+      result: {
+        ok: true,
+        encontrado: true,
+        status: 200,
+        estrategia: 'ID_EXACTO_PRIMERO',
+        ruta: 'ID_EXACTO',
+        documentoId: id,
+        periodoCanonico: periodo,
+        base: 'titulos-ec2fa',
+        coleccion: 'envios',
+        envio: {
+          id,
+          cedula,
+          periodoId: periodo,
+          estado: 'APROBADO_FINAL',
+          estadoProceso: 'APROBADO_FINAL',
+          estadoInvestigador: 'APROBADO',
+          investigacionRevisada: true,
+          tituloFinal: 'PR 1.1c'
+        }
+      }
     });
-    const result = await env.repository.consultarEnvio(periodo, cedula);
-    const stats = env.stats();
 
-    assert(result, 'Un fallo del SDK debe usar REST como único reintento controlado.');
-    assert.strictEqual(stats.directCalls, 1);
-    assert.strictEqual(stats.fullFallbackCalls, 1);
+    const result = await env.repository.consultarEnvio(periodo, cedula);
+
+    assert(result, 'REST directo debe devolver el envío.');
     assert.strictEqual(result.estado, 'APROBADO_FINAL');
+    assert.strictEqual(result.tituloFinal, 'PR 1.1c');
+    assert.strictEqual(env.restCalls(), 1, 'Repository debe hacer una sola llamada al motor REST.');
+    assert.strictEqual(result._consultaDiagnostico.motor, 'REST_DIRECTO');
+    assert.strictEqual(result._consultaDiagnostico.ruta, 'ID_EXACTO');
   }
 
-  console.log('OK estudiante-envio-rapido: ID exacto, legacy y reintento controlado aprobados.');
+  {
+    const env = loadRepository();
+    const result = await env.repository.consultarEnvio(periodo, cedula);
+    assert.strictEqual(result, null);
+    assert.strictEqual(env.restCalls(), 1);
+    assert.strictEqual(env.repository.obtenerDiagnosticoEnvio().status, 404);
+  }
+
+  console.log('OK estudiante-envio-rapido: consulta pública usa solo REST directo.');
 }
 
 run().catch((error) => {
