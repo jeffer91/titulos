@@ -706,3 +706,48 @@ small {
     padding: 0 14px;
   }
 }
+
+
+/* PIN de investigadores */
+.bulk-pin-card {
+  border-color: #c9d9ea;
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+}
+
+.bulk-pin-card textarea {
+  min-height: 150px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .84rem;
+  line-height: 1.45;
+}
+
+.bulk-pin-actions {
+  margin-top: 10px;
+}
+
+.pin-modal .modal__header {
+  margin-bottom: 10px;
+}
+
+.pin-change-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pin-verify-note {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #cfe0ef;
+  border-radius: 12px;
+  background: #f4f9fd;
+  color: #48627c;
+  font-size: .8rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .pin-change-grid {
+    grid-template-columns: 1fr;
+  }
+}
