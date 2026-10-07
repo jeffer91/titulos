@@ -4,7 +4,7 @@
 
   window.TA_COORDINADORES_CONFIG = Object.freeze({
     modulo: 'coordinadores',
-    version: '4.1.0-firebase-titulos',
+    version: '4.2.0-revision-compacta',
     firebase: window.TA_COORDINADORES_FIREBASE_CONFIG || Object.freeze({}),
     collections: Object.freeze({
       titulos: 'envios',
@@ -22,6 +22,7 @@
     }),
     accionesRevision: Object.freeze({
       validar: 'VALIDAR',
+      validarCorreccion: 'VALIDAR_CORRECCION',
       devolver: 'DEVOLVER'
     })
   });
