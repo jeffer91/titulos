@@ -1,9 +1,9 @@
 (function () {
   'use strict';
 
-  var VERSION = '20261006-13';
-  var TIMEOUT_MS = 5600;
-  var READY_TIMEOUT_MS = 4200;
+  var VERSION = '20261007-36';
+  var TIMEOUT_MS = 8200;
+  var READY_TIMEOUT_MS = 5200;
   var ORIGIN = window.location.origin;
   var iframe = null;
   var ready = false;
