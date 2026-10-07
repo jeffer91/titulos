@@ -96,3 +96,345 @@ textarea { resize: vertical; }
 .proposal__head span { display:inline-flex; padding:3px 6px; border-radius:999px; background:#e8f1ff; color:#1557d6; font-size:.64rem; font-weight:900; }
 .proposal__head .proposal__corrected { background:#fff0bd; color:#7a5200; }
 .proposal small { display:block; margin-top:6px; padding-top:6px; border-top:1px dashed #e0c982; color:#75643d; font-size:.72rem; }
+
+
+/* =========================================================
+   Cola FIFO de Investigación por carrera
+   ========================================================= */
+.queue-summary .summary--warning {
+  border-color: #f2d58b;
+  background: #fffaf0;
+}
+
+.queue-summary .summary--warning strong {
+  color: #946200;
+}
+
+.queue-view {
+  min-width: 0;
+}
+
+.careers-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.queue-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px 13px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+}
+
+.queue-section-head h3 {
+  margin: 3px 0 2px;
+  font-size: 1.08rem;
+}
+
+.queue-section-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+
+.career-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.career-table th,
+.career-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #edf1f5;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.career-table th {
+  color: var(--muted);
+  background: #f8fafc;
+  font-size: .7rem;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.career-table tbody tr:hover {
+  background: #fbfdff;
+}
+
+.text-center {
+  text-align: center !important;
+}
+
+.text-right {
+  text-align: right !important;
+}
+
+.career-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.career-name strong {
+  color: var(--navy);
+  font-size: .86rem;
+}
+
+.career-name span,
+.queue-date {
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.queue-count {
+  display: inline-grid;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff0bd;
+  color: #7c5300;
+  font-size: .78rem;
+  font-weight: 950;
+}
+
+.btn--compact {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: .73rem;
+}
+
+.queue-empty {
+  padding: 28px 16px !important;
+  text-align: center !important;
+  color: var(--muted);
+}
+
+.queue-empty strong,
+.queue-empty span {
+  display: block;
+}
+
+.queue-empty strong {
+  margin-bottom: 4px;
+  color: var(--success);
+  font-size: .95rem;
+}
+
+.queue-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 7px 20px rgba(7, 26, 51, .05);
+}
+
+.queue-toolbar__info {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.queue-toolbar__info span {
+  color: var(--navy);
+  font-weight: 900;
+}
+
+.queue-toolbar__info strong {
+  display: inline-flex;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #fff0bd;
+  color: #785100;
+  font-size: .68rem;
+}
+
+.queue-position {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eef6ff, #f9fcff);
+  border: 1px solid #cfe0f2;
+}
+
+.queue-position strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--navy);
+}
+
+.queue-position > span {
+  color: var(--muted);
+  font-size: .73rem;
+  font-weight: 750;
+}
+
+.queue-title-card {
+  margin-top: 10px;
+  padding: 14px;
+}
+
+.queue-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.queue-card-head h3 {
+  margin: 7px 0 0;
+  font-size: 1.08rem;
+  line-height: 1.25;
+}
+
+.queue-arrival {
+  flex: 0 0 auto;
+  min-width: 190px;
+  padding: 9px 11px;
+  border: 1px solid #d9e4ef;
+  border-radius: 11px;
+  background: #f8fbff;
+  text-align: right;
+}
+
+.queue-arrival span,
+.queue-arrival strong {
+  display: block;
+}
+
+.queue-arrival span {
+  color: var(--muted);
+  font-size: .61rem;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.queue-arrival strong {
+  margin-top: 2px;
+  color: var(--blue);
+  font-size: .74rem;
+}
+
+.proposals--review {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.proposals--review .proposal {
+  min-width: 0;
+}
+
+.proposals--review .proposal p {
+  line-height: 1.35;
+}
+
+.queue-decision {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  background: #fafcff;
+}
+
+.queue-decision label {
+  font-size: .78rem;
+}
+
+.queue-decision textarea {
+  min-height: 64px;
+  margin-top: 4px;
+}
+
+.actions--review {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr .85fr;
+  gap: 7px;
+}
+
+.actions--review .btn {
+  width: 100%;
+}
+
+.queue-done {
+  margin-top: 10px;
+}
+
+.queue-done strong {
+  display: block;
+  color: var(--success);
+  font-size: 1.1rem;
+}
+
+.queue-done .btn {
+  margin-top: 12px;
+}
+
+@media (max-width: 860px) {
+  .queue-section-head,
+  .queue-toolbar,
+  .queue-card-head,
+  .queue-position {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .queue-toolbar__info {
+    justify-content: flex-start;
+  }
+
+  .queue-arrival {
+    min-width: 0;
+    width: 100%;
+    text-align: left;
+  }
+
+  .proposals--review {
+    grid-template-columns: 1fr;
+  }
+
+  .actions--review {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .queue-section-head {
+    padding: 13px;
+  }
+
+  .queue-toolbar .btn,
+  .queue-section-head .btn {
+    width: 100%;
+  }
+
+  .queue-position {
+    padding: 10px 11px;
+  }
+
+  .queue-title-card {
+    padding: 11px;
+  }
+}
