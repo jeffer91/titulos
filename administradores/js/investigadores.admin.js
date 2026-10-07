@@ -10,9 +10,16 @@
   function iniciar() {
     var actualizar = ui.qs('#btnActualizarInvestigadores');
     var form = ui.qs('#formCrearInvestigador');
+    var aplicarPines = ui.qs('#btnAplicarPinesInvestigadores');
+    var limpiarPines = ui.qs('#btnLimpiarPinesInvestigadores');
 
     if (actualizar) actualizar.addEventListener('click', cargar);
     if (form) form.addEventListener('submit', crearInvestigador);
+    if (aplicarPines) aplicarPines.addEventListener('click', aplicarPinesMasivos);
+    if (limpiarPines) limpiarPines.addEventListener('click', function () {
+      ui.setValue('#investigadoresBulkInput', '');
+      ui.showStatus('#investigadoresBulkMensaje', '', '');
+    });
   }
 
   function cargar() {
@@ -80,6 +87,185 @@
       })
       .finally(function () {
         ui.setLoading(button, false);
+      });
+  }
+
+  function aplicarPinesMasivos() {
+    var button = ui.qs('#btnAplicarPinesInvestigadores');
+    var texto = ui.value('#investigadoresBulkInput');
+    var filas;
+
+    try {
+      filas = parsearCargaMasiva(texto);
+    } catch (error) {
+      ui.showStatus('#investigadoresBulkMensaje', mensaje(error, 'No se pudo interpretar la lista.'), 'error');
+      return;
+    }
+
+    if (!filas.length) {
+      ui.showStatus('#investigadoresBulkMensaje', 'Pega al menos un investigador con cédula y PIN.', 'error');
+      return;
+    }
+
+    ui.setLoading(button, true, 'Aplicando...');
+    ui.showStatus('#investigadoresBulkMensaje', 'Protegiendo y activando ' + filas.length + ' accesos...', 'info');
+
+    var resultados = [];
+    var cadena = Promise.resolve();
+
+    filas.forEach(function (fila) {
+      cadena = cadena.then(function () {
+        return prepararAccesoInvestigador(fila)
+          .then(function () {
+            resultados.push({ cedula: fila.cedula, ok: true });
+          })
+          .catch(function (error) {
+            resultados.push({
+              cedula: fila.cedula,
+              ok: false,
+              error: error && error.message ? error.message : 'Error desconocido'
+            });
+          });
+      });
+    });
+
+    cadena
+      .then(function () {
+        var correctos = resultados.filter(function (item) { return item.ok; }).length;
+        var fallidos = resultados.filter(function (item) { return !item.ok; });
+
+        if (!fallidos.length) {
+          ui.setValue('#investigadoresBulkInput', '');
+          ui.showStatus(
+            '#investigadoresBulkMensaje',
+            correctos + ' investigadores quedaron con PIN creado y acceso activo.',
+            'success'
+          );
+          return cargar();
+        }
+
+        ui.showStatus(
+          '#investigadoresBulkMensaje',
+          correctos + ' accesos aplicados. ' + fallidos.length + ' con error: ' +
+          fallidos.map(function (item) { return item.cedula + ' (' + item.error + ')'; }).join(', '),
+          correctos ? 'warning' : 'error'
+        );
+
+        return cargar();
+      })
+      .finally(function () {
+        ui.setLoading(button, false);
+      });
+  }
+
+  function parsearCargaMasiva(texto) {
+    var lineas = String(texto || '')
+      .split(/\r?\n/)
+      .map(function (linea) { return linea.trim(); })
+      .filter(Boolean);
+
+    return lineas.map(function (linea, index) {
+      var partes;
+
+      if (linea.indexOf('|') !== -1) partes = linea.split('|');
+      else if (linea.indexOf('\t') !== -1) partes = linea.split('\t');
+      else if (linea.indexOf(';') !== -1) partes = linea.split(';');
+      else partes = linea.split(',');
+
+      partes = partes.map(limpiar);
+
+      var nombres = '';
+      var apellidos = '';
+      var cedula = '';
+      var pin = '';
+
+      if (partes.length >= 4) {
+        nombres = partes[0];
+        apellidos = partes[1];
+        cedula = soloNumeros(partes[2]);
+        pin = soloNumeros(partes[3]);
+      } else if (partes.length === 3) {
+        nombres = partes[0];
+        cedula = soloNumeros(partes[1]);
+        pin = soloNumeros(partes[2]);
+      } else {
+        throw new Error('Fila ' + (index + 1) + ': usa Nombres | Apellidos | Cédula | PIN.');
+      }
+
+      if (cedula.length !== 10) {
+        throw new Error('Fila ' + (index + 1) + ': la cédula debe tener 10 dígitos.');
+      }
+
+      if (!/^\d{4,8}$/.test(pin)) {
+        throw new Error('Fila ' + (index + 1) + ': el PIN debe tener entre 4 y 8 dígitos.');
+      }
+
+      return {
+        nombres: limpiar((nombres + ' ' + apellidos).trim()),
+        cedula: cedula,
+        pin: pin
+      };
+    });
+  }
+
+  function prepararAccesoInvestigador(fila) {
+    var ahora = new Date().toISOString();
+
+    return hashPin(fila.cedula, fila.pin)
+      .then(function (hash) {
+        return firebaseService.leerDocumento(config.collections.investigadores, fila.cedula)
+          .then(function (existente) {
+            var docId = fila.cedula;
+
+            if (existente) {
+              return { docId: docId, existente: existente, hash: hash };
+            }
+
+            return firebaseService.listarDocumentos(config.collections.investigadores, { limit: 1000 })
+              .then(function (docs) {
+                var encontrado = (docs || []).filter(function (item) {
+                  return soloNumeros(item.cedula || item.identificacion || item.numeroIdentificacion || item.id || item._docId) === fila.cedula;
+                })[0] || null;
+
+                return {
+                  docId: encontrado ? (encontrado.id || encontrado._docId || fila.cedula) : fila.cedula,
+                  existente: encontrado,
+                  hash: hash
+                };
+              });
+          });
+      })
+      .then(function (resultado) {
+        var existente = resultado.existente || {};
+
+        return firebaseService.guardarDocumento(config.collections.investigadores, resultado.docId, {
+          cedula: fila.cedula,
+          nombres: fila.nombres || existente.nombres || existente.nombre || existente.nombreCompleto || '',
+          rol: 'investigador',
+          activo: true,
+          pinHash: resultado.hash,
+          pinCreado: true,
+          pinActivo: true,
+          pinCreadoEn: existente.pinCreadoEn || ahora,
+          pinActivadoEn: ahora,
+          pinActivadoPor: 'administrador_carga_masiva',
+          pinDesactivadoEn: null
+        }, { merge: true });
+      });
+  }
+
+  function hashPin(cedula, pin) {
+    if (!window.crypto || !window.crypto.subtle || !window.TextEncoder) {
+      return Promise.reject(new Error('Este navegador no permite proteger los PIN. Abre el administrador mediante HTTPS.'));
+    }
+
+    var texto = new TextEncoder().encode('titulos-investigador-v1|' + cedula + '|' + pin);
+
+    return window.crypto.subtle.digest('SHA-256', texto)
+      .then(function (buffer) {
+        return Array.prototype.map.call(new Uint8Array(buffer), function (byte) {
+          return byte.toString(16).padStart(2, '0');
+        }).join('');
       });
   }
 
