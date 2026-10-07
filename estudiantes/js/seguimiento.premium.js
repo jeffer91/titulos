@@ -36,7 +36,6 @@
 
   function mejorarTodo() {
     document.body.classList.add('ta-premium');
-    corregirIdentidad();
 
     var panel = document.querySelector('#seguimientoTituloPanel');
     if (!panel || panel.classList.contains('is-hidden')) return;
@@ -45,24 +44,6 @@
     mejorarCabeceraSeguimiento(panel);
     mejorarTarjetas(panel);
     mejorarHistorial(panel);
-  }
-
-  function corregirIdentidad() {
-    var logo = document.querySelector('.student-hero__logo, .app-logo');
-    var favicon = document.querySelector('link[rel~="icon"]');
-
-    if (logo) {
-      if (!/assets\/logo-instituto\.png/i.test(String(logo.getAttribute('src') || ''))) {
-        logo.setAttribute('src', 'assets/logo-instituto.png');
-      }
-      logo.setAttribute('alt', 'Instituto Superior Tecnológico Quito Metropolitano');
-      logo.setAttribute('loading', 'eager');
-      logo.setAttribute('decoding', 'async');
-    }
-
-    if (favicon && !/assets\/logo-instituto\.png/i.test(String(favicon.getAttribute('href') || ''))) {
-      favicon.setAttribute('href', 'assets/logo-instituto.png');
-    }
   }
 
   function mejorarCabeceraSeguimiento(panel) {
@@ -204,7 +185,7 @@
       'body.ta-premium .student-hero:after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#d7a51d 0 18%,#16a0a4 47%,#1779bb 78%,transparent)}',
       'body.ta-premium .student-hero__inner{position:relative;z-index:1;width:min(1180px,100%);margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:28px}',
       'body.ta-premium .student-hero__brand{display:flex;align-items:center;gap:24px;min-width:0;flex:1}',
-      'body.ta-premium .student-hero__logo{display:block!important;width:220px!important;max-width:220px!important;height:auto!important;max-height:96px!important;object-fit:contain!important;flex:0 0 220px!important;background:rgba(255,255,255,.98);padding:9px 11px;border-radius:14px;border:1px solid rgba(255,255,255,.52);box-shadow:0 12px 32px rgba(0,0,0,.18)}',
+      '',
       'body.ta-premium .student-hero__text{min-width:0}',
       'body.ta-premium .student-hero__text .eyebrow{display:inline-flex;align-items:center;gap:7px;margin-bottom:5px;color:#f2d371;font-size:.72rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}',
       'body.ta-premium .student-hero__text .eyebrow:before{content:"";width:18px;height:2px;border-radius:2px;background:#f2d371}',
@@ -327,9 +308,9 @@
       'body.ta-premium .seguimiento-premium .seguimiento-actions{margin-top:10px!important;gap:8px!important}',
       'body.ta-premium .seguimiento-premium .seguimiento-actions .btn{min-height:38px!important;padding:8px 14px!important;font-size:.73rem!important;border-radius:10px!important}',
 
-      '@media(max-width:1020px){body.ta-premium .student-hero__inner{align-items:flex-start}body.ta-premium .student-hero__logo{width:190px!important;max-width:190px!important;flex-basis:190px!important}body.ta-premium .student-hero__status{max-width:250px}body.ta-premium .seguimiento-premium .seguimiento-student-grid{grid-template-columns:1fr 1fr!important}body.ta-premium .seguimiento-premium .seguimiento-proposals-section{grid-template-columns:1fr 1fr!important}.seguimiento-proposals-section .seguimiento-propuesta:last-child{grid-column:1/-1}}',
-      '@media(max-width:780px){body.ta-premium .student-hero{padding:17px 15px!important}body.ta-premium .student-hero__inner{flex-direction:column!important;gap:14px!important}body.ta-premium .student-hero__brand{width:100%;align-items:flex-start;gap:15px!important}body.ta-premium .student-hero__logo{width:165px!important;max-width:165px!important;flex-basis:165px!important;padding:7px 8px!important;border-radius:12px!important}body.ta-premium .student-hero__status{width:100%;max-width:none;justify-content:flex-start}body.ta-premium .student-shell{padding:0 12px!important;margin-top:12px!important}body.ta-premium .seguimiento-premium{padding:13px!important;border-radius:17px!important}body.ta-premium .seguimiento-premium .seguimiento-head{flex-direction:column!important;align-items:flex-start!important;gap:7px!important}body.ta-premium .seguimiento-premium .seguimiento-progress{grid-template-columns:1fr!important;gap:6px!important}body.ta-premium .seguimiento-premium .seguimiento-progress__line{width:2px!important;height:12px!important;margin-left:14px!important}body.ta-premium .seguimiento-premium .seguimiento-proposals-section{grid-template-columns:1fr!important}body.ta-premium .seguimiento-premium .seguimiento-proposals-section .seguimiento-propuesta:last-child{grid-column:auto}}',
-      '@media(max-width:560px){body.ta-premium .student-hero__brand{flex-direction:column!important}body.ta-premium .student-hero__logo{width:min(245px,82vw)!important;max-width:min(245px,82vw)!important;flex-basis:auto!important;max-height:90px!important}body.ta-premium .student-hero h1{font-size:1.58rem!important}body.ta-premium .student-hero p{font-size:.85rem!important}body.ta-premium .student-hero__status .status-pill{font-size:.66rem!important}body.ta-premium .seguimiento-premium{padding:10px!important}body.ta-premium .seguimiento-premium .seguimiento-student-grid{grid-template-columns:1fr!important}body.ta-premium .seguimiento-premium__titulo-principal{padding:14px 12px 14px 53px!important}body.ta-premium .seguimiento-premium__titulo-principal .seguimiento-final-hero__icon{left:12px!important;width:30px!important;height:30px!important}body.ta-premium .seguimiento-premium__titulo-principal .seguimiento-title-text{font-size:1rem!important}body.ta-premium .seguimiento-premium .seguimiento-section{padding:10px!important}body.ta-premium .seguimiento-premium .seguimiento-history__top{flex-direction:column!important;gap:2px!important}body.ta-premium .seguimiento-premium .seguimiento-actions{flex-direction:column!important}body.ta-premium .seguimiento-premium .seguimiento-actions .btn{width:100%!important}body.ta-premium .seguimiento-premium .seguimiento-status-hero__action .btn{width:100%!important}}'
+      '@media(max-width:1020px){body.ta-premium .student-hero__inner{align-items:flex-start}body.ta-premium .student-hero__status{max-width:250px}body.ta-premium .seguimiento-premium .seguimiento-student-grid{grid-template-columns:1fr 1fr!important}body.ta-premium .seguimiento-premium .seguimiento-proposals-section{grid-template-columns:1fr 1fr!important}.seguimiento-proposals-section .seguimiento-propuesta:last-child{grid-column:1/-1}}',
+      '@media(max-width:780px){body.ta-premium .student-hero{padding:17px 15px!important}body.ta-premium .student-hero__inner{flex-direction:column!important;gap:14px!important}body.ta-premium .student-hero__brand{width:100%;align-items:flex-start;gap:15px!important}body.ta-premium .student-hero__status{width:100%;max-width:none;justify-content:flex-start}body.ta-premium .student-shell{padding:0 12px!important;margin-top:12px!important}body.ta-premium .seguimiento-premium{padding:13px!important;border-radius:17px!important}body.ta-premium .seguimiento-premium .seguimiento-head{flex-direction:column!important;align-items:flex-start!important;gap:7px!important}body.ta-premium .seguimiento-premium .seguimiento-progress{grid-template-columns:1fr!important;gap:6px!important}body.ta-premium .seguimiento-premium .seguimiento-progress__line{width:2px!important;height:12px!important;margin-left:14px!important}body.ta-premium .seguimiento-premium .seguimiento-proposals-section{grid-template-columns:1fr!important}body.ta-premium .seguimiento-premium .seguimiento-proposals-section .seguimiento-propuesta:last-child{grid-column:auto}}',
+      '@media(max-width:560px){body.ta-premium .student-hero__brand{flex-direction:column!important}body.ta-premium .student-hero h1{font-size:1.58rem!important}body.ta-premium .student-hero p{font-size:.85rem!important}body.ta-premium .student-hero__status .status-pill{font-size:.66rem!important}body.ta-premium .seguimiento-premium{padding:10px!important}body.ta-premium .seguimiento-premium .seguimiento-student-grid{grid-template-columns:1fr!important}body.ta-premium .seguimiento-premium__titulo-principal{padding:14px 12px 14px 53px!important}body.ta-premium .seguimiento-premium__titulo-principal .seguimiento-final-hero__icon{left:12px!important;width:30px!important;height:30px!important}body.ta-premium .seguimiento-premium__titulo-principal .seguimiento-title-text{font-size:1rem!important}body.ta-premium .seguimiento-premium .seguimiento-section{padding:10px!important}body.ta-premium .seguimiento-premium .seguimiento-history__top{flex-direction:column!important;gap:2px!important}body.ta-premium .seguimiento-premium .seguimiento-actions{flex-direction:column!important}body.ta-premium .seguimiento-premium .seguimiento-actions .btn{width:100%!important}body.ta-premium .seguimiento-premium .seguimiento-status-hero__action .btn{width:100%!important}}'
     ].join('');
 
     document.head.appendChild(style);

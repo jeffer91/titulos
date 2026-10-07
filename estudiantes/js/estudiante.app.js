@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261006-28';
+  var BUILD = '20261006-29';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -31,10 +31,10 @@
 
     cargarFlujoTitulosExternos()
       .then(function () {
-        return cargarMarcaVisual();
+        return cargarSeguimientoVisual();
       })
       .then(function () {
-        return cargarSeguimientoVisual();
+        return cargarMarcaVisual();
       })
       .catch(function (error) {
         console.warn('[Estudiantes] Capa complementaria no disponible; continúa el flujo base:', error);
@@ -95,6 +95,12 @@
         'ta-seguimiento-visual',
         'js/seguimiento.visual.js?v=' + BUILD,
         function () { return Boolean(document.getElementById('seguimientoVisualV2Styles')); }
+      ).catch(function () { return false; });
+    }).then(function () {
+      return cargarScript(
+        'ta-seguimiento-premium',
+        'js/seguimiento.premium.js?v=' + BUILD,
+        function () { return Boolean(document.getElementById('taSeguimientoPremiumStyles')); }
       ).catch(function () { return false; });
     });
   }
