@@ -543,19 +543,27 @@
     var firebase;
     var payload;
     var id;
+    var preferido;
 
     resultadoFinal = resultadoFinal || {};
     firebase = resultadoFinal.firebase || {};
     payload = resultadoFinal.payload || firebase.payload || firebase.data || resultadoFinal.data || {};
     id = resultadoFinal.id || firebase.id || payload.id || payload.idRegistro || payload.codigoRegistro || '—';
+    preferido = payload.tituloPreferidoTexto || payload.tituloElegido || obtenerTituloPreferidoDesdePayload(payload);
 
     setText('#codigoRegistroTexto', id);
     setText('#reciboEstudiante', payload.nombres || payload.estudiante || payload.nombre || '');
     setText('#reciboCedula', payload.cedula || payload.numeroIdentificacion || '');
     setText('#reciboCarrera', payload.carrera || payload.nombreCarrera || '');
-    setText('#reciboTituloPreferido', payload.tituloPreferidoTexto || payload.tituloElegido || obtenerTituloPreferidoDesdePayload(payload));
+    setText('#reciboTituloPreferido', preferido);
+    setText('#reciboEstado', 'Pendiente de revisión');
 
-    hide('#wizardSteps');
+    /*
+      El comprobante vive dentro de #wizardSteps.
+      No se debe ocultar el contenedor padre porque dejaría la página en blanco
+      aun cuando el envío ya se haya guardado correctamente.
+    */
+    show('#wizardSteps');
     hide('#formPropuestas');
     hide('#seccionEstudiante');
     hide('#consultaCard');
