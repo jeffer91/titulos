@@ -48,6 +48,7 @@
     on('tipoTrabajoSelect', 'change', function () {
       estado.tipo = valor('tipoTrabajoSelect') || 'TODOS';
       renderTabla();
+      mensajeResumen(estado.titulos);
     });
     on('buscarInput', 'input', function () {
       estado.busqueda = normalizarBusqueda(valor('buscarInput'));
@@ -62,6 +63,7 @@
         });
         renderEncabezadoVista();
         renderTabla();
+        mensajeResumen(estado.titulos);
       });
     });
     on('btnCerrarDetalle', 'click', cerrarDetalle);
