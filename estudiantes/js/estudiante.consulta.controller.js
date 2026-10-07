@@ -222,12 +222,12 @@
         return {
           envio: envio || null,
           diagnostico: diagnostico || {
-            motor: 'FIRESTORE_SDK',
+            motor: 'REST_DIRECTO',
             estrategia: 'ID_EXACTO_PRIMERO',
             base: 'titulos-ec2fa',
             coleccion: 'envios',
             documentoId: String(periodoId || '') + '__' + String(cedula || ''),
-            ruta: envio ? 'SDK_ID_EXACTO' : 'NO_ENCONTRADO',
+            ruta: envio ? 'ID_EXACTO' : 'NO_ENCONTRADO',
             periodoCanonico: String(periodoId || ''),
             status: envio ? 200 : 404,
             duracionMs: 0
@@ -238,7 +238,7 @@
         if (!error.codigo) error.codigo = 'CONSULTA_TITULOS_ERROR';
 
         error.diagnostico = Object.assign({
-          motor: 'FIRESTORE_SDK',
+          motor: 'REST_DIRECTO',
           estrategia: 'ID_EXACTO_PRIMERO',
           base: 'titulos-ec2fa',
           coleccion: 'envios',
