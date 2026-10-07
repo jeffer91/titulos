@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261007-37';
+  var BUILD = '20261007-38';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -146,6 +146,7 @@
       TA_ESTUDIANTES_CONFIG: window.TA_ESTUDIANTES_CONFIG,
       TAFirebaseService: window.TAFirebaseService,
       TAEstudianteRepository: window.TAEstudianteRepository,
+      TAConsultaEstadoService: window.TAConsultaEstadoService,
       TAConsultaEstadoBridge: window.TAConsultaEstadoBridge,
       TAEstudianteValidaciones: window.TAEstudianteValidaciones,
       TAEstudianteUI: window.TAEstudianteUI,
