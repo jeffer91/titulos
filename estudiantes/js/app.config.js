@@ -12,7 +12,7 @@
 
   window.TA_ESTUDIANTES_CONFIG = Object.freeze({
     modulo: 'estudiantes',
-    version: '1.0.0-dual-firebase',
+    version: '1.0.1-dual-firebase-estricto',
     modo: 'firebase-academico-lectura-titulos-operativo',
     propuestasObligatorias: 3,
 
