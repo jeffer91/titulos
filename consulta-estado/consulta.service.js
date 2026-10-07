@@ -4,73 +4,142 @@
   var cfg = window.TA_CONSULTA_ESTADO_CONFIG || {};
 
   function consultar(periodoId, cedulaIngresada) {
-    var periodoSolicitado = limpiar(periodoId);
-    var periodoCanonico = clavePeriodo(periodoSolicitado);
-    var cedula = normalizarCedula(cedulaIngresada);
+    var datos = validarEntrada(periodoId, cedulaIngresada);
+    if (datos.error) return Promise.reject(datos.error);
+
     var inicio = Date.now();
     var rutasProbadas = [];
-
-    if (!periodoSolicitado) {
-      return Promise.reject(crearError('PERIODO_INVALIDO', 'Falta el período académico.'));
-    }
-
-    if (!cedula) {
-      return Promise.reject(crearError('CEDULA_INVALIDA', 'La cédula no es válida.'));
-    }
+    var documentoId = datos.periodoCanonico + '__' + datos.cedula;
 
     /*
-      BLOQUE 2 — estrategia definitiva de localización:
-      1) Identidad primero, en paralelo:
-         cedula (string / number) + numeroIdentificacion (string / number).
-      2) Se filtra por período y se elige el registro más reciente.
-      3) Solo si no hay coincidencia se prueban IDs canónicos/legacy como fallback.
+      Ruta normal del servicio independiente:
+      1 GET directo al documento canónico periodo__cedula.
+      Solo un 404 habilita la búsqueda histórica por campos/IDs.
     */
     return ejecutarConTimeoutGlobal(function (signal) {
-      return buscarPorIdentidad(periodoSolicitado, cedula, signal, rutasProbadas)
-        .then(function (porIdentidad) {
-          if (porIdentidad) {
+      rutasProbadas.push('ID_EXACTO:' + documentoId);
+
+      return leerDocumentoConSignal(documentoId, signal)
+        .then(function (directo) {
+          if (directo && directo.encontrado) {
             return completarResultado({
               ok: true,
               encontrado: true,
-              status: porIdentidad.status || 200,
-              envio: sanitizarEnvio(porIdentidad.envio)
-            }, inicio, porIdentidad.documentoId, porIdentidad.ruta, rutasProbadas, periodoCanonico, 'IDENTIDAD_PRIMERO');
+              status: directo.status || 200,
+              envio: sanitizarEnvio(directo.envio)
+            }, inicio, documentoId, 'ID_EXACTO', rutasProbadas, datos.periodoCanonico, 'ID_EXACTO_PRIMERO');
           }
 
-          return buscarPorIds(periodoSolicitado, periodoCanonico, cedula, signal, rutasProbadas)
-            .then(function (porId) {
-              if (porId) {
-                return completarResultado({
-                  ok: true,
-                  encontrado: true,
-                  status: porId.status || 200,
-                  envio: sanitizarEnvio(porId.envio)
-                }, inicio, porId.documentoId, porId.ruta, rutasProbadas, periodoCanonico, 'FALLBACK_ID');
-              }
-
-              return completarResultado({
-                ok: true,
-                encontrado: false,
-                status: 404,
-                envio: null
-              }, inicio, periodoCanonico + '__' + cedula, 'NO_ENCONTRADO', rutasProbadas, periodoCanonico, 'SIN_COINCIDENCIA');
-            });
+          return buscarLegacyInterno(
+            datos.periodoSolicitado,
+            datos.periodoCanonico,
+            datos.cedula,
+            signal,
+            rutasProbadas,
+            inicio
+          );
         });
     }).catch(function (error) {
       if (error && !error.diagnostico) {
         error.diagnostico = {
-          estrategia: 'IDENTIDAD_PRIMERO',
+          estrategia: 'ID_EXACTO_PRIMERO',
           base: cfg.projectId || 'titulos-ec2fa',
           coleccion: cfg.collection || 'envios',
-          periodo: periodoSolicitado,
-          periodoCanonico: periodoCanonico,
-          cedula: cedula,
+          periodo: datos.periodoSolicitado,
+          periodoCanonico: datos.periodoCanonico,
+          cedula: datos.cedula,
           rutasProbadas: rutasProbadas.slice(),
           duracionMs: Date.now() - inicio
         };
       }
       throw error;
     });
+  }
+
+  function consultarLegacy(periodoId, cedulaIngresada) {
+    var datos = validarEntrada(periodoId, cedulaIngresada);
+    if (datos.error) return Promise.reject(datos.error);
+
+    var inicio = Date.now();
+    var rutasProbadas = [];
+
+    return ejecutarConTimeoutGlobal(function (signal) {
+      return buscarLegacyInterno(
+        datos.periodoSolicitado,
+        datos.periodoCanonico,
+        datos.cedula,
+        signal,
+        rutasProbadas,
+        inicio
+      );
+    }).catch(function (error) {
+      if (error && !error.diagnostico) {
+        error.diagnostico = {
+          estrategia: 'FALLBACK_LEGACY',
+          base: cfg.projectId || 'titulos-ec2fa',
+          coleccion: cfg.collection || 'envios',
+          periodo: datos.periodoSolicitado,
+          periodoCanonico: datos.periodoCanonico,
+          cedula: datos.cedula,
+          rutasProbadas: rutasProbadas.slice(),
+          duracionMs: Date.now() - inicio
+        };
+      }
+      throw error;
+    });
+  }
+
+  function buscarLegacyInterno(periodoSolicitado, periodoCanonico, cedula, signal, rutasProbadas, inicio) {
+    return buscarPorIdentidad(periodoSolicitado, cedula, signal, rutasProbadas)
+      .then(function (porIdentidad) {
+        if (porIdentidad) {
+          return completarResultado({
+            ok: true,
+            encontrado: true,
+            status: porIdentidad.status || 200,
+            envio: sanitizarEnvio(porIdentidad.envio)
+          }, inicio, porIdentidad.documentoId, porIdentidad.ruta, rutasProbadas, periodoCanonico, 'FALLBACK_IDENTIDAD');
+        }
+
+        return buscarPorIds(periodoSolicitado, periodoCanonico, cedula, signal, rutasProbadas)
+          .then(function (porId) {
+            if (porId) {
+              return completarResultado({
+                ok: true,
+                encontrado: true,
+                status: porId.status || 200,
+                envio: sanitizarEnvio(porId.envio)
+              }, inicio, porId.documentoId, porId.ruta, rutasProbadas, periodoCanonico, 'FALLBACK_ID_LEGACY');
+            }
+
+            return completarResultado({
+              ok: true,
+              encontrado: false,
+              status: 404,
+              envio: null
+            }, inicio, periodoCanonico + '__' + cedula, 'NO_ENCONTRADO', rutasProbadas, periodoCanonico, 'SIN_COINCIDENCIA');
+          });
+      });
+  }
+
+  function validarEntrada(periodoId, cedulaIngresada) {
+    var periodoSolicitado = limpiar(periodoId);
+    var periodoCanonico = clavePeriodo(periodoSolicitado);
+    var cedula = normalizarCedula(cedulaIngresada);
+
+    if (!periodoSolicitado) {
+      return { error: crearError('PERIODO_INVALIDO', 'Falta el período académico.') };
+    }
+
+    if (!cedula) {
+      return { error: crearError('CEDULA_INVALIDA', 'La cédula no es válida.') };
+    }
+
+    return {
+      periodoSolicitado: periodoSolicitado,
+      periodoCanonico: periodoCanonico,
+      cedula: cedula
+    };
   }
 
   function buscarPorIds(periodoOriginal, periodoCanonico, cedula, signal, rutasProbadas) {
@@ -106,8 +175,7 @@
       if (!encontrados.length) return null;
 
       encontrados.sort(function (a, b) {
-        return fechaMs(b.envio && (b.envio.fechaEnvio || b.envio.actualizadoEn || b.envio.actualizadoEnLocal || b.envio.creadoEn)) -
-          fechaMs(a.envio && (a.envio.fechaEnvio || a.envio.actualizadoEn || a.envio.actualizadoEnLocal || a.envio.creadoEn));
+        return fechaPrioridadProceso(b.envio) - fechaPrioridadProceso(a.envio);
       });
 
       return encontrados[0];
@@ -129,49 +197,42 @@
 
   function buscarPorIdentidad(periodoSolicitado, cedula, signal, rutasProbadas) {
     var numeroCedula = Number(cedula);
-    var especificaciones = [
+    var faseTexto = [
       { campo: 'cedula', valor: { stringValue: cedula }, tipo: 'STRING' },
       { campo: 'numeroIdentificacion', valor: { stringValue: cedula }, tipo: 'STRING' }
     ];
 
-    if (Number.isSafeInteger(numeroCedula)) {
-      especificaciones.push(
-        { campo: 'cedula', valor: { integerValue: String(numeroCedula) }, tipo: 'NUMBER' },
-        { campo: 'numeroIdentificacion', valor: { integerValue: String(numeroCedula) }, tipo: 'NUMBER' }
-      );
-    }
+    return ejecutarFaseIdentidad(faseTexto, periodoSolicitado, cedula, signal, rutasProbadas)
+      .then(function (resultadoTexto) {
+        if (resultadoTexto) return resultadoTexto;
+        if (!Number.isSafeInteger(numeroCedula)) return null;
 
+        return ejecutarFaseIdentidad([
+          { campo: 'cedula', valor: { integerValue: String(numeroCedula) }, tipo: 'NUMBER' },
+          { campo: 'numeroIdentificacion', valor: { integerValue: String(numeroCedula) }, tipo: 'NUMBER' }
+        ], periodoSolicitado, cedula, signal, rutasProbadas);
+      });
+  }
+
+  function ejecutarFaseIdentidad(especificaciones, periodoSolicitado, cedula, signal, rutasProbadas) {
     var consultas = especificaciones.map(function (spec) {
       var ruta = 'IDENTIDAD:' + spec.campo + ':' + spec.tipo;
       rutasProbadas.push(ruta);
 
       return ejecutarRunQuery(spec.campo, spec.valor, signal)
         .then(function (docs) {
-          return {
-            ok: true,
-            ruta: ruta,
-            docs: docs || []
-          };
+          return { ok: true, ruta: ruta, docs: docs || [] };
         })
         .catch(function (error) {
           if (error && (error.codigo === 'PERMISSION_DENIED' || error.codigo === 'UNAUTHENTICATED')) {
             throw error;
           }
-
-          return {
-            ok: false,
-            ruta: ruta,
-            docs: [],
-            error: error
-          };
+          return { ok: false, ruta: ruta, docs: [], error: error };
         });
     });
 
     return Promise.all(consultas).then(function (resultados) {
       var exitosas = resultados.filter(function (item) { return item.ok; });
-      var docs = [];
-      var vistos = {};
-
       if (!exitosas.length) {
         throw crearError(
           'CONSULTA_IDENTIDAD_FALLIDA',
@@ -179,13 +240,16 @@
         );
       }
 
+      var docs = [];
+      var vistos = {};
+
       exitosas.forEach(function (resultado) {
         (resultado.docs || []).forEach(function (doc) {
           var id = doc && (doc.id || doc._docId) || '';
           var key = id || [
             normalizarCedula(doc && (doc.cedula || doc.numeroIdentificacion)),
             clavePeriodo(periodoDocumento(doc)),
-            fechaMs(doc && (doc.fechaEnvio || doc.actualizadoEn || doc.actualizadoEnLocal || doc.creadoEn))
+            fechaPrioridadProceso(doc)
           ].join('|');
 
           if (vistos[key]) return;
@@ -200,11 +264,6 @@
         return periodoCompatibleDocumento(doc, periodoSolicitado, false);
       });
 
-      /*
-        Compatibilidad legacy:
-        solo aceptamos un registro sin período si es inequívoco para esa identidad.
-        Nunca tomamos automáticamente un registro perteneciente a otro período.
-      */
       if (!compatibles.length) {
         var sinPeriodo = docs.filter(function (doc) {
           return !limpiar(periodoDocumento(doc));
@@ -218,8 +277,7 @@
       if (!compatibles.length) return null;
 
       compatibles.sort(function (a, b) {
-        return fechaMs(b.fechaEnvio || b.actualizadoEn || b.actualizadoEnLocal || b.creadoEn) -
-          fechaMs(a.fechaEnvio || a.actualizadoEn || a.actualizadoEnLocal || a.creadoEn);
+        return fechaPrioridadProceso(b) - fechaPrioridadProceso(a);
       });
 
       var elegido = compatibles[0];
@@ -599,6 +657,23 @@
     return Number.isFinite(ms) ? ms : 0;
   }
 
+  function fechaPrioridadProceso(doc) {
+    doc = doc || {};
+    return fechaMs(
+      doc.actualizadoEn ||
+      doc.fechaResolucionInvestigacion ||
+      doc.fechaRevisionInvestigador ||
+      doc.investigacionRevisadaEn ||
+      doc.fechaResolucion ||
+      doc.fechaValidacionCoordinador ||
+      doc.fechaRevisionCoordinador ||
+      doc.revisadoEnLocal ||
+      doc.actualizadoEnLocal ||
+      doc.fechaEnvio ||
+      doc.creadoEn
+    );
+  }
+
   function agregarUnico(lista, value) {
     var texto = limpiar(value);
     if (texto && lista.indexOf(texto) === -1) lista.push(texto);
@@ -610,6 +685,7 @@
 
   window.TAConsultaEstadoService = Object.freeze({
     consultar: consultar,
+    consultarLegacy: consultarLegacy,
     leerDocumento: leerDocumento,
     normalizarDocumentoRest: normalizarDocumentoRest,
     sanitizarEnvio: sanitizarEnvio
