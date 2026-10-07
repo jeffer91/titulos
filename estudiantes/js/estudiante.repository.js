@@ -139,37 +139,45 @@
   }
 
   function consultarEnvio(periodoId, cedulaIngresada) {
-    var bridge = window.TAConsultaEstadoBridge;
+    var service = window.TAConsultaEstadoService;
 
     /*
-      La lectura de envios queda delegada exclusivamente al motor independiente
-      /consulta-estado/. Este repositorio conserva la consulta académica y las
-      escrituras del proceso, pero no decide cómo localizar un envío existente.
+      Compatibilidad de repository para módulos antiguos.
+      La lectura se delega directamente al mismo motor oficial
+      /consulta-estado/; no existe dependencia de TAConsultaEstadoBridge.
     */
-    if (!bridge || typeof bridge.consultar !== 'function') {
-      return Promise.reject(new Error('El motor independiente /consulta-estado/ no está disponible.'));
+    if (!service || typeof service.consultar !== 'function') {
+      return Promise.reject(new Error('El servicio directo /consulta-estado/ no está disponible.'));
     }
 
-    return bridge.consultar({
-      periodoId: periodoId,
-      cedula: cedulaIngresada
-    }).then(function (respuesta) {
-      if (!respuesta || respuesta.ok === false) {
-        var error = new Error(
-          respuesta && respuesta.error && respuesta.error.mensaje ||
-          'No se pudo consultar el estado del título.'
-        );
-        error.codigo = respuesta && respuesta.error && respuesta.error.codigo || 'CONSULTA_TITULOS_ERROR';
-        error.diagnostico = respuesta && respuesta.diagnostico || null;
-        throw error;
-      }
+    return Promise.resolve(service.consultar(periodoId, cedulaIngresada))
+      .then(function (resultado) {
+        if (!resultado || resultado.ok === false) {
+          var error = new Error(
+            resultado && resultado.mensaje ||
+            'No se pudo consultar el estado del título.'
+          );
+          error.codigo = resultado && resultado.codigo || 'CONSULTA_TITULOS_ERROR';
+          throw error;
+        }
 
-      if (!respuesta.encontrado || !respuesta.envio) return null;
+        if (!resultado.encontrado || !resultado.envio) return null;
 
-      var envio = normalizarEnvioExistente(respuesta.envio);
-      envio._consultaDiagnostico = respuesta.diagnostico || null;
-      return envio;
-    });
+        var envio = normalizarEnvioExistente(resultado.envio);
+        envio._consultaDiagnostico = {
+          motor: 'DIRECTO_SIN_BRIDGE',
+          estrategia: resultado.estrategia || 'IDENTIDAD_PRIMERO',
+          base: resultado.base || 'titulos-ec2fa',
+          coleccion: resultado.coleccion || 'envios',
+          documentoId: resultado.documentoId || '',
+          ruta: resultado.ruta || '',
+          rutasProbadas: resultado.rutasProbadas || [],
+          periodoCanonico: resultado.periodoCanonico || String(periodoId || ''),
+          status: resultado.status || 0,
+          duracionMs: resultado.duracionMs || 0
+        };
+        return envio;
+      });
   }
 
   function buscarEnvioDirectoRapido(periodos, cedulas, periodoPrincipal) {
