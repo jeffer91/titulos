@@ -618,15 +618,49 @@
 
     if (corregir) {
       corregir.addEventListener('click', function () {
+        var state = window.TAEstudianteState;
+        var formularioController = window.TAEstudianteFormularioController;
+        var paginacion = window.TAEstudiantePaginacion;
+        var estado = state && typeof state.obtener === 'function' ? state.obtener() : {};
+        var datos = {
+          estudiante: estado.estudiante || (ultimoResultado && ultimoResultado.estudiante) || {},
+          appConfig: estado.appConfig || (ultimoResultado && ultimoResultado.appConfig) || {},
+          envioExistente: envio
+        };
+
         if (!(envio.puedeReenviar === true || envio.permitirReenvio === true)) return;
+
+        /*
+          El reenvío debe abrir directamente el formulario editable con los títulos
+          ya registrados. Antes solo se mostraba el contenedor visual y la
+          paginación seguía en "consulta", por lo que Continuar podía quedar bloqueado.
+        */
+        if (
+          formularioController &&
+          typeof formularioController.inicializarFormularioTrasConsulta === 'function'
+        ) {
+          formularioController.inicializarFormularioTrasConsulta(datos);
+        } else {
+          mostrar('#wizardSteps');
+          mostrar('#seccionEstudiante');
+          mostrar('#formPropuestas');
+        }
 
         panel.classList.add('is-hidden');
         panel.setAttribute('aria-hidden', 'true');
-        mostrar('#wizardSteps');
-        mostrar('#seccionEstudiante');
-        mostrar('#formPropuestas');
 
-        recomendacionesOriginal.mostrarModalRecomendaciones({ forzarFormulario: true });
+        if (paginacion) {
+          if (typeof paginacion.habilitarHasta === 'function') {
+            paginacion.habilitarHasta('propuesta1');
+          }
+          if (typeof paginacion.irA === 'function') {
+            paginacion.irA('propuesta1', true, { forzar: true });
+          }
+        }
+
+        if (window.TATitulosExternos && typeof window.TATitulosExternos.actualizarEstados === 'function') {
+          window.setTimeout(window.TATitulosExternos.actualizarEstados, 0);
+        }
       });
     }
   }
