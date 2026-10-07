@@ -157,6 +157,8 @@
       3. Solo si ambas rutas no encuentran el documento, consulta por cédula.
       Esto evita encadenar varias lecturas Firestore una detrás de otra.
     */
+    var fallbackPromise = buscarEnvioPorCedulaRapido(periodoPrincipal, variantesCedula);
+
     return buscarEnvioDirectoRapido(variantesPeriodo, variantesCedula)
       .then(function (encontrado) {
         if (encontrado) {
@@ -165,11 +167,10 @@
           return normalizado;
         }
 
-        return buscarEnvioPorCedulaRapido(periodoPrincipal, variantesCedula)
-          .then(function (fallback) {
-            envioCache[cacheKey] = { at: Date.now(), value: fallback };
-            return fallback;
-          });
+        return fallbackPromise.then(function (fallback) {
+          envioCache[cacheKey] = { at: Date.now(), value: fallback };
+          return fallback;
+        });
       });
   }
 
