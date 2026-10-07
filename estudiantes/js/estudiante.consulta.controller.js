@@ -14,7 +14,7 @@
   var TIMEOUT_FIREBASE_MS = 4000;
   var TIMEOUT_CONFIG_MS = 1200;
   var TIMEOUT_ACADEMICO_MS = 5500;
-  var TIMEOUT_TITULO_MS = 2600;
+  var TIMEOUT_TITULO_MS = 7000;
   var TIMEOUT_HISTORIAL_MS = 4500;
   var consultaToken = 0;
 
@@ -91,7 +91,7 @@
 
         contexto.estudiante = estudiante;
         actualizarBloqueProceso(2, 'completado', 'Datos académicos encontrados', resumenEstudiante(estudiante));
-        actualizarBloqueProceso(3, 'trabajando', 'Consultando estado del título', 'Buscando tu registro de titulación en el período ' + (estudiante.periodoLabel || estudiante.periodoId || '') + '.');
+        actualizarBloqueProceso(3, 'trabajando', 'Consultando estado del título', 'Consultando tu envío en la base de Títulos para el período ' + (estudiante.periodoLabel || estudiante.periodoId || '') + '.');
 
         return conTimeout(
           repository.consultarEnvio(estudiante.periodoId, estudiante.cedula || resultadoCedula.data),
