@@ -236,12 +236,12 @@
     var propuestas = obtenerPropuestas(envio);
     var revisionCoord = envio.revisionCoordinador || {};
     var revisionInv = envio.revisionInvestigador || {};
-    var tituloCoord = limpiar(
-      revisionCoord.tituloSeleccionadoTexto ||
-      envio.tituloCoordinador ||
-      envio.tituloElegido ||
-      envio.tituloPreferidoTexto || ''
-    );
+    var tituloCoord = estados.coordinacionAprobada
+      ? limpiar(
+          revisionCoord.tituloSeleccionadoTexto ||
+          envio.tituloCoordinador || ''
+        )
+      : '';
     var tituloFinal = limpiar(
       envio.tituloFinal ||
       envio.tituloFinalInvestigacion ||
@@ -255,10 +255,12 @@
         '<div>',
           '<p class="section-kicker">Seguimiento de titulación</p>',
           '<h2>Estado de mi título</h2>',
-          '<p>Ya existe un registro para esta cédula. Aquí puedes revisar todo el avance sin volver a enviar información.</p>',
+          '<p>Consulta el avance de tus títulos sin volver a enviar información.</p>',
         '</div>',
         '<span class="seguimiento-badge ' + claseEstado(estados.general.tipo) + '">' + escapar(estados.general.label) + '</span>',
       '</div>',
+
+      renderEstadoPrincipal(estados),
 
       '<div class="seguimiento-student-grid">',
         dato('Estudiante', estudiante.nombres || envio.nombres || envio.nombreCompleto || '—'),
@@ -268,7 +270,7 @@
       '</div>',
 
       '<div class="seguimiento-progress">',
-        renderPasoRevision('1', 'Coordinación', estados.coordinacion, revisionCoord, envio),
+        renderPasoRevision('1', 'Revisión inicial', estados.coordinacion, revisionCoord, envio),
         '<div class="seguimiento-progress__line"></div>',
         renderPasoRevision('2', 'Investigación', estados.investigacion, revisionInv, envio),
         '<div class="seguimiento-progress__line"></div>',
@@ -284,7 +286,7 @@
 
       (tituloCoord ? [
         '<section class="seguimiento-section seguimiento-section--selected">',
-          '<span class="seguimiento-label">Título seleccionado por Coordinación</span>',
+          '<span class="seguimiento-label">Título seleccionado en la revisión inicial</span>',
           '<p class="seguimiento-title-text">' + escapar(tituloCoord) + '</p>',
         '</section>'
       ].join('') : ''),
@@ -343,10 +345,10 @@
 
     var estadoGeneral;
     if (finalAprobado) estadoGeneral = estado('Aprobación final', 'success');
-    else if (coordDevuelto) estadoGeneral = estado('Devuelto por Coordinación', 'danger');
-    else if (invDevuelto) estadoGeneral = estado('Devuelto por Investigación', 'danger');
-    else if (coordAprobado) estadoGeneral = estado('Pendiente de Investigación', 'pending');
-    else estadoGeneral = estado('Pendiente de Coordinación', 'pending');
+    else if (coordDevuelto) estadoGeneral = estado('Requiere corrección', 'danger');
+    else if (invDevuelto) estadoGeneral = estado('Requiere corrección', 'danger');
+    else if (coordAprobado) estadoGeneral = estado('Pendiente de revisión de Investigación', 'pending');
+    else estadoGeneral = estado('Pendiente de revisión', 'pending');
 
     return {
       general: estadoGeneral,
@@ -357,11 +359,37 @@
     };
   }
 
+  function renderEstadoPrincipal(estados) {
+    var label = estados && estados.general ? estados.general.label : 'Pendiente de revisión';
+    var tipo = estados && estados.general ? estados.general.tipo : 'pending';
+    var detalle = 'Tus títulos fueron recibidos correctamente y están esperando la primera revisión.';
+
+    if (estados && estados.finalAprobado) {
+      detalle = 'Tu proceso de revisión terminó y ya cuentas con una aprobación final.';
+    } else if (tipo === 'danger') {
+      detalle = 'Tu registro necesita una corrección. Revisa las observaciones antes de reenviar.';
+    } else if (estados && estados.coordinacionAprobada) {
+      detalle = 'La revisión inicial ya terminó. Tu título continúa con la revisión de Investigación.';
+    }
+
+    return [
+      '<section class="seguimiento-status-hero ' + claseEstado(tipo) + '">',
+        '<div class="seguimiento-status-hero__icon" aria-hidden="true">' + (tipo === 'success' ? '✓' : tipo === 'danger' ? '!' : '•') + '</div>',
+        '<div class="seguimiento-status-hero__body">',
+          '<span>Estado actual</span>',
+          '<strong>' + escapar(label) + '</strong>',
+          '<p>' + escapar(detalle) + '</p>',
+        '</div>',
+      '</section>'
+    ].join('');
+  }
+
   function renderPasoRevision(numero, nombre, estadoPaso, revision, envio) {
     revision = revision || {};
+    var esRevisionInicial = nombre === 'Revisión inicial';
     var fecha = revision.fechaLocal || revision.fecha ||
-      (nombre === 'Coordinación' ? envio.fechaValidacionCoordinador : envio.fechaResolucionInvestigacion);
-    var responsable = nombre === 'Coordinación'
+      (esRevisionInicial ? envio.fechaValidacionCoordinador : envio.fechaResolucionInvestigacion);
+    var responsable = esRevisionInicial
       ? (revision.coordinadorNombre || revision.coordinadorEmail || envio.ultimoCoordinador || envio.coordinador || '')
       : (revision.investigadorNombre || revision.investigadorEmail || '');
 
@@ -394,7 +422,7 @@
     var tags = [];
 
     if (numero && Number(envio.tituloPreferidoNumero || 0) === numero) tags.push('Preferido por ti');
-    if (texto && tituloCoord && normalizarComparacion(texto) === normalizarComparacion(tituloCoord)) tags.push('Elegido por Coordinación');
+    if (texto && tituloCoord && normalizarComparacion(texto) === normalizarComparacion(tituloCoord)) tags.push('Seleccionado en revisión');
     if (texto && tituloFinal && normalizarComparacion(texto) === normalizarComparacion(tituloFinal)) tags.push('Título final');
 
     return [
@@ -413,7 +441,7 @@
     var obsInv = limpiar(inv.observacion || envio.observacionInvestigacion || '');
     var devolucion = limpiar(envio.observacionDevolucion || '');
 
-    if (obsCoord) items.push({ titulo: 'Observación de Coordinación', texto: obsCoord });
+    if (obsCoord) items.push({ titulo: 'Observación de la revisión inicial', texto: obsCoord });
     if (obsInv) items.push({ titulo: 'Observación de Investigación', texto: obsInv });
     if (devolucion && !items.some(function (item) { return item.texto === devolucion; })) {
       items.push({ titulo: 'Motivo de devolución', texto: devolucion });
@@ -683,6 +711,17 @@
       '.seguimiento-badge.is-warning,.seguimiento-step__number.is-warning{background:#fff7df;color:#8a5b00;border-color:#f1dda1}',
       '.seguimiento-badge.is-pending,.seguimiento-step__number.is-pending{background:#edf4ff;color:#174f97;border-color:#c8daf4}',
       '.seguimiento-badge.is-muted,.seguimiento-step__number.is-muted{background:#f2f4f7;color:#697386;border-color:#dde2e8}',
+      '.seguimiento-status-hero{display:grid;grid-template-columns:auto 1fr;gap:13px;align-items:center;margin:0 0 14px;padding:16px 18px;border-radius:16px;border:1px solid #b8d4ef;background:linear-gradient(135deg,#edf6ff,#f8fbff);box-shadow:0 8px 22px rgba(18,81,145,.08)}',
+      '.seguimiento-status-hero__icon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#0b5da7;color:#fff;font-size:1.2rem;font-weight:950;box-shadow:0 7px 17px rgba(11,93,167,.18)}',
+      '.seguimiento-status-hero__body span{display:block;color:#5f7590;font-size:.67rem;font-weight:900;letter-spacing:.09em;text-transform:uppercase;margin-bottom:2px}',
+      '.seguimiento-status-hero__body strong{display:block;color:#0b4f8d;font-size:clamp(1.18rem,2vw,1.55rem);line-height:1.15}',
+      '.seguimiento-status-hero__body p{margin:4px 0 0;color:#526a84;font-size:.82rem;line-height:1.4}',
+      '.seguimiento-status-hero.is-success{border-color:#a9d9c2;background:linear-gradient(135deg,#edf9f3,#fbfffd)}',
+      '.seguimiento-status-hero.is-success .seguimiento-status-hero__icon{background:#087a4b}',
+      '.seguimiento-status-hero.is-success .seguimiento-status-hero__body strong{color:#087044}',
+      '.seguimiento-status-hero.is-danger{border-color:#efc2c2;background:linear-gradient(135deg,#fff2f2,#fffafa)}',
+      '.seguimiento-status-hero.is-danger .seguimiento-status-hero__icon{background:#a52323}',
+      '.seguimiento-status-hero.is-danger .seguimiento-status-hero__body strong{color:#922020}',
       '.seguimiento-student-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:22px}',
       '.seguimiento-dato{padding:13px 14px;border:1px solid #dfe6ef;border-radius:13px;background:#fbfcfe;min-width:0}',
       '.seguimiento-dato span,.seguimiento-label{display:block;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#607089;margin-bottom:5px}',
@@ -720,7 +759,7 @@
       '.seguimiento-empty{padding:14px;border-radius:12px;background:#f7f9fb;color:#68778b;text-align:center}',
       '.seguimiento-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:18px}',
       '@media(max-width:780px){.seguimiento-titulo{padding:18px}.seguimiento-head{display:block}.seguimiento-badge{margin-top:12px}.seguimiento-student-grid{grid-template-columns:1fr 1fr}.seguimiento-progress{grid-template-columns:1fr;gap:10px}.seguimiento-progress__line{width:2px;height:18px;margin-left:17px}.seguimiento-section__head,.seguimiento-history__top,.seguimiento-propuesta__meta{align-items:flex-start;flex-direction:column}.seguimiento-history__top time{white-space:normal}}',
-      '@media(max-width:480px){.seguimiento-student-grid{grid-template-columns:1fr}.seguimiento-actions .btn{width:100%}}'
+      '@media(max-width:480px){.seguimiento-status-hero{grid-template-columns:1fr;text-align:center;padding:14px}.seguimiento-status-hero__icon{margin:0 auto}.seguimiento-student-grid{grid-template-columns:1fr}.seguimiento-actions .btn{width:100%}}'
     ].join('');
 
     document.head.appendChild(style);
