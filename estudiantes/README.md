@@ -1,16 +1,21 @@
 # Módulo Estudiantes
 
-Este módulo será la pantalla pública para estudiantes.
+Pantalla pública de titulación del ITSQMET.
 
-## Formas de uso
+## Arquitectura vigente
 
-- Doble click en `estudiante.html`.
-- Live Server abriendo directamente `estudiantes/estudiante.html`.
+- `utet-4387a`: consulta académica de `Estudiante` y `matriculas`.
+- `titulos-ec2fa`: flujo de titulación.
+- `/consulta-estado/consulta.service.js`: único motor autorizado para localizar registros en `envios`.
+- `estudiante.repository.js`: datos académicos, configuración y escrituras del proceso. No contiene un segundo buscador de envíos.
+- `seguimiento.service.js`: presentación del estado cuando ya existe un envío.
 
-## Alcance
+## Flujo
 
-La pantalla permitirá consultar por cédula, cargar datos desde Firebase, completar 3 propuestas obligatorias, generar sugerencias, seleccionar un título preferido, enviar a Firebase y respaldar en Google Sheets.
+`cédula → datos académicos → consulta-estado → envios → seguimiento o nuevo registro`
 
-## Regla técnica
+El flujo activo no utiliza iframe, `postMessage`, bridge ni buscadores legacy para consultar títulos.
 
-Este módulo no usará Vite, React, Netlify ni Electron. Debe funcionar con scripts clásicos para soportar doble click.
+## Ejecución
+
+El módulo funciona como sitio estático mediante GitHub Pages y scripts clásicos, sin React, Vite, Netlify ni Electron.
