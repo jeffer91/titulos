@@ -333,7 +333,8 @@
       'comentarioCoordinador', 'comentarioInvestigador', 'observacionDevolucion', 'observacionInvestigacion',
       'devueltoPor', 'permitirReenvio', 'puedeReenviar', 'intentosUsados', 'numeroEnvios', 'numeroReenvios',
       'versionActual', 'fechaEnvio', 'fechaValidacionCoordinador', 'fechaResolucionInvestigacion',
-      'fechaRevisionCoordinador', 'fechaRevisionInvestigador', 'actualizadoEn', 'actualizadoEnLocal', 'creadoEn',\n      'tipoTrabajo', 'tipoTrabajoId', 'tipoTrabajoLabel', 'modalidadTitulacion'
+      'fechaRevisionCoordinador', 'fechaRevisionInvestigador', 'actualizadoEn', 'actualizadoEnLocal', 'creadoEn',
+      'tipoTrabajo', 'tipoTrabajoId', 'tipoTrabajoLabel', 'modalidadTitulacion'
     ];
 
     permitidos.forEach(function (key) {
@@ -368,7 +369,8 @@
     if (!revision || typeof revision !== 'object') return {};
     var salida = {};
     [
-      'estado', 'resultado', 'responsable', 'nombre', 'nombres', 'coordinador', 'investigador',\n      'coordinadorNombre', 'coordinadorEmail', 'investigadorNombre', 'investigadorEmail',
+      'estado', 'resultado', 'responsable', 'nombre', 'nombres', 'coordinador', 'investigador',
+      'coordinadorNombre', 'coordinadorEmail', 'investigadorNombre', 'investigadorEmail',
       'comentario', 'observacion', 'tituloSeleccionadoTexto', 'tituloSeleccionadoNumero',
       'tituloFinal', 'fecha', 'fechaLocal', 'fechaRevision', 'fechaValidacion', 'fechaResolucion'
     ].forEach(function (key) {
