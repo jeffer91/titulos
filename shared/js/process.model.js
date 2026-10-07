@@ -13,6 +13,20 @@
     ARCHIVADO_ADMIN: 'ARCHIVADO_ADMIN'
   });
 
+  var ALIASES_ESTADO = Object.freeze({
+    PENDIENTE_COORDINADOR: ESTADOS.COORDINACION_PENDIENTE,
+    COORDINACION_PENDIENTE: ESTADOS.COORDINACION_PENDIENTE,
+    PENDIENTE_INVESTIGADOR: ESTADOS.INVESTIGACION_PENDIENTE,
+    INVESTIGACION_PENDIENTE: ESTADOS.INVESTIGACION_PENDIENTE,
+    DEVUELTO_COORDINADOR: ESTADOS.DEVUELTO_COORDINACION,
+    DEVUELTO_COORDINACION: ESTADOS.DEVUELTO_COORDINACION,
+    DEVUELTO_INVESTIGADOR: ESTADOS.DEVUELTO_INVESTIGACION,
+    DEVUELTO_INVESTIGACION: ESTADOS.DEVUELTO_INVESTIGACION,
+    APROBADO_FINAL: ESTADOS.APROBADO_FINAL,
+    ARCHIVADO: ESTADOS.ARCHIVADO_ADMIN,
+    ARCHIVADO_ADMIN: ESTADOS.ARCHIVADO_ADMIN
+  });
+
   var LABELS = Object.freeze({
     SIN_ENVIO: 'Sin envío',
     COORDINACION_PENDIENTE: 'Por revisar en Coordinación',
@@ -49,6 +63,7 @@
   function estadoProceso(titulo) {
     if (!titulo) return ESTADOS.SIN_ENVIO;
     var explicito = normalizarTexto(titulo.estadoProceso);
+    if (ALIASES_ESTADO[explicito]) return ALIASES_ESTADO[explicito];
     if (ESTADOS[explicito]) return ESTADOS[explicito];
 
     var inv = normalizarTexto(titulo.estadoInvestigador || (titulo.revisionInvestigador && titulo.revisionInvestigador.estado));
@@ -143,6 +158,7 @@
 
   window.TAProcessModel = Object.freeze({
     ESTADOS: ESTADOS,
+    ALIASES_ESTADO: ALIASES_ESTADO,
     limpiar: limpiar,
     soloNumeros: soloNumeros,
     normalizarTexto: normalizarTexto,
