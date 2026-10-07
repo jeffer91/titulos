@@ -139,62 +139,37 @@
   }
 
   function consultarEnvio(periodoId, cedulaIngresada) {
-    var variantesCedula = construirVariantesCedula(cedulaIngresada);
-    var variantesPeriodo = construirVariantesPeriodo(periodoId);
-    var periodoPrincipal = variantesPeriodo[0] || obtenerPeriodoIdDesdeValor(periodoId);
-    var cedulaPrincipal = normalizarCedulaParaMostrar(cedulaIngresada);
-    var cacheKey = periodoPrincipal + '__' + cedulaPrincipal;
-    var cache = envioCache[cacheKey];
-
-    if (cache && (Date.now() - cache.at) < 60000) {
-      return Promise.resolve(cache.value);
-    }
+    var bridge = window.TAConsultaEstadoBridge;
 
     /*
-      IMPORTANTE:
-      - Los datos académicos ya fueron consultados en utet-4387a.
-      - Desde este punto SOLO se consulta titulos-ec2fa/envios.
-      - Primero se buscan IDs canónicos y legacy.
-      - Después se buscan cedula/numeroIdentificacion como string y número.
-      Esto mantiene compatibilidad con registros históricos sin mezclar bases.
+      La lectura de envios queda delegada exclusivamente al motor independiente
+      /consulta-estado/. Este repositorio conserva la consulta académica y las
+      escrituras del proceso, pero no decide cómo localizar un envío existente.
     */
-    var restQueryPromise = buscarEnvioRestPorCedula(periodoPrincipal, variantesCedula)
-      .then(function (value) { return { ok: true, value: value, origen: 'rest-identidad' }; })
-      .catch(function (error) { return { ok: false, error: error, origen: 'rest-identidad' }; });
+    if (!bridge || typeof bridge.consultar !== 'function') {
+      return Promise.reject(new Error('El motor independiente /consulta-estado/ no está disponible.'));
+    }
 
-    var sdkQueryPromise = buscarEnvioPorCedulaRapido(periodoPrincipal, variantesCedula)
-      .then(function (value) { return { ok: true, value: value, origen: 'sdk-identidad' }; })
-      .catch(function (error) { return { ok: false, error: error, origen: 'sdk-identidad' }; });
+    return bridge.consultar({
+      periodoId: periodoId,
+      cedula: cedulaIngresada
+    }).then(function (respuesta) {
+      if (!respuesta || respuesta.ok === false) {
+        var error = new Error(
+          respuesta && respuesta.error && respuesta.error.mensaje ||
+          'No se pudo consultar el estado del título.'
+        );
+        error.codigo = respuesta && respuesta.error && respuesta.error.codigo || 'CONSULTA_TITULOS_ERROR';
+        error.diagnostico = respuesta && respuesta.diagnostico || null;
+        throw error;
+      }
 
-    return buscarEnvioDirectoRapido(variantesPeriodo, variantesCedula, periodoPrincipal)
-      .then(function (encontrado) {
-        if (encontrado) {
-          var normalizado = normalizarEnvioExistente(encontrado);
-          envioCache[cacheKey] = { at: Date.now(), value: normalizado };
-          console.info('[Estudiantes][Títulos] Envío encontrado por ID directo:', normalizado.id || cacheKey);
-          return normalizado;
-        }
+      if (!respuesta.encontrado || !respuesta.envio) return null;
 
-        return Promise.all([restQueryPromise, sdkQueryPromise]).then(function (resultados) {
-          var conRegistro = resultados.filter(function (item) {
-            return item.ok && item.value;
-          })[0];
-
-          if (conRegistro) {
-            envioCache[cacheKey] = { at: Date.now(), value: conRegistro.value };
-            console.info('[Estudiantes][Títulos] Envío encontrado por compatibilidad:', conRegistro.origen);
-            return conRegistro.value;
-          }
-
-          var exitosas = resultados.filter(function (item) { return item.ok; });
-          if (exitosas.length) {
-            envioCache[cacheKey] = { at: Date.now(), value: null };
-            return null;
-          }
-
-          throw new Error('No se pudo consultar titulos-ec2fa/envios. Intenta nuevamente.');
-        });
-      });
+      var envio = normalizarEnvioExistente(respuesta.envio);
+      envio._consultaDiagnostico = respuesta.diagnostico || null;
+      return envio;
+    });
   }
 
   function buscarEnvioDirectoRapido(periodos, cedulas, periodoPrincipal) {
