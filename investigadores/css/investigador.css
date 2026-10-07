@@ -89,3 +89,10 @@ textarea { resize: vertical; }
   .actions .btn, .filter-card .btn { width: 100%; }
   .top-nav span { display: none; }
 }
+
+.proposal.is-selected-by-coord { border-color: #7db1e8; background: #f4f8ff; box-shadow: inset 3px 0 0 #1557d6; }
+.proposal.is-corrected-by-coord { border-color: #e0b84f; background: #fffaf0; box-shadow: inset 3px 0 0 #d39a12; }
+.proposal__head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.proposal__head span { display:inline-flex; padding:3px 6px; border-radius:999px; background:#e8f1ff; color:#1557d6; font-size:.64rem; font-weight:900; }
+.proposal__head .proposal__corrected { background:#fff0bd; color:#7a5200; }
+.proposal small { display:block; margin-top:6px; padding-top:6px; border-top:1px dashed #e0c982; color:#75643d; font-size:.72rem; }
