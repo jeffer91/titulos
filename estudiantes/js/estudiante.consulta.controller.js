@@ -12,9 +12,9 @@
   'use strict';
 
   var TIMEOUT_FIREBASE_MS = 4000;
-  var TIMEOUT_CONFIG_MS = 1800;
+  var TIMEOUT_CONFIG_MS = 1200;
   var TIMEOUT_ACADEMICO_MS = 5500;
-  var TIMEOUT_TITULO_MS = 3200;
+  var TIMEOUT_TITULO_MS = 2600;
   var TIMEOUT_HISTORIAL_MS = 4500;
   var consultaToken = 0;
 
