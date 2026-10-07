@@ -4,7 +4,7 @@
   var service = window.TAConsultaEstadoService;
   var EMBED = new URLSearchParams(window.location.search).get('embed') === '1';
   var TARGET_ORIGIN = window.location.origin;
-  var VERSION = '20261007-38';
+  var VERSION = '20261007-39';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -64,6 +64,7 @@
             coleccion: resultado && resultado.coleccion || 'envios',
             documentoId: resultado && resultado.documentoId || '',
             ruta: resultado && resultado.ruta || '',
+            estrategia: resultado && resultado.estrategia || 'IDENTIDAD_PRIMERO',
             rutasProbadas: resultado && resultado.rutasProbadas || [],
             periodoCanonico: resultado && resultado.periodoCanonico || '',
             status: resultado && resultado.status || 0,
@@ -134,6 +135,7 @@
       '<div><b>Base:</b> ' + escapar(respuesta.diagnostico.base || 'titulos-ec2fa') + '</div>',
       '<div><b>Colección:</b> ' + escapar(respuesta.diagnostico.coleccion || 'envios') + '</div>',
       '<div><b>Documento:</b> ' + escapar(respuesta.diagnostico.documentoId || '') + '</div>',
+      '<div><b>Estrategia:</b> ' + escapar(respuesta.diagnostico.estrategia || 'IDENTIDAD_PRIMERO') + '</div>',
       '<div><b>Ruta:</b> ' + escapar(respuesta.diagnostico.ruta || '') + '</div>',
       '<div><b>Tiempo:</b> ' + escapar(String(respuesta.diagnostico.duracionMs || 0)) + ' ms</div>'
     ].join('');
