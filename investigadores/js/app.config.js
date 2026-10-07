@@ -4,7 +4,7 @@
 
   window.TA_INVESTIGADORES_CONFIG = Object.freeze({
     modulo: 'investigadores',
-    version: '1.1.0-firebase-titulos',
+    version: '1.2.0-pin-directo',
     firebase: window.TA_ADMIN_FIREBASE_CONFIG || Object.freeze({
       apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: ''
     }),
