@@ -75,21 +75,25 @@
         finalCard.insertBefore(eyebrow, finalCard.firstChild);
       }
 
-      if (!icon) {
-        icon = document.createElement('span');
-        icon.className = 'seguimiento-final-hero__icon';
-        icon.setAttribute('aria-hidden', 'true');
-        finalCard.insertBefore(icon, finalCard.firstChild);
-      }
-
       if (aprobadoFinal) {
+        if (!icon) {
+          icon = document.createElement('span');
+          icon.className = 'seguimiento-final-hero__icon';
+          icon.setAttribute('aria-hidden', 'true');
+          finalCard.insertBefore(icon, finalCard.firstChild);
+        }
+
         eyebrow.textContent = 'APROBACIÓN DEFINITIVA';
         if (label) label.textContent = 'Título final aprobado';
         icon.textContent = '✓';
       } else {
+        /*
+          Mientras el título está en revisión no se muestra un icono decorativo.
+          La antigua "T" azul se superponía al texto en títulos largos.
+        */
+        if (icon && icon.parentNode) icon.parentNode.removeChild(icon);
         eyebrow.textContent = 'TÍTULO REGISTRADO';
         if (label) label.textContent = 'Título en proceso de revisión';
-        icon.textContent = 'T';
       }
     }
 
@@ -222,7 +226,7 @@
 
       'body.ta-premium .seguimiento-premium__titulo-principal{position:relative!important;overflow:hidden!important;margin:10px 0 11px!important;padding:18px 20px 18px 66px!important;border-radius:16px!important}',
       'body.ta-premium .seguimiento-premium__titulo-principal.is-final-approved{border:1px solid #d9ab2c!important;background:linear-gradient(118deg,#fff9dc 0%,#ffe7a6 46%,#fff4cf 100%)!important;box-shadow:0 10px 26px rgba(166,117,0,.14)!important}',
-      'body.ta-premium .seguimiento-premium__titulo-principal.is-reviewing{border:1px solid #8dbbe5!important;background:linear-gradient(118deg,#f0f7ff 0%,#e2f2ff 50%,#f5fbff 100%)!important;box-shadow:0 10px 24px rgba(21,95,160,.10)!important}',
+      'body.ta-premium .seguimiento-premium__titulo-principal.is-reviewing{border:1px solid #8dbbe5!important;background:linear-gradient(118deg,#f0f7ff 0%,#e2f2ff 50%,#f5fbff 100%)!important;box-shadow:0 10px 24px rgba(21,95,160,.10)!important;padding-left:20px!important}',
       'body.ta-premium .seguimiento-premium__titulo-principal:after{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg,#e1b12f,#bd8200)}',
       'body.ta-premium .seguimiento-premium__titulo-principal.is-reviewing:after{background:linear-gradient(180deg,#1685c7,#0d5ca4)}',
       'body.ta-premium .seguimiento-premium__titulo-principal .seguimiento-final-hero__icon{position:absolute!important;left:18px!important;top:50%!important;transform:translateY(-50%)!important;width:34px!important;height:34px!important;border-radius:50%!important;display:grid!important;place-items:center!important;background:#082548!important;color:#f4ce52!important;border:2px solid #e7bd3e!important;font-size:.92rem!important;font-weight:950!important;box-shadow:0 7px 18px rgba(8,37,72,.18)!important}',
