@@ -157,7 +157,9 @@
       3. Solo si ambas rutas no encuentran el documento, consulta por cédula.
       Esto evita encadenar varias lecturas Firestore una detrás de otra.
     */
-    var fallbackPromise = buscarEnvioPorCedulaRapido(periodoPrincipal, variantesCedula);
+    var fallbackPromise = buscarEnvioPorCedulaRapido(periodoPrincipal, variantesCedula)
+      .then(function (value) { return { ok: true, value: value }; })
+      .catch(function (error) { return { ok: false, error: error }; });
 
     return buscarEnvioDirectoRapido(variantesPeriodo, variantesCedula)
       .then(function (encontrado) {
@@ -167,9 +169,12 @@
           return normalizado;
         }
 
-        return fallbackPromise.then(function (fallback) {
-          envioCache[cacheKey] = { at: Date.now(), value: fallback };
-          return fallback;
+        return fallbackPromise.then(function (resultadoFallback) {
+          if (!resultadoFallback.ok) throw resultadoFallback.error;
+          if (resultadoFallback.value) {
+            envioCache[cacheKey] = { at: Date.now(), value: resultadoFallback.value };
+          }
+          return resultadoFallback.value || null;
         });
       });
   }
@@ -209,17 +214,26 @@
         firebaseService.consultarColeccion(config.collections.titulos, 'cedula', '==', cedula, 12),
         2200,
         'envio-cedula'
-      ).catch(function () { return []; });
+      ).then(function (docs) {
+        return { ok: true, docs: docs || [] };
+      }).catch(function (error) {
+        return { ok: false, docs: [], error: error };
+      });
     });
 
     if (!consultas.length) return Promise.resolve(null);
 
-    return Promise.all(consultas).then(function (listas) {
+    return Promise.all(consultas).then(function (resultados) {
+      var exitosas = resultados.filter(function (item) { return item.ok; });
       var docs = [];
       var vistos = {};
 
-      listas.forEach(function (lista) {
-        (lista || []).forEach(function (doc) {
+      if (!exitosas.length) {
+        throw new Error('No se pudo confirmar el estado del título. Intenta nuevamente.');
+      }
+
+      exitosas.forEach(function (resultado) {
+        (resultado.docs || []).forEach(function (doc) {
           var id = doc.id || doc._docId || '';
           if (id && vistos[id]) return;
           if (id) vistos[id] = true;
