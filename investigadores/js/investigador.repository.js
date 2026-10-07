@@ -217,6 +217,8 @@
       estadoProceso: proceso,
       estadoCoordinador: estadoCoord,
       tituloPreferidoNumero: preferido,
+      tituloCoordinadorNumero: Number(data.tituloCoordinadorNumero || (data.revisionCoordinador && data.revisionCoordinador.tituloSeleccionadoNumero) || 0),
+      resultadoCoordinador: limpiar(data.resultadoCoordinador || (data.revisionCoordinador && data.revisionCoordinador.resultado) || ''),
       tituloPreferidoTexto: limpiar(data.tituloPreferidoTexto || data.tituloElegido || data.tituloCoordinador || preferida.tituloFinal || ''),
       tituloElegido: limpiar(data.tituloElegido || ''),
       tituloCoordinador: limpiar(data.tituloCoordinador || ''),
