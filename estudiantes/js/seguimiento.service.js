@@ -260,7 +260,7 @@
         '<span class="seguimiento-badge ' + claseEstado(estados.general.tipo) + '">' + escapar(estados.general.label) + '</span>',
       '</div>',
 
-      renderEstadoPrincipal(estados),
+      renderEstadoPrincipal(estados, puedeReenviar),
 
       '<div class="seguimiento-student-grid">',
         dato('Estudiante', estudiante.nombres || envio.nombres || envio.nombreCompleto || '—'),
@@ -300,14 +300,13 @@
 
       renderObservaciones(envio, revisionCoord, revisionInv),
 
-      '<section class="seguimiento-section">',
-        '<div class="seguimiento-section__head"><div><span>Historial</span><h3>Versiones y movimientos anteriores</h3></div><small>' + historial.length + ' registro' + (historial.length === 1 ? '' : 's') + '</small></div>',
-        historial.length ? '<div class="seguimiento-history">' + historial.map(renderHistorial).join('') + '</div>' : '<div class="seguimiento-empty">No existen versiones anteriores o movimientos adicionales registrados.</div>',
+      '<section class="seguimiento-section seguimiento-section--history">',
+        '<div class="seguimiento-section__head"><div><span>Proceso</span><h3>Historial</h3></div><small>' + historial.length + '</small></div>',
+        historial.length ? '<div class="seguimiento-history seguimiento-history--compact">' + historial.map(renderHistorial).join('') + '</div>' : '<div class="seguimiento-empty">Sin movimientos anteriores.</div>',
       '</section>',
 
       '<div class="seguimiento-actions">',
         '<button type="button" class="btn btn--ghost" id="btnSeguimientoNuevaConsulta">Consultar otra cédula</button>',
-        puedeReenviar ? '<button type="button" class="btn btn--primary" id="btnSeguimientoCorregir">Corregir y reenviar títulos</button>' : '',
       '</div>'
     ].join('');
   }
@@ -359,7 +358,7 @@
     };
   }
 
-  function renderEstadoPrincipal(estados) {
+  function renderEstadoPrincipal(estados, puedeReenviar) {
     var label = estados && estados.general ? estados.general.label : 'Pendiente de revisión';
     var tipo = estados && estados.general ? estados.general.tipo : 'pending';
     var detalle = 'Tus títulos fueron recibidos correctamente y están esperando la primera revisión.';
@@ -367,7 +366,7 @@
     if (estados && estados.finalAprobado) {
       detalle = 'Tu proceso de revisión terminó y ya cuentas con una aprobación final.';
     } else if (tipo === 'danger') {
-      detalle = 'Tu registro necesita una corrección. Revisa las observaciones antes de reenviar.';
+      detalle = 'Revisa la observación y corrige tus títulos para reenviarlos.';
     } else if (estados && estados.coordinacionAprobada) {
       detalle = 'La revisión inicial ya terminó. Tu título continúa con la revisión de Investigación.';
     }
@@ -379,6 +378,7 @@
           '<span>Estado actual</span>',
           '<strong>' + escapar(label) + '</strong>',
           '<p>' + escapar(detalle) + '</p>',
+          puedeReenviar ? '<div class="seguimiento-status-hero__action"><button type="button" class="btn btn--danger" id="btnSeguimientoCorregir">Corregir mis títulos</button></div>' : '',
         '</div>',
       '</section>'
     ].join('');
@@ -463,50 +463,120 @@
     seguimiento = seguimiento || {};
     var salida = [];
     var vistos = {};
+    var eventos = Array.isArray(seguimiento.eventos) ? seguimiento.eventos.slice() : [];
 
-    (seguimiento.versiones || []).forEach(function (version) {
-      agregarHistorial(salida, vistos, {
-        tipo: 'VERSION',
-        titulo: 'Versión anterior',
-        fecha: version.archivadoEn || version.fechaEnvio || version.creadoEn || version.actualizadoEn,
-        estado: version.estado || version.estadoProceso || version.motivoArchivo || 'ARCHIVADA',
-        detalle: obtenerTituloPrincipal(version),
-        observacion: version.observacionDevolucion || version.comentarioCoordinador || version.observacion || ''
+    /*
+      workflow_events es la fuente principal porque representa acciones reales.
+      Las otras colecciones se usan solo como respaldo para registros antiguos.
+    */
+    if (eventos.length) {
+      eventos.slice(0, 40).forEach(function (evento) {
+        var item = resumirEventoHistorial(evento);
+        if (item) agregarHistorialCompacto(salida, vistos, item);
       });
-    });
+    } else {
+      (seguimiento.historialProceso || []).forEach(function (item) {
+        var revCoord = item.revisionCoordinador || {};
+        var revInv = item.revisionInvestigador || {};
+        var revision = revInv.estado ? revInv : revCoord;
+        var estado = normalizarEstado(revision.estado || item.estado || item.estadoProceso || '');
 
-    (seguimiento.historialProceso || []).forEach(function (item, index) {
-      var revCoord = item.revisionCoordinador || {};
-      var revInv = item.revisionInvestigador || {};
-      var estadoItem = revInv.estado || revCoord.estado || item.estado || item.estadoProceso || 'MOVIMIENTO';
-      var detalle = revInv.tituloSeleccionadoTexto || revCoord.tituloSeleccionadoTexto || item.titulo || item.tituloFinal || '';
-      var obs = revInv.observacion || revCoord.observacion || item.observacion || '';
-
-      agregarHistorial(salida, vistos, {
-        tipo: 'PROCESO',
-        titulo: 'Movimiento del proceso' + (item.version ? ' · versión ' + item.version : ''),
-        fecha: item.fechaEnvio || item.fecha || item.actualizadoEn,
-        estado: estadoItem,
-        detalle: detalle,
-        observacion: obs,
-        indice: index
+        if (estado === 'DEVUELTO') {
+          agregarHistorialCompacto(salida, vistos, {
+            titulo: 'Devuelto',
+            fecha: revision.fechaLocal || revision.fecha || item.fecha || item.actualizadoEn || item.fechaEnvio,
+            estado: 'DEVUELTO',
+            observacion: revision.observacion || item.observacion || ''
+          });
+        } else if (estado === 'VALIDADO' || estado.indexOf('APROBADO') !== -1) {
+          agregarHistorialCompacto(salida, vistos, {
+            titulo: 'Aprobado',
+            fecha: revision.fechaLocal || revision.fecha || item.fecha || item.actualizadoEn || item.fechaEnvio,
+            estado: 'APROBADO',
+            observacion: revision.observacion || item.observacion || ''
+          });
+        }
       });
-    });
 
-    (seguimiento.eventos || []).slice(0, 30).forEach(function (evento) {
-      agregarHistorial(salida, vistos, {
-        tipo: 'EVENTO',
-        titulo: etiquetaEvento(evento),
-        fecha: evento.creadoEn || evento.fechaLocal || evento.actualizadoEn,
-        estado: evento.estado || (evento.revision && evento.revision.estado) || evento.accion || evento.tipo || 'MOVIMIENTO',
-        detalle: evento.tituloPreferidoTexto || evento.titulo || (evento.revision && evento.revision.tituloSeleccionadoTexto) || '',
-        observacion: (evento.revision && evento.revision.observacion) || evento.observacion || ''
+      (seguimiento.versiones || []).forEach(function (version) {
+        agregarHistorialCompacto(salida, vistos, {
+          titulo: Number(version.numeroReenvios || 0) > 0 ? 'Reenviado' : 'Enviado',
+          fecha: version.fechaEnvio || version.creadoEn || version.actualizadoEn,
+          estado: 'PENDIENTE_REVISION',
+          observacion: ''
+        });
       });
-    });
+    }
 
     salida.sort(function (a, b) { return fechaMs(b.fecha) - fechaMs(a.fecha); });
-    return salida.slice(0, 40);
+    return salida.slice(0, 12);
   }
+
+  function resumirEventoHistorial(evento) {
+    evento = evento || {};
+    var accion = normalizarEstado(evento.accion || evento.tipo || '');
+    var revision = evento.revision || {};
+    var estadoRevision = normalizarEstado(revision.estado || evento.estado || '');
+    var fecha = evento.creadoEn || evento.fechaLocal || evento.actualizadoEn || revision.fechaLocal || revision.fecha || '';
+    var observacion = limpiar(revision.observacion || evento.observacion || '');
+
+    if (accion.indexOf('REENVIO_ESTUDIANTE') !== -1 || accion === 'REENVIO') {
+      return { titulo: 'Reenviado', fecha: fecha, estado: 'PENDIENTE_REVISION', observacion: '' };
+    }
+
+    if (accion.indexOf('ENVIO_ESTUDIANTE') !== -1 || accion === 'ENVIO') {
+      return { titulo: 'Enviado', fecha: fecha, estado: 'PENDIENTE_REVISION', observacion: '' };
+    }
+
+    if (
+      accion === 'DEVOLVER' ||
+      estadoRevision === 'DEVUELTO' ||
+      accion.indexOf('DEVUELTO') !== -1
+    ) {
+      return { titulo: 'Devuelto', fecha: fecha, estado: 'DEVUELTO', observacion: observacion };
+    }
+
+    if (
+      accion === 'VALIDAR_CORRECCION' ||
+      normalizarEstado(revision.resultado) === 'APROBADO_CON_CORRECCION'
+    ) {
+      return { titulo: 'Aprobado con corrección', fecha: fecha, estado: 'APROBADO_CON_CORRECCION', observacion: observacion };
+    }
+
+    if (
+      accion === 'VALIDAR' ||
+      accion === 'APROBAR' ||
+      accion === 'APROBAR_OBSERVACION' ||
+      estadoRevision === 'VALIDADO' ||
+      estadoRevision === 'APROBADO' ||
+      estadoRevision === 'APROBADO_CON_OBSERVACION'
+    ) {
+      return {
+        titulo: estadoRevision === 'APROBADO_CON_OBSERVACION' ? 'Aprobado con observación' : 'Aprobado',
+        fecha: fecha,
+        estado: estadoRevision || 'APROBADO',
+        observacion: observacion
+      };
+    }
+
+    return null;
+  }
+
+  function agregarHistorialCompacto(salida, vistos, item) {
+    if (!item || !item.fecha || !item.titulo) return;
+
+    var minuto = Math.floor(fechaMs(item.fecha) / 60000);
+    var clave = [
+      normalizarEstado(item.titulo),
+      limpiar(item.observacion).toLowerCase(),
+      minuto
+    ].join('|');
+
+    if (vistos[clave]) return;
+    vistos[clave] = true;
+    salida.push(item);
+  }
+
 
   function agregarHistorial(salida, vistos, item) {
     var clave = [
@@ -522,14 +592,14 @@
   }
 
   function renderHistorial(item) {
-    var estadoItem = limpiar(item.estado || 'MOVIMIENTO');
     return [
-      '<article class="seguimiento-history__item">',
+      '<article class="seguimiento-history__item seguimiento-history__item--compact">',
         '<div class="seguimiento-history__dot"></div>',
         '<div class="seguimiento-history__body">',
-          '<div class="seguimiento-history__top"><strong>' + escapar(item.titulo || 'Movimiento') + '</strong><time>' + escapar(formatearFecha(item.fecha)) + '</time></div>',
-          '<span class="seguimiento-mini-tag">' + escapar(formatearEstado(estadoItem)) + '</span>',
-          item.detalle ? '<p class="seguimiento-history__title">' + escapar(item.detalle) + '</p>' : '',
+          '<div class="seguimiento-history__top">',
+            '<strong>' + escapar(item.titulo || 'Movimiento') + '</strong>',
+            '<time>' + escapar(formatearFechaHistorial(item.fecha)) + '</time>',
+          '</div>',
           item.observacion ? '<p class="seguimiento-history__obs">' + escapar(item.observacion) + '</p>' : '',
         '</div>',
       '</article>'
@@ -630,6 +700,22 @@
 
   function normalizarComparacion(valor) {
     return limpiar(valor).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+  }
+
+  function formatearFechaHistorial(valor) {
+    var fecha = fechaDate(valor);
+    if (!fecha) return '';
+
+    try {
+      return new Intl.DateTimeFormat('es-EC', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(fecha);
+    } catch (error) {
+      return fecha.toLocaleString();
+    }
   }
 
   function formatearFecha(valor) {
