@@ -4,7 +4,7 @@
   var service = window.TAConsultaEstadoService;
   var EMBED = new URLSearchParams(window.location.search).get('embed') === '1';
   var TARGET_ORIGIN = window.location.origin;
-  var VERSION = '20261007-45';
+  var VERSION = '20261007-46';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
