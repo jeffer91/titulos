@@ -43,13 +43,42 @@
   }
 
   function validarAcceso(investigador, pin) {
-    if (!investigador || !investigador.pinCreado || !investigador.pinHash) return Promise.reject(new Error('Primero debes crear tu PIN.'));
-    if (!investigador.pinActivo) return Promise.reject(new Error('Tu PIN todavía está pendiente de activación por Administración.'));
+    if (!investigador || !investigador.pinCreado || !investigador.pinHash) {
+      return Promise.reject(new Error('Tu acceso todavía no tiene un PIN asignado.'));
+    }
 
-    return hashPin(investigador.cedula || investigador.id, pin).then(function (hash) {
-      if (!compararSeguro(hash, investigador.pinHash)) throw new Error('PIN incorrecto.');
-      return investigador;
-    });
+    return hashPin(investigador.cedula || investigador.id, pin)
+      .then(function (hash) {
+        if (!compararSeguro(hash, investigador.pinHash)) {
+          throw new Error('PIN incorrecto.');
+        }
+
+        if (investigador.pinActivo) {
+          return investigador;
+        }
+
+        /*
+          Los PIN asignados por Administración pueden ingresar directamente.
+          Si el hash es correcto, se activa el acceso en ese momento para
+          eliminar el bloqueo histórico de "pendiente de activación".
+        */
+        var ahora = new Date().toISOString();
+
+        return firebaseService.guardarDocumento(config.collections.investigadores, investigador.id, {
+          pinActivo: true,
+          pinActivadoEn: ahora,
+          pinActivadoPor: 'validacion_pin',
+          pinDesactivadoEn: null
+        }, { merge: true }).then(function () {
+          investigador.pinActivo = true;
+          investigador.raw = Object.assign({}, investigador.raw || {}, {
+            pinActivo: true,
+            pinActivadoEn: ahora,
+            pinActivadoPor: 'validacion_pin'
+          });
+          return investigador;
+        });
+      });
   }
 
   function cargarPeriodoActivo() {
