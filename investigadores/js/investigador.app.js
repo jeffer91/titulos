@@ -8,7 +8,6 @@
 
   var investigador = null;
   var titulos = [];
-  var periodoActivo = '';
   var carreraActual = '';
 
   document.addEventListener('DOMContentLoaded', iniciar);
@@ -165,10 +164,6 @@
       .then(function () {
         valueSet('pinInput', '');
         abrirPanel();
-        return repository.cargarPeriodoActivo();
-      })
-      .then(function (periodo) {
-        periodoActivo = periodo || '';
         return cargarTitulos(false);
       })
       .catch(function (error) {
@@ -200,7 +195,7 @@
     setLoading(button, true, 'Actualizando...');
     mensaje('revisionMensaje', 'Actualizando cola de revisión...', 'info');
 
-    return repository.listarTitulosHabilitados(investigador, periodoActivo)
+    return repository.listarTitulosHabilitados(investigador)
       .then(function (items) {
         titulos = items || [];
         renderResumen();
@@ -249,9 +244,7 @@
 
     setText(
       'periodoActualTexto',
-      periodoActivo
-        ? 'Período ' + formatearPeriodo(periodoActivo) + ' · revisión por orden de envío.'
-        : 'Revisión por orden de envío.'
+      'Todos los períodos · revisión por orden de validación de Coordinación.'
     );
 
     body.innerHTML = '';
@@ -336,7 +329,7 @@
     setText('colaCarreraNombre', carreraActual || 'Carrera');
     setText('colaContador', items.length + ' pendiente' + (items.length === 1 ? '' : 's'));
     setText('colaPosicion', items.length ? 'Revisión 1 de ' + items.length : 'Carrera al día');
-    setText('colaOrdenInfo', 'Primero se revisa el envío más antiguo');
+    setText('colaOrdenInfo', 'Primero se revisa el validado más antiguo');
 
     contenedor.innerHTML = '';
 
@@ -375,11 +368,11 @@
           '<div class="meta">' +
             '<span>' + escapeHtml(titulo.cedula || 'Sin cédula') + '</span>' +
             '<span>' + escapeHtml(titulo.carrera || 'Sin carrera') + '</span>' +
-            '<span>' + escapeHtml(formatearPeriodo(titulo.periodoId || periodoActivo)) + '</span>' +
+            '<span>' + escapeHtml(formatearPeriodo(titulo.periodoLabel || titulo.periodoId)) + '</span>' +
           '</div>' +
         '</div>' +
         '<div class="queue-arrival">' +
-          '<span>Enviado</span>' +
+          '<span>Validado por Coordinación</span>' +
           '<strong>' + escapeHtml(formatearFecha(titulo.fechaColaInvestigacion || titulo.fechaEnvio)) + '</strong>' +
         '</div>' +
       '</div>' +
@@ -554,7 +547,6 @@
   function salir() {
     investigador = null;
     titulos = [];
-    periodoActivo = '';
     carreraActual = '';
 
     ocultar('panelTrabajo');
