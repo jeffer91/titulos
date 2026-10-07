@@ -48,20 +48,17 @@
   function construirTitulosEnviados(propuestas, tituloPreferidoNumero) {
     if (!Array.isArray(propuestas)) return [];
 
-    return propuestas.map(function (propuesta) {
-      var numero = Number(propuesta.numero || 0);
+    return propuestas.map(function (propuesta, index) {
+      propuesta = propuesta || {};
+      var numero = Number(propuesta.numero || index + 1);
 
       return {
         numero: numero,
-        temaGeneral: limpiarTexto(propuesta.temaGeneral),
-        problemaNecesidad: limpiarTexto(propuesta.problemaNecesidad),
-        lugarContexto: limpiarTexto(propuesta.lugarContexto),
-        grupoEstudio: limpiarTexto(propuesta.grupoEstudio),
-        anioPeriodo: limpiarTexto(propuesta.anioPeriodo),
-        objetivo: limpiarTexto(propuesta.objetivo),
-        tituloFinal: limpiarTexto(propuesta.tituloFinal),
+        tituloFinal: limpiarTexto(propuesta.tituloFinal || propuesta.titulo || propuesta.texto || ''),
         preferido: numero === Number(tituloPreferidoNumero)
       };
+    }).filter(function (titulo) {
+      return Boolean(titulo.tituloFinal);
     });
   }
 
@@ -142,31 +139,63 @@
 
   function formDataDesdeEnvio(envioExistente, propuestasObligatorias) {
     var total = Number(propuestasObligatorias || 3);
-    var lista = Array.isArray(envioExistente && envioExistente.titulosEnviados)
-      ? envioExistente.titulosEnviados
-      : [];
+    var lista = obtenerTitulosCompatibles(envioExistente || {});
+    var preferido = resolverTituloPreferidoNumero(envioExistente || {}, lista, total);
     var propuestas = [];
 
     for (var i = 1; i <= total; i += 1) {
       var original = buscarPorNumero(lista, i) || {};
-
-      propuestas.push({
-        numero: i,
-        temaGeneral: original.temaGeneral || '',
-        problemaNecesidad: original.problemaNecesidad || '',
-        lugarContexto: original.lugarContexto || '',
-        grupoEstudio: original.grupoEstudio || '',
-        anioPeriodo: original.anioPeriodo || '',
-        objetivo: original.objetivo || '',
-        tituloFinal: original.tituloFinal || ''
-      });
+      var titulo = leerTitulo(original) || limpiarTexto(envioExistente && envioExistente['titulo' + i]);
+      propuestas.push({ numero: i, tituloFinal: titulo });
     }
 
     return {
-      telegram: envioExistente && envioExistente.contacto ? envioExistente.contacto.telegram || '' : envioExistente && envioExistente.telegramUser || '',
-      tituloPreferidoNumero: Number(envioExistente && envioExistente.tituloPreferidoNumero || 1),
+      telegram: envioExistente && envioExistente.contacto
+        ? envioExistente.contacto.telegram || ''
+        : envioExistente && envioExistente.telegramUser || '',
+      tituloPreferidoNumero: preferido,
       propuestas: propuestas
     };
+  }
+
+  function obtenerTitulosCompatibles(envio) {
+    if (Array.isArray(envio.titulosEnviados) && envio.titulosEnviados.length) return envio.titulosEnviados;
+    if (Array.isArray(envio.propuestas) && envio.propuestas.length) return envio.propuestas;
+    if (Array.isArray(envio.propuestasDetalle) && envio.propuestasDetalle.length) return envio.propuestasDetalle;
+
+    return [1, 2, 3].map(function (numero) {
+      var titulo = limpiarTexto(envio['titulo' + numero]);
+      return titulo ? { numero: numero, tituloFinal: titulo } : null;
+    }).filter(Boolean);
+  }
+
+  function resolverTituloPreferidoNumero(envio, lista, total) {
+    var explicito = Number(envio.tituloPreferidoNumero || 0);
+    if (explicito >= 1 && explicito <= total) return explicito;
+
+    for (var i = 0; i < lista.length; i += 1) {
+      if (lista[i] && lista[i].preferido === true) {
+        var numeroPreferido = Number(lista[i].numero || i + 1);
+        if (numeroPreferido >= 1 && numeroPreferido <= total) return numeroPreferido;
+      }
+    }
+
+    var textoPreferido = limpiarTexto(envio.tituloPreferidoTexto || envio.tituloElegido || '');
+    if (textoPreferido) {
+      for (var j = 0; j < lista.length; j += 1) {
+        if (leerTitulo(lista[j]) === textoPreferido) {
+          var numeroTexto = Number(lista[j].numero || j + 1);
+          if (numeroTexto >= 1 && numeroTexto <= total) return numeroTexto;
+        }
+      }
+    }
+
+    return lista.length ? Number(lista[0].numero || 1) : 0;
+  }
+
+  function leerTitulo(item) {
+    item = item || {};
+    return limpiarTexto(item.tituloFinal || item.titulo || item.texto || item.tituloPropuesto || '');
   }
 
   function buscarPorNumero(lista, numero) {

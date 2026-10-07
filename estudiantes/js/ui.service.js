@@ -333,13 +333,7 @@
           return;
         }
 
-        setValue('#p' + numero + 'Tema', propuesta.temaGeneral || '');
-        setValue('#p' + numero + 'Problema', propuesta.problemaNecesidad || '');
-        setValue('#p' + numero + 'Contexto', propuesta.lugarContexto || '');
-        setValue('#p' + numero + 'Grupo', propuesta.grupoEstudio || '');
-        setValue('#p' + numero + 'Periodo', propuesta.anioPeriodo || '');
-        setValue('#p' + numero + 'Objetivo', propuesta.objetivo || '');
-        setValue('#p' + numero + 'Titulo', propuesta.tituloFinal || '');
+        setValue('#p' + numero + 'Titulo', propuesta.tituloFinal || propuesta.titulo || propuesta.texto || '');
       });
     }
 
@@ -365,12 +359,6 @@
     for (var i = 1; i <= total; i += 1) {
       propuestas.push({
         numero: i,
-        temaGeneral: value('#p' + i + 'Tema'),
-        problemaNecesidad: value('#p' + i + 'Problema'),
-        lugarContexto: value('#p' + i + 'Contexto'),
-        grupoEstudio: value('#p' + i + 'Grupo'),
-        anioPeriodo: value('#p' + i + 'Periodo'),
-        objetivo: value('#p' + i + 'Objetivo'),
         tituloFinal: value('#p' + i + 'Titulo')
       });
     }

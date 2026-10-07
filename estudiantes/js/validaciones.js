@@ -217,22 +217,12 @@
     if (!Array.isArray(formData.propuestas) || !formData.propuestas.length) {
       return {
         ok: false,
-        mensaje: 'No hay propuestas para guardar.'
+        mensaje: 'No hay títulos para guardar.'
       };
     }
 
     var tieneContenido = formData.propuestas.some(function (propuesta) {
-      propuesta = propuesta || {};
-
-      return Boolean(
-        limpiarTexto(propuesta.temaGeneral) ||
-        limpiarTexto(propuesta.problemaNecesidad) ||
-        limpiarTexto(propuesta.lugarContexto) ||
-        limpiarTexto(propuesta.grupoEstudio) ||
-        limpiarTexto(propuesta.anioPeriodo) ||
-        limpiarTexto(propuesta.objetivo) ||
-        limpiarTexto(propuesta.tituloFinal)
-      );
+      return Boolean(limpiarTexto(propuesta && propuesta.tituloFinal));
     });
 
     if (!tieneContenido) {

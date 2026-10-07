@@ -138,7 +138,7 @@
     wrap.appendChild(badge(titulo.nombres || 'Sin nombres'));
     wrap.appendChild(badge(titulo.cedula || 'Sin cédula'));
     wrap.appendChild(badge(titulo.carrera || 'Sin carrera'));
-    wrap.appendChild(badge('Preferido: propuesta ' + (titulo.tituloPreferidoNumero || 1)));
+    wrap.appendChild(badge('Preferido: título ' + (titulo.tituloPreferidoNumero || 1)));
     if (titulo.revision && titulo.revision.coordinadorNombre) wrap.appendChild(badge('Revisado por: ' + titulo.revision.coordinadorNombre));
     return wrap;
   }
@@ -151,7 +151,7 @@
     if (!lista.length) {
       var empty = document.createElement('div');
       empty.className = 'empty-state';
-      empty.textContent = 'Este registro no tiene propuestas cargadas.';
+      empty.textContent = 'Este registro no tiene títulos cargados.';
       wrap.appendChild(empty);
       return wrap;
     }
@@ -160,17 +160,11 @@
       var item = document.createElement('div');
       item.className = 'proposal-item';
       var s = document.createElement('strong');
-      s.textContent = 'Propuesta ' + propuesta.numero + (Number(propuesta.numero) === Number(titulo.tituloPreferidoNumero) ? ' · preferida' : '');
+      s.textContent = 'Título ' + propuesta.numero + (Number(propuesta.numero) === Number(titulo.tituloPreferidoNumero) ? ' · preferido' : '');
       var t = document.createElement('p');
-      t.textContent = 'Título: ' + (propuesta.tituloFinal || 'Sin título');
-      var tema = document.createElement('p');
-      tema.textContent = 'Tema: ' + (propuesta.temaGeneral || '—');
-      var problema = document.createElement('p');
-      problema.textContent = 'Problema: ' + (propuesta.problemaNecesidad || '—');
+      t.textContent = propuesta.tituloFinal || propuesta.titulo || 'Sin título';
       item.appendChild(s);
       item.appendChild(t);
-      item.appendChild(tema);
-      item.appendChild(problema);
       wrap.appendChild(item);
     });
 

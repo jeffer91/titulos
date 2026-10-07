@@ -404,13 +404,7 @@
 
       propuestas.push({
         numero: i,
-        temaGeneral: limpiarTexto(original.temaGeneral),
-        problemaNecesidad: limpiarTexto(original.problemaNecesidad),
-        lugarContexto: limpiarTexto(original.lugarContexto),
-        grupoEstudio: limpiarTexto(original.grupoEstudio),
-        anioPeriodo: limpiarTexto(original.anioPeriodo),
-        objetivo: limpiarTexto(original.objetivo),
-        tituloFinal: limpiarTexto(original.tituloFinal)
+        tituloFinal: limpiarTexto(original.tituloFinal || original.titulo || original.texto)
       });
     }
 
@@ -451,12 +445,6 @@
     for (i = 1; i <= total; i += 1) {
       propuestas.push({
         numero: i,
-        temaGeneral: '',
-        problemaNecesidad: '',
-        lugarContexto: '',
-        grupoEstudio: '',
-        anioPeriodo: '',
-        objetivo: '',
         tituloFinal: ''
       });
     }

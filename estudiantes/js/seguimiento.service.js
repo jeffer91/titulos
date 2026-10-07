@@ -278,10 +278,10 @@
       '</div>',
 
       '<section class="seguimiento-section">',
-        '<div class="seguimiento-section__head"><div><span>Títulos registrados</span><h3>Tus propuestas</h3></div><small>' + propuestas.length + ' registrada' + (propuestas.length === 1 ? '' : 's') + '</small></div>',
+        '<div class="seguimiento-section__head"><div><span>Títulos registrados</span><h3>Tus títulos</h3></div><small>' + propuestas.length + ' registrado' + (propuestas.length === 1 ? '' : 's') + '</small></div>',
         propuestas.length ? propuestas.map(function (p) {
           return renderPropuesta(p, envio, tituloCoord, tituloFinal);
-        }).join('') : '<div class="seguimiento-empty">No se encontraron las propuestas originales en este registro.</div>',
+        }).join('') : '<div class="seguimiento-empty">No se encontraron títulos registrados en este envío.</div>',
       '</section>',
 
       (tituloCoord ? [
@@ -312,40 +312,50 @@
   }
 
   function calcularEstados(envio) {
+    envio = envio || {};
+
+    var revisionCoord = envio.revisionCoordinador || {};
+    var revisionInv = envio.revisionInvestigador || {};
     var general = normalizarEstado(envio.estado || envio.estadoProceso || '');
     var proceso = normalizarEstado(envio.estadoProceso || '');
-    var coord = normalizarEstado(envio.estadoCoordinador || (envio.revisionCoordinador && envio.revisionCoordinador.estado) || '');
-    var inv = normalizarEstado(envio.estadoInvestigador || (envio.revisionInvestigador && envio.revisionInvestigador.estado) || '');
+    var coord = normalizarEstado(envio.estadoCoordinador || revisionCoord.estado || '');
+    var inv = normalizarEstado(envio.estadoInvestigador || revisionInv.estado || '');
     var devueltoPor = normalizarEstado(envio.devueltoPor || '');
 
-    var finalAprobado = general === 'APROBADO_FINAL' || proceso === 'APROBADO_FINAL' ||
+    var finalExplicito = general === 'APROBADO_FINAL' || proceso === 'APROBADO_FINAL';
+    var coordDevuelto = coord === 'DEVUELTO' ||
+      ((general === 'DEVUELTO' || proceso === 'DEVUELTO') && devueltoPor === 'COORDINADOR');
+    var invDevuelto = inv === 'DEVUELTO' ||
+      ((general === 'DEVUELTO' || proceso === 'DEVUELTO') &&
+        (devueltoPor === 'INVESTIGACION' || devueltoPor === 'INVESTIGADOR'));
+
+    var hayTituloCoordinacion = Boolean(limpiar(
+      revisionCoord.tituloSeleccionadoTexto || envio.tituloCoordinador || ''
+    ));
+
+    var coordAprobado = finalExplicito ||
+      coord === 'VALIDADO' || coord === 'APROBADO' ||
+      envio.validadoCoordinador === true || envio.validadoCoordinacion === true ||
+      general === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR' ||
+      hayTituloCoordinacion;
+
+    var invAprobado = finalExplicito ||
       inv === 'APROBADO' || inv === 'APROBADO_CON_OBSERVACION';
 
-    var coordAprobado = coord === 'VALIDADO' || coord === 'APROBADO' ||
-      envio.validadoCoordinador === true || envio.validadoCoordinacion === true ||
-      general === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR' || finalAprobado;
+    var finalAprobado = finalExplicito ||
+      (coordAprobado && invAprobado && !coordDevuelto && !invDevuelto);
 
-    var coordDevuelto = coord === 'DEVUELTO' || (general === 'DEVUELTO' && devueltoPor === 'COORDINADOR');
-    var invDevuelto = inv === 'DEVUELTO' || (general === 'DEVUELTO' && (devueltoPor === 'INVESTIGACION' || devueltoPor === 'INVESTIGADOR'));
+    var estadoCoord = coordDevuelto ? estado('Devuelto', 'danger')
+      : coordAprobado ? estado('Aprobado', 'success') : estado('Pendiente', 'pending');
 
-    var estadoCoord = coordDevuelto
-      ? estado('Devuelto', 'danger')
-      : coordAprobado
-        ? estado('Aprobado', 'success')
-        : estado('Pendiente', 'pending');
-
-    var estadoInv = invDevuelto
-      ? estado('Devuelto', 'danger')
+    var estadoInv = invDevuelto ? estado('Devuelto', 'danger')
       : finalAprobado
         ? estado(inv === 'APROBADO_CON_OBSERVACION' ? 'Aprobado con observación' : 'Aprobado', inv === 'APROBADO_CON_OBSERVACION' ? 'warning' : 'success')
-        : coordAprobado
-          ? estado('Pendiente', 'pending')
-          : estado('Aún no habilitado', 'muted');
+        : coordAprobado ? estado('Pendiente', 'pending') : estado('Aún no habilitado', 'muted');
 
     var estadoGeneral;
     if (finalAprobado) estadoGeneral = estado('Aprobación final', 'success');
-    else if (coordDevuelto) estadoGeneral = estado('Requiere corrección', 'danger');
-    else if (invDevuelto) estadoGeneral = estado('Requiere corrección', 'danger');
+    else if (coordDevuelto || invDevuelto) estadoGeneral = estado('Requiere corrección', 'danger');
     else if (coordAprobado) estadoGeneral = estado('Pendiente de revisión de Investigación', 'pending');
     else estadoGeneral = estado('Pendiente de revisión', 'pending');
 
@@ -354,7 +364,8 @@
       coordinacion: estadoCoord,
       investigacion: estadoInv,
       finalAprobado: finalAprobado,
-      coordinacionAprobada: coordAprobado
+      coordinacionAprobada: coordAprobado,
+      investigacionAprobada: invAprobado
     };
   }
 
@@ -427,7 +438,7 @@
 
     return [
       '<article class="seguimiento-propuesta">',
-        '<div class="seguimiento-propuesta__meta"><strong>Propuesta ' + escapar(numero || '') + '</strong>',
+        '<div class="seguimiento-propuesta__meta"><strong>Título ' + escapar(numero || '') + '</strong>',
         tags.length ? '<div>' + tags.map(function (tag) { return '<span class="seguimiento-mini-tag">' + escapar(tag) + '</span>'; }).join('') + '</div>' : '',
         '</div>',
         '<p>' + escapar(texto || 'Título no disponible') + '</p>',
@@ -666,16 +677,23 @@
   }
 
   function obtenerPropuestas(envio) {
-    if (Array.isArray(envio.titulosEnviados) && envio.titulosEnviados.length) {
-      return envio.titulosEnviados.map(function (item, index) {
-        return Object.assign({ numero: index + 1 }, item || {});
-      });
-    }
+    envio = envio || {};
+    var lista = [];
 
-    if (Array.isArray(envio.propuestasDetalle) && envio.propuestasDetalle.length) {
-      return envio.propuestasDetalle.map(function (item, index) {
-        return Object.assign({ numero: index + 1 }, item || {});
-      });
+    if (Array.isArray(envio.titulosEnviados) && envio.titulosEnviados.length) lista = envio.titulosEnviados;
+    else if (Array.isArray(envio.propuestas) && envio.propuestas.length) lista = envio.propuestas;
+    else if (Array.isArray(envio.propuestasDetalle) && envio.propuestasDetalle.length) lista = envio.propuestasDetalle;
+
+    if (lista.length) {
+      return lista.map(function (item, index) {
+        item = item || {};
+        var titulo = limpiar(item.tituloFinal || item.titulo || item.texto || item.tituloPropuesto || '');
+        if (!titulo) return null;
+        return Object.assign({}, item, {
+          numero: Number(item.numero || index + 1),
+          tituloFinal: titulo
+        });
+      }).filter(Boolean);
     }
 
     return [1, 2, 3].map(function (numero) {

@@ -307,9 +307,20 @@
   }
 
   function clasificarTitulo(titulo) {
-    if (titulo.estado === 'APROBADO_FINAL' || titulo.estadoProceso === 'APROBADO_FINAL' || titulo.estadoInvestigador === 'APROBADO' || titulo.estadoInvestigador === 'APROBADO_CON_OBSERVACION') return 'APROBADOS';
-    if (titulo.estadoCoordinador === 'DEVUELTO' || (titulo.estado === 'DEVUELTO' && String(titulo.raw && titulo.raw.devueltoPor || '').toUpperCase() === 'COORDINADOR')) return 'DEVUELTOS';
-    if (titulo.estadoCoordinador === 'VALIDADO' || titulo.estado === 'PENDIENTE_INVESTIGADOR' || titulo.estadoProceso === 'PENDIENTE_INVESTIGADOR') return 'VALIDADOS';
+    var finalExplicito = titulo.estado === 'APROBADO_FINAL' || titulo.estadoProceso === 'APROBADO_FINAL';
+    var coordAprobado = titulo.estadoCoordinador === 'VALIDADO' ||
+      titulo.estadoCoordinador === 'APROBADO' ||
+      titulo.estado === 'PENDIENTE_INVESTIGADOR' ||
+      titulo.estadoProceso === 'PENDIENTE_INVESTIGADOR';
+    var invAprobado = titulo.estadoInvestigador === 'APROBADO' ||
+      titulo.estadoInvestigador === 'APROBADO_CON_OBSERVACION';
+    var coordDevuelto = titulo.estadoCoordinador === 'DEVUELTO' ||
+      (titulo.estado === 'DEVUELTO' && String(titulo.raw && titulo.raw.devueltoPor || '').toUpperCase() === 'COORDINADOR');
+
+    if (finalExplicito) return 'APROBADOS';
+    if (coordDevuelto) return 'DEVUELTOS';
+    if (coordAprobado && invAprobado) return 'APROBADOS';
+    if (coordAprobado) return 'VALIDADOS';
     return 'POR_REVISAR';
   }
 
