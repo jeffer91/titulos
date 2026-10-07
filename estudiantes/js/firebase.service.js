@@ -15,6 +15,11 @@
   var loadingPromise = null;
   var initPromise = null;
 
+  var COLECCIONES_ACADEMICAS = Object.freeze({
+    Estudiante: true,
+    matriculas: true
+  });
+
   var FIREBASE_VERSION = '10.12.5';
   var FIREBASE_APP_CDN = 'https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-app-compat.js';
   var FIREBASE_FIRESTORE_CDN = 'https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-firestore-compat.js';
@@ -152,17 +157,57 @@
     return dbAcademico;
   }
 
-  /* Operaciones por defecto: SIEMPRE Firebase de Títulos. */
-  function leerDocumento(collectionName, documentId) { return leerDocumentoEn(getDbTitulos(), collectionName, documentId); }
-  function consultarPrimero(collectionName, fieldName, operator, value) { return consultarPrimeroEn(getDbTitulos(), collectionName, fieldName, operator, value); }
-  function listarColeccion(collectionName) { return listarColeccionEn(getDbTitulos(), collectionName); }
-  function consultarColeccion(collectionName, fieldName, operator, value, limit) { return consultarColeccionEn(getDbTitulos(), collectionName, fieldName, operator, value, limit); }
+  /*
+    Operaciones por defecto: SIEMPRE Firebase de Títulos.
+    Si por error alguien intenta leer Estudiante/matriculas desde aquí,
+    se detiene en vez de consultar la base equivocada silenciosamente.
+  */
+  function leerDocumento(collectionName, documentId) {
+    asegurarColeccionTitulos(collectionName);
+    return leerDocumentoEn(getDbTitulos(), collectionName, documentId);
+  }
+  function consultarPrimero(collectionName, fieldName, operator, value) {
+    asegurarColeccionTitulos(collectionName);
+    return consultarPrimeroEn(getDbTitulos(), collectionName, fieldName, operator, value);
+  }
+  function listarColeccion(collectionName) {
+    asegurarColeccionTitulos(collectionName);
+    return listarColeccionEn(getDbTitulos(), collectionName);
+  }
+  function consultarColeccion(collectionName, fieldName, operator, value, limit) {
+    asegurarColeccionTitulos(collectionName);
+    return consultarColeccionEn(getDbTitulos(), collectionName, fieldName, operator, value, limit);
+  }
 
-  /* Operaciones académicas: deliberadamente SOLO lectura. */
-  function leerDocumentoAcademico(collectionName, documentId) { return leerDocumentoEn(getDbAcademico(), collectionName, documentId); }
-  function consultarPrimeroAcademico(collectionName, fieldName, operator, value) { return consultarPrimeroEn(getDbAcademico(), collectionName, fieldName, operator, value); }
-  function listarColeccionAcademico(collectionName) { return listarColeccionEn(getDbAcademico(), collectionName); }
-  function consultarColeccionAcademico(collectionName, fieldName, operator, value, limit) { return consultarColeccionEn(getDbAcademico(), collectionName, fieldName, operator, value, limit); }
+  /* Operaciones académicas: deliberadamente SOLO lectura en utet-4387a. */
+  function leerDocumentoAcademico(collectionName, documentId) {
+    asegurarColeccionAcademica(collectionName);
+    return leerDocumentoEn(getDbAcademico(), collectionName, documentId);
+  }
+  function consultarPrimeroAcademico(collectionName, fieldName, operator, value) {
+    asegurarColeccionAcademica(collectionName);
+    return consultarPrimeroEn(getDbAcademico(), collectionName, fieldName, operator, value);
+  }
+  function listarColeccionAcademico(collectionName) {
+    asegurarColeccionAcademica(collectionName);
+    return listarColeccionEn(getDbAcademico(), collectionName);
+  }
+  function consultarColeccionAcademico(collectionName, fieldName, operator, value, limit) {
+    asegurarColeccionAcademica(collectionName);
+    return consultarColeccionEn(getDbAcademico(), collectionName, fieldName, operator, value, limit);
+  }
+
+  function asegurarColeccionTitulos(collectionName) {
+    if (COLECCIONES_ACADEMICAS[String(collectionName || '')]) {
+      throw new Error('Separación de bases: ' + collectionName + ' pertenece a utet-4387a y no puede consultarse en titulos-ec2fa.');
+    }
+  }
+
+  function asegurarColeccionAcademica(collectionName) {
+    if (!COLECCIONES_ACADEMICAS[String(collectionName || '')]) {
+      throw new Error('Separación de bases: ' + collectionName + ' no es una colección académica autorizada en utet-4387a.');
+    }
+  }
 
   function leerDocumentoEn(db, collectionName, documentId) {
     if (!collectionName || !documentId) return Promise.resolve(null);
