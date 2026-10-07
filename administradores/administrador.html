@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Administrador | Sistema de títulos</title>
-  <link rel="stylesheet" href="css/administrador.css?v=20261006-1" />
+  <link rel="stylesheet" href="css/administrador.css?v=20261006-2" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
@@ -254,7 +254,7 @@
         <div>
           <p class="section-kicker">Investigadores</p>
           <h2 id="tituloInvestigadores">Acceso y activación de PIN</h2>
-          <p class="muted">El investigador crea su PIN en el primer ingreso. Desde aquí autorizas el acceso después de verificar su identidad.</p>
+          <p class="muted">Administra los investigadores, asigna o cambia su PIN y verifica el acceso antes de entregarlo.</p>
         </div>
         <div class="toolbar">
           <button class="btn btn--primary" type="button" id="btnActualizarInvestigadores">Actualizar</button>
@@ -272,7 +272,7 @@
           <div>
             <p class="section-kicker">Registro autorizado</p>
             <h3>Agregar investigador</h3>
-            <p class="muted">Registrar a la persona no crea su PIN. El investigador lo crea personalmente en su primer ingreso.</p>
+            <p class="muted">Registra al investigador. Después puedes asignarle o cambiarle el PIN desde la tabla.</p>
           </div>
         </div>
         <form class="form-grid" id="formCrearInvestigador" autocomplete="off">
@@ -734,6 +734,45 @@
     </div>
   </section>
 
+  <section class="modal is-hidden" id="modalPinInvestigador" aria-hidden="true">
+    <div class="modal__backdrop" id="backdropPinInvestigador"></div>
+    <div class="modal__panel modal__panel--small pin-modal" role="dialog" aria-modal="true" aria-labelledby="modalPinInvestigadorTitulo">
+      <button class="modal__close" type="button" id="btnCerrarPinInvestigador" aria-label="Cerrar">×</button>
+
+      <div class="modal__header">
+        <div>
+          <p class="section-kicker">Acceso investigador</p>
+          <h2 id="modalPinInvestigadorTitulo">Cambiar PIN</h2>
+          <p class="muted" id="modalPinInvestigadorSubtitulo">Selecciona un investigador.</p>
+        </div>
+      </div>
+
+      <form id="formCambiarPinInvestigador" autocomplete="off">
+        <div class="pin-change-grid">
+          <div class="field">
+            <label for="investigadorNuevoPin">Nuevo PIN</label>
+            <input id="investigadorNuevoPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="8" placeholder="4 a 8 dígitos" required />
+          </div>
+          <div class="field">
+            <label for="investigadorConfirmarPin">Confirmar PIN</label>
+            <input id="investigadorConfirmarPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="8" placeholder="Repite el PIN" required />
+          </div>
+        </div>
+
+        <div class="pin-verify-note">
+          El sistema guardará el PIN protegido, volverá a leer Firebase y comprobará que el acceso quedó correctamente configurado.
+        </div>
+
+        <div class="status-message" id="modalPinInvestigadorMensaje" role="status" aria-live="polite"></div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost" type="button" id="btnCancelarPinInvestigador">Cancelar</button>
+          <button class="btn btn--primary" type="submit" id="btnGuardarPinInvestigador">Guardar y verificar</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
   <section class="modal is-hidden" id="modalConfirmacion" aria-hidden="true">
     <div class="modal__backdrop"></div>
     <div class="modal__panel modal__panel--small" role="dialog" aria-modal="true" aria-labelledby="modalConfirmacionTitulo">
@@ -781,7 +820,7 @@
   <script src="js/inicio.admin.js"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js"></script>
-  <script src="js/investigadores.admin.js?v=20261006-1"></script>
+  <script src="js/investigadores.admin.js?v=20261006-2"></script>
   <script src="js/estudiantes.admin.js"></script>
   <script src="js/ajustes.admin.js"></script>
   <script src="js/respaldo.admin.js"></script>
