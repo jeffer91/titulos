@@ -151,25 +151,27 @@
     }
 
     /*
-      Ruta rápida:
-      1. Lee por REST el documento exacto de envios.
-      2. En paralelo intenta la lectura directa con el SDK.
-      3. Solo si ambas rutas no encuentran el documento, consulta por cédula.
-      Esto evita encadenar varias lecturas Firestore una detrás de otra.
+      IMPORTANTE:
+      - Los datos académicos ya fueron consultados en utet-4387a.
+      - Desde este punto SOLO se consulta titulos-ec2fa/envios.
+      - Primero se buscan IDs canónicos y legacy.
+      - Después se buscan cedula/numeroIdentificacion como string y número.
+      Esto mantiene compatibilidad con registros históricos sin mezclar bases.
     */
     var restQueryPromise = buscarEnvioRestPorCedula(periodoPrincipal, variantesCedula)
-      .then(function (value) { return { ok: true, value: value, origen: 'rest-query' }; })
-      .catch(function (error) { return { ok: false, error: error, origen: 'rest-query' }; });
+      .then(function (value) { return { ok: true, value: value, origen: 'rest-identidad' }; })
+      .catch(function (error) { return { ok: false, error: error, origen: 'rest-identidad' }; });
 
     var sdkQueryPromise = buscarEnvioPorCedulaRapido(periodoPrincipal, variantesCedula)
-      .then(function (value) { return { ok: true, value: value, origen: 'sdk-query' }; })
-      .catch(function (error) { return { ok: false, error: error, origen: 'sdk-query' }; });
+      .then(function (value) { return { ok: true, value: value, origen: 'sdk-identidad' }; })
+      .catch(function (error) { return { ok: false, error: error, origen: 'sdk-identidad' }; });
 
-    return buscarEnvioDirectoRapido(variantesPeriodo, variantesCedula)
+    return buscarEnvioDirectoRapido(variantesPeriodo, variantesCedula, periodoPrincipal)
       .then(function (encontrado) {
         if (encontrado) {
           var normalizado = normalizarEnvioExistente(encontrado);
           envioCache[cacheKey] = { at: Date.now(), value: normalizado };
+          console.info('[Estudiantes][Títulos] Envío encontrado por ID directo:', normalizado.id || cacheKey);
           return normalizado;
         }
 
@@ -180,24 +182,37 @@
 
           if (conRegistro) {
             envioCache[cacheKey] = { at: Date.now(), value: conRegistro.value };
+            console.info('[Estudiantes][Títulos] Envío encontrado por compatibilidad:', conRegistro.origen);
             return conRegistro.value;
           }
 
           var exitosas = resultados.filter(function (item) { return item.ok; });
-          if (exitosas.length) return null;
+          if (exitosas.length) {
+            envioCache[cacheKey] = { at: Date.now(), value: null };
+            return null;
+          }
 
-          throw new Error('No se pudo consultar el estado del título. Intenta nuevamente.');
+          throw new Error('No se pudo consultar titulos-ec2fa/envios. Intenta nuevamente.');
         });
       });
   }
 
-  function buscarEnvioDirectoRapido(periodos, cedulas) {
+  function buscarEnvioDirectoRapido(periodos, cedulas, periodoPrincipal) {
     var ids = [];
 
     (periodos || []).forEach(function (periodo) {
       (cedulas || []).forEach(function (cedula) {
         agregarUnico(ids, construirTituloId(periodo, cedula));
       });
+    });
+
+    /*
+      Compatibilidad histórica: algunos registros antiguos pudieron usar
+      solamente la cédula como ID del documento.
+    */
+    (cedulas || []).forEach(function (cedula) {
+      agregarUnico(ids, normalizarCedulaParaMostrar(cedula));
+      agregarUnico(ids, normalizarCedulaComparacion(cedula));
     });
 
     if (!ids.length) return Promise.resolve(null);
@@ -207,7 +222,7 @@
         leerEnvioRest(id).catch(function () { return null; }),
         conTimeoutRepo(
           firebaseService.leerDocumento(config.collections.titulos, id),
-          1200,
+          1800,
           'envio-directo'
         ).catch(function () { return null; })
       ]).then(function (resultados) {
@@ -216,7 +231,7 @@
     });
 
     return Promise.all(lecturas).then(function (resultados) {
-      return resultados.filter(Boolean)[0] || null;
+      return seleccionarEnvioCompatible(resultados.filter(Boolean), periodoPrincipal, true);
     });
   }
 
@@ -232,6 +247,7 @@
     var cedulas = [];
     (variantes || []).forEach(function (cedula) {
       agregarUnico(cedulas, normalizarCedulaParaMostrar(cedula));
+      agregarUnico(cedulas, normalizarCedulaComparacion(cedula));
     });
 
     if (!cedulas.length) return Promise.resolve(null);
@@ -242,7 +258,28 @@
       '/databases/(default)/documents:runQuery?key=' +
       encodeURIComponent(apiKey);
 
-    var consultas = cedulas.map(function (cedula) {
+    var especificaciones = [];
+    var vistos = {};
+
+    cedulas.forEach(function (cedula) {
+      ['cedula', 'numeroIdentificacion'].forEach(function (campo) {
+        agregarConsultaRest(campo, { stringValue: cedula }, 's:' + cedula);
+
+        var numero = Number(cedula);
+        if (Number.isSafeInteger(numero)) {
+          agregarConsultaRest(campo, { integerValue: String(numero) }, 'n:' + String(numero));
+        }
+      });
+    });
+
+    function agregarConsultaRest(campo, valorFirestore, claveValor) {
+      var key = campo + '|' + claveValor;
+      if (vistos[key]) return;
+      vistos[key] = true;
+      especificaciones.push({ campo: campo, valor: valorFirestore });
+    }
+
+    var consultas = especificaciones.map(function (spec) {
       return fetchJsonRepo(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -252,15 +289,15 @@
             from: [{ collectionId: config.collections.titulos }],
             where: {
               fieldFilter: {
-                field: { fieldPath: 'cedula' },
+                field: { fieldPath: spec.campo },
                 op: 'EQUAL',
-                value: { stringValue: cedula }
+                value: spec.valor
               }
             },
-            limit: 12
+            limit: 20
           }
         })
-      }, 1700).then(function (respuesta) {
+      }, 2200).then(function (respuesta) {
         return {
           ok: true,
           docs: (Array.isArray(respuesta) ? respuesta : []).map(function (item) {
@@ -284,32 +321,14 @@
       if (!exitosas.length) throw new Error('REST_QUERY_FALLO');
 
       var docs = [];
-      var vistos = {};
+      var ids = {};
 
       exitosas.forEach(function (resultado) {
-        (resultado.docs || []).forEach(function (doc) {
-          var id = doc.id || doc._docId || '';
-          if (id && vistos[id]) return;
-          if (id) vistos[id] = true;
-          docs.push(doc);
-        });
+        agregarDocumentosUnicos(docs, ids, resultado.docs || []);
       });
 
-      var exactos = docs.filter(function (doc) {
-        return periodosEquivalentes(
-          doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || '',
-          periodo
-        );
-      });
-
-      if (!exactos.length) return null;
-
-      exactos.sort(function (a, b) {
-        return fechaNumero(b.fechaEnvio || b.actualizadoEnLocal || b.actualizadoEn || b.creadoEn) -
-          fechaNumero(a.fechaEnvio || a.actualizadoEnLocal || a.actualizadoEn || a.creadoEn);
-      });
-
-      return normalizarEnvioExistente(exactos[0]);
+      var encontrado = seleccionarEnvioCompatible(docs, periodo, false);
+      return encontrado ? normalizarEnvioExistente(encontrado) : null;
     });
   }
 
@@ -333,11 +352,41 @@
   }
 
   function buscarEnvioPorCedulaRapido(periodo, variantes) {
-    var consultas = (variantes || []).map(function (cedula) {
+    var especificaciones = [];
+    var vistos = {};
+
+    (variantes || []).forEach(function (cedulaOriginal) {
+      var cedulas = [
+        normalizarCedulaParaMostrar(cedulaOriginal),
+        normalizarCedulaComparacion(cedulaOriginal)
+      ];
+
+      cedulas.forEach(function (cedula) {
+        if (!cedula) return;
+
+        ['cedula', 'numeroIdentificacion'].forEach(function (campo) {
+          agregarConsultaSdk(campo, cedula, 's:' + cedula);
+
+          var numero = Number(cedula);
+          if (Number.isSafeInteger(numero)) {
+            agregarConsultaSdk(campo, numero, 'n:' + String(numero));
+          }
+        });
+      });
+    });
+
+    function agregarConsultaSdk(campo, valor, claveValor) {
+      var key = campo + '|' + claveValor;
+      if (vistos[key]) return;
+      vistos[key] = true;
+      especificaciones.push({ campo: campo, valor: valor });
+    }
+
+    var consultas = especificaciones.map(function (spec) {
       return conTimeoutRepo(
-        firebaseService.consultarColeccion(config.collections.titulos, 'cedula', '==', cedula, 12),
-        1400,
-        'envio-cedula'
+        firebaseService.consultarColeccion(config.collections.titulos, spec.campo, '==', spec.valor, 20),
+        2200,
+        'envio-identidad'
       ).then(function (docs) {
         return { ok: true, docs: docs || [] };
       }).catch(function (error) {
@@ -350,37 +399,74 @@
     return Promise.all(consultas).then(function (resultados) {
       var exitosas = resultados.filter(function (item) { return item.ok; });
       var docs = [];
-      var vistos = {};
+      var ids = {};
 
       if (!exitosas.length) {
-        throw new Error('No se pudo confirmar el estado del título. Intenta nuevamente.');
+        throw new Error('No se pudo confirmar el estado del título en titulos-ec2fa.');
       }
 
       exitosas.forEach(function (resultado) {
-        (resultado.docs || []).forEach(function (doc) {
-          var id = doc.id || doc._docId || '';
-          if (id && vistos[id]) return;
-          if (id) vistos[id] = true;
-          docs.push(doc);
-        });
+        agregarDocumentosUnicos(docs, ids, resultado.docs || []);
       });
 
-      var exactos = docs.filter(function (doc) {
-        return periodosEquivalentes(
-          doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || '',
-          periodo
-        );
-      });
-
-      if (!exactos.length) return null;
-
-      exactos.sort(function (a, b) {
-        return fechaNumero(b.fechaEnvio || b.actualizadoEnLocal || b.actualizadoEn || b.creadoEn) -
-          fechaNumero(a.fechaEnvio || a.actualizadoEnLocal || a.actualizadoEn || a.creadoEn);
-      });
-
-      return normalizarEnvioExistente(exactos[0]);
+      var encontrado = seleccionarEnvioCompatible(docs, periodo, false);
+      return encontrado ? normalizarEnvioExistente(encontrado) : null;
     });
+  }
+
+  function agregarDocumentosUnicos(destino, vistos, docs) {
+    (docs || []).forEach(function (doc) {
+      var id = doc && (doc.id || doc._docId) || '';
+      var key = id || [
+        normalizarCedulaParaMostrar(doc && (doc.cedula || doc.numeroIdentificacion)),
+        clavePeriodo(doc && (doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || doc.periodoLabel || '')),
+        fechaNumero(doc && (doc.fechaEnvio || doc.actualizadoEnLocal || doc.actualizadoEn || doc.creadoEn))
+      ].join('|');
+
+      if (vistos[key]) return;
+      vistos[key] = true;
+      destino.push(doc);
+    });
+  }
+
+  function seleccionarEnvioCompatible(docs, periodo, permitirSinPeriodo) {
+    var lista = (docs || []).filter(Boolean);
+    if (!lista.length) return null;
+
+    var exactos = lista.filter(function (doc) {
+      return periodosEquivalentes(periodoDeEnvio(doc), periodo);
+    });
+
+    if (exactos.length) {
+      return ordenarEnviosRecientes(exactos)[0] || null;
+    }
+
+    var sinPeriodo = lista.filter(function (doc) {
+      return !limpiarTexto(periodoDeEnvio(doc));
+    });
+
+    /*
+      Un registro legacy sin período solo es aceptable si es inequívoco.
+      Nunca se toma automáticamente un documento de otro período.
+    */
+    if ((permitirSinPeriodo || lista.length === 1) && sinPeriodo.length === 1) {
+      return sinPeriodo[0];
+    }
+
+    return null;
+  }
+
+  function ordenarEnviosRecientes(items) {
+    return (items || []).slice().sort(function (a, b) {
+      return fechaNumero(b.fechaEnvio || b.actualizadoEnLocal || b.actualizadoEn || b.creadoEn) -
+        fechaNumero(a.fechaEnvio || a.actualizadoEnLocal || a.actualizadoEn || a.creadoEn);
+    });
+  }
+
+  function periodoDeEnvio(doc) {
+    doc = doc || {};
+    return doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || doc.periodoLabel ||
+      (doc.periodo && (doc.periodo.id || doc.periodo.label)) || '';
   }
 
   function leerEnvioRest(documentId) {
@@ -479,12 +565,30 @@
     var fechas = texto.match(/\d{4}-\d{2}/g) || [];
     if (fechas.length >= 2) return fechas[0] + '__' + fechas[1];
 
-    return texto
+    var normal = texto
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .replace(/[^A-Za-z0-9]+/g, ' ')
       .trim()
       .toUpperCase();
+
+    var meses = {
+      ENERO: '01', FEBRERO: '02', MARZO: '03', ABRIL: '04',
+      MAYO: '05', JUNIO: '06', JULIO: '07', AGOSTO: '08',
+      SEPTIEMBRE: '09', SETIEMBRE: '09', OCTUBRE: '10',
+      NOVIEMBRE: '11', DICIEMBRE: '12'
+    };
+    var patronMes = /(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(\d{4})/g;
+    var partes = [];
+    var match;
+
+    while ((match = patronMes.exec(normal)) !== null) {
+      partes.push(match[2] + '-' + meses[match[1]]);
+      if (partes.length === 2) break;
+    }
+
+    if (partes.length === 2) return partes[0] + '__' + partes[1];
+    return normal;
   }
 
   function conTimeoutRepo(promesa, ms, etiqueta) {
