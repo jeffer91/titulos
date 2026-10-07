@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Administrador | Sistema de títulos</title>
-  <link rel="stylesheet" href="css/administrador.css?v=20261006-2" />
+  <link rel="stylesheet" href="css/administrador.css?v=20261006-3" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
@@ -253,66 +253,20 @@
       <div class="panel-title-row">
         <div>
           <p class="section-kicker">Investigadores</p>
-          <h2 id="tituloInvestigadores">Acceso y activación de PIN</h2>
-          <p class="muted">Administra los investigadores, asigna o cambia su PIN y verifica el acceso antes de entregarlo.</p>
+          <h2 id="tituloInvestigadores">Accesos de investigadores</h2>
+          <p class="muted">Crea investigadores, asigna su PIN y administra el acceso desde un solo lugar.</p>
         </div>
         <div class="toolbar">
-          <button class="btn btn--primary" type="button" id="btnActualizarInvestigadores">Actualizar</button>
+          <button class="btn btn--secondary" type="button" id="btnActualizarInvestigadores">Actualizar</button>
+          <button class="btn btn--primary" type="button" id="btnAbrirCrearInvestigador">+ Agregar investigador</button>
         </div>
       </div>
 
       <div class="summary-grid summary-grid--compact">
         <article class="summary-card"><span>Investigadores</span><strong id="investigadoresTotal">0</strong></article>
-        <article class="summary-card summary-card--warning"><span>PIN por activar</span><strong id="investigadoresPendientes">0</strong></article>
-        <article class="summary-card summary-card--success"><span>PIN activos</span><strong id="investigadoresActivos">0</strong></article>
+        <article class="summary-card summary-card--success"><span>Con acceso</span><strong id="investigadoresActivos">0</strong></article>
+        <article class="summary-card summary-card--warning"><span>Sin PIN</span><strong id="investigadoresSinPin">0</strong></article>
       </div>
-
-      <section class="card">
-        <div class="card__header">
-          <div>
-            <p class="section-kicker">Registro autorizado</p>
-            <h3>Agregar investigador</h3>
-            <p class="muted">Registra al investigador. Después puedes asignarle o cambiarle el PIN desde la tabla.</p>
-          </div>
-        </div>
-        <form class="form-grid" id="formCrearInvestigador" autocomplete="off">
-          <div class="field">
-            <label for="investigadorCedulaInput">Cédula</label>
-            <input id="investigadorCedulaInput" inputmode="numeric" maxlength="10" placeholder="0102030405" required />
-          </div>
-          <div class="field">
-            <label for="investigadorNombreInput">Nombres y apellidos</label>
-            <input id="investigadorNombreInput" placeholder="Nombre del investigador" required />
-          </div>
-          <div class="field">
-            <label for="investigadorEmailInput">Correo</label>
-            <input id="investigadorEmailInput" type="email" placeholder="correo@dominio.edu" />
-          </div>
-          <div class="form-actions field--full">
-            <button class="btn btn--primary" type="submit" id="btnCrearInvestigador">Agregar investigador</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="card bulk-pin-card">
-        <div class="card__header">
-          <div>
-            <p class="section-kicker">Acceso masivo</p>
-            <h3>Asignar PIN a investigadores</h3>
-            <p class="muted">Pega una fila por investigador en formato: Nombres | Apellidos | Cédula | PIN. Los PIN se protegen antes de guardarse y no quedan escritos en el repositorio.</p>
-          </div>
-        </div>
-        <div class="field">
-          <label for="investigadoresBulkInput">Lista de investigadores</label>
-          <textarea id="investigadoresBulkInput" rows="8" placeholder="Carla Thalia | Rivera Ávalos | 1723704191 | 5831"></textarea>
-          <small>También acepta columnas separadas por tabulador, coma o punto y coma.</small>
-        </div>
-        <div class="form-actions bulk-pin-actions">
-          <button class="btn btn--primary" type="button" id="btnAplicarPinesInvestigadores">Crear/activar accesos</button>
-          <button class="btn btn--ghost" type="button" id="btnLimpiarPinesInvestigadores">Limpiar</button>
-        </div>
-        <div class="status-message" id="investigadoresBulkMensaje" role="status" aria-live="polite"></div>
-      </section>
 
       <section class="card">
         <div class="table-wrap">
@@ -323,8 +277,8 @@
                 <th>Investigador</th>
                 <th>Correo</th>
                 <th>PIN</th>
-                <th>Acceso</th>
-                <th class="text-right">Acción</th>
+                <th>Estado</th>
+                <th class="text-right">Acciones</th>
               </tr>
             </thead>
             <tbody id="investigadoresTableBody">
@@ -734,6 +688,60 @@
     </div>
   </section>
 
+  <section class="modal is-hidden" id="modalCrearInvestigador" aria-hidden="true">
+    <div class="modal__backdrop" id="backdropCrearInvestigador"></div>
+    <div class="modal__panel modal__panel--small investigador-modal" role="dialog" aria-modal="true" aria-labelledby="modalCrearInvestigadorTitulo">
+      <button class="modal__close" type="button" id="btnCerrarCrearInvestigador" aria-label="Cerrar">×</button>
+
+      <div class="modal__header">
+        <div>
+          <p class="section-kicker">Nuevo investigador</p>
+          <h2 id="modalCrearInvestigadorTitulo">Agregar investigador</h2>
+          <p class="muted">Al guardar el PIN, el acceso queda activo inmediatamente.</p>
+        </div>
+      </div>
+
+      <form id="formCrearInvestigador" autocomplete="off">
+        <div class="form-grid investigador-create-grid">
+          <div class="field">
+            <label for="investigadorCedulaInput">Cédula</label>
+            <input id="investigadorCedulaInput" inputmode="numeric" maxlength="10" placeholder="0102030405" required />
+          </div>
+          <div class="field">
+            <label for="investigadorEmailInput">Correo <span class="field-optional">opcional</span></label>
+            <input id="investigadorEmailInput" type="email" placeholder="correo@dominio.edu" />
+          </div>
+          <div class="field field--full">
+            <label for="investigadorNombreInput">Nombres y apellidos</label>
+            <input id="investigadorNombreInput" placeholder="Nombre completo" required />
+          </div>
+          <div class="field field--full">
+            <label for="investigadorPinCrear">PIN de acceso</label>
+            <div class="pin-input-row">
+              <input id="investigadorPinCrear" type="text" inputmode="numeric" maxlength="8" placeholder="4 dígitos" required />
+              <button class="btn btn--secondary" type="button" id="btnGenerarPinCrear">Generar PIN</button>
+            </div>
+            <small>El PIN se mostrará al guardar para que puedas copiarlo y entregarlo al investigador.</small>
+          </div>
+        </div>
+
+        <div class="status-message" id="crearInvestigadorMensaje" role="status" aria-live="polite"></div>
+
+        <div class="pin-receipt is-hidden" id="crearInvestigadorRecibo">
+          <span>PIN creado</span>
+          <strong id="crearInvestigadorPinVisible">—</strong>
+          <button class="btn btn--secondary btn--small" type="button" id="btnCopiarPinCreado">Copiar PIN</button>
+          <small>Guárdalo ahora. Después la aplicación solo conserva su versión protegida.</small>
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost" type="button" id="btnCancelarCrearInvestigador">Cancelar</button>
+          <button class="btn btn--primary" type="submit" id="btnCrearInvestigador">Guardar investigador</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
   <section class="modal is-hidden" id="modalPinInvestigador" aria-hidden="true">
     <div class="modal__backdrop" id="backdropPinInvestigador"></div>
     <div class="modal__panel modal__panel--small pin-modal" role="dialog" aria-modal="true" aria-labelledby="modalPinInvestigadorTitulo">
@@ -749,21 +757,27 @@
 
       <form id="formCambiarPinInvestigador" autocomplete="off">
         <div class="pin-change-grid">
-          <div class="field">
+          <div class="field field--full">
             <label for="investigadorNuevoPin">Nuevo PIN</label>
-            <input id="investigadorNuevoPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="8" placeholder="4 a 8 dígitos" required />
-          </div>
-          <div class="field">
-            <label for="investigadorConfirmarPin">Confirmar PIN</label>
-            <input id="investigadorConfirmarPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="8" placeholder="Repite el PIN" required />
+            <div class="pin-input-row">
+              <input id="investigadorNuevoPin" type="text" inputmode="numeric" autocomplete="off" minlength="4" maxlength="8" placeholder="4 dígitos" required />
+              <button class="btn btn--secondary" type="button" id="btnGenerarPinCambio">Generar PIN</button>
+            </div>
           </div>
         </div>
 
         <div class="pin-verify-note">
-          El sistema guardará el PIN protegido, volverá a leer Firebase y comprobará que el acceso quedó correctamente configurado.
+          Guardar el PIN activa el acceso inmediatamente. La aplicación verificará que quedó correctamente registrado.
         </div>
 
         <div class="status-message" id="modalPinInvestigadorMensaje" role="status" aria-live="polite"></div>
+
+        <div class="pin-receipt is-hidden" id="cambiarPinRecibo">
+          <span>PIN actualizado</span>
+          <strong id="cambiarPinVisible">—</strong>
+          <button class="btn btn--secondary btn--small" type="button" id="btnCopiarPinCambiado">Copiar PIN</button>
+          <small>Guárdalo ahora. Después la aplicación solo conserva su versión protegida.</small>
+        </div>
 
         <div class="modal__actions">
           <button class="btn btn--ghost" type="button" id="btnCancelarPinInvestigador">Cancelar</button>
@@ -820,7 +834,7 @@
   <script src="js/inicio.admin.js"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js"></script>
-  <script src="js/investigadores.admin.js?v=20261006-2"></script>
+  <script src="js/investigadores.admin.js?v=20261006-3"></script>
   <script src="js/estudiantes.admin.js"></script>
   <script src="js/ajustes.admin.js"></script>
   <script src="js/respaldo.admin.js"></script>
