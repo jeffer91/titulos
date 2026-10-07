@@ -96,7 +96,12 @@
         return (docs || []).map(normalizarTitulo)
           .filter(estaHabilitadoPorCoordinador)
           .filter(function (titulo) { return perteneceAlInvestigador(titulo, investigador); })
-          .sort(function (a, b) { return a.nombres.localeCompare(b.nombres); });
+          .sort(function (a, b) {
+            var fechaA = Number(a.fechaColaMs || 0);
+            var fechaB = Number(b.fechaColaMs || 0);
+            if (fechaA !== fechaB) return fechaA - fechaB;
+            return a.nombres.localeCompare(b.nombres);
+          });
       });
   }
 
@@ -195,6 +200,44 @@
     return validado && config.estadosCoordinadorHabilitados.indexOf(estadoCoord) !== -1;
   }
 
+  function estaPendienteInvestigacion(titulo) {
+    if (!titulo || !estaHabilitadoPorCoordinador(titulo)) return false;
+
+    var estado = String(titulo.estado || '').toUpperCase();
+    var proceso = String(titulo.estadoProceso || '').toUpperCase();
+    var estadoInvestigador = String(titulo.estadoInvestigador || '').toUpperCase();
+    var revision = titulo.revisionInvestigador || {};
+
+    if (estado === 'APROBADO_FINAL' || proceso === 'APROBADO_FINAL') return false;
+    if (estado === 'DEVUELTO' || proceso === 'DEVUELTO') return false;
+    if (titulo.raw && titulo.raw.investigacionRevisada === true) return false;
+    if (revision && revision.estado && String(revision.estado).toUpperCase() !== 'PENDIENTE') return false;
+    if (estadoInvestigador && estadoInvestigador !== 'PENDIENTE') return false;
+
+    return estado === 'PENDIENTE_INVESTIGADOR' ||
+      proceso === 'PENDIENTE_INVESTIGADOR' ||
+      titulo.estadoCoordinador === 'VALIDADO';
+  }
+
+  function fechaIso(valor) {
+    if (!valor) return '';
+    try {
+      if (typeof valor.toDate === 'function') return valor.toDate().toISOString();
+      if (valor.seconds) return new Date(Number(valor.seconds) * 1000).toISOString();
+      var fecha = valor instanceof Date ? valor : new Date(valor);
+      return isNaN(fecha.getTime()) ? '' : fecha.toISOString();
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function fechaMs(valor) {
+    var iso = fechaIso(valor);
+    if (!iso) return Number.MAX_SAFE_INTEGER;
+    var ms = new Date(iso).getTime();
+    return isNaN(ms) ? Number.MAX_SAFE_INTEGER : ms;
+  }
+
   function perteneceAlInvestigador(titulo, investigador) {
     var carreras = investigador && investigador.carreras || [];
     if (!carreras.length) return true;
@@ -242,6 +285,11 @@
       carrera: limpiar(data.carreraNombre || data.carrera || data.nombreCarrera || ''),
       codigoCarrera: limpiar(data.carreraCodigo || data.codigoCarrera || ''),
       periodoId: limpiar(data.periodoId || data.periodoCanonicoId || ''),
+      fechaEnvio: fechaIso(data.fechaEnvio || data.actualizadoEnLocal || data.creadoEn || data.actualizadoEn),
+      fechaColaInvestigacion: fechaIso(data.fechaEnvio || data.actualizadoEnLocal || data.creadoEn || data.actualizadoEn),
+      fechaColaMs: fechaMs(data.fechaEnvio || data.actualizadoEnLocal || data.creadoEn || data.actualizadoEn),
+      numeroEnvios: Number(data.numeroEnvios || data.intentosUsados || 1),
+      numeroReenvios: Number(data.numeroReenvios || 0),
       estado: estado,
       estadoProceso: proceso,
       estadoCoordinador: estadoCoord,
@@ -323,6 +371,7 @@
     cargarPeriodoActivo: cargarPeriodoActivo,
     listarTitulosHabilitados: listarTitulosHabilitados,
     revisarTitulo: revisarTitulo,
-    estaHabilitadoPorCoordinador: estaHabilitadoPorCoordinador
+    estaHabilitadoPorCoordinador: estaHabilitadoPorCoordinador,
+    estaPendienteInvestigacion: estaPendienteInvestigacion
   });
 })();
