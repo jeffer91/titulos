@@ -1,188 +1,102 @@
 (function () {
   'use strict';
 
-  var VERSION = '20261007-36';
-  var TIMEOUT_MS = 8200;
-  var READY_TIMEOUT_MS = 5200;
-  var ORIGIN = window.location.origin;
-  var iframe = null;
-  var ready = false;
-  var readyPromise = null;
-  var readyResolve = null;
-  var readyReject = null;
-  var readyTimer = null;
-  var pendientes = Object.create(null);
-  var secuencia = 0;
+  /*
+    BLOQUE 1 — Compatibilidad temporal.
+    Ya NO existe iframe, postMessage, READY ni motor oculto.
+    El controlador actual puede seguir llamando TAConsultaEstadoBridge,
+    pero este objeto delega de forma directa a TAConsultaEstadoService.
+    En el Bloque 3 el controlador dejará de usar este alias.
+  */
+  var VERSION = '20261007-38';
 
-  window.addEventListener('message', recibirMensaje);
+  function obtenerServicio() {
+    var service = window.TAConsultaEstadoService;
+
+    if (!service || typeof service.consultar !== 'function') {
+      throw crearError(
+        'SERVICIO_TITULOS_NO_DISPONIBLE',
+        'El servicio directo /consulta-estado/ no está disponible.'
+      );
+    }
+
+    return service;
+  }
 
   function consultar(datos) {
     datos = datos || {};
+
     var cedula = String(datos.cedula || '').replace(/\D/g, '');
     var periodoId = String(datos.periodoId || '').trim();
+    var inicio = Date.now();
+    var service;
 
     if (!cedula || !periodoId) {
-      return Promise.reject(crearError('DATOS_INCOMPLETOS', 'Faltan cédula o período para consultar el estado del título.'));
+      return Promise.reject(crearError(
+        'DATOS_INCOMPLETOS',
+        'Faltan cédula o período para consultar el estado del título.'
+      ));
     }
 
-    return asegurarListo().then(function () {
-      return new Promise(function (resolve, reject) {
-        var requestId = 'ta-' + Date.now() + '-' + (++secuencia);
-        var timer = window.setTimeout(function () {
-          if (!pendientes[requestId]) return;
-          delete pendientes[requestId];
-          reject(crearError('BRIDGE_TIMEOUT', 'El motor aislado de Títulos no respondió a tiempo.'));
-        }, TIMEOUT_MS);
+    try {
+      service = obtenerServicio();
+    } catch (error) {
+      return Promise.reject(error);
+    }
 
-        pendientes[requestId] = {
-          resolve: resolve,
-          reject: reject,
-          timer: timer
+    return Promise.resolve(service.consultar(periodoId, cedula))
+      .then(function (resultado) {
+        resultado = resultado || {};
+
+        return {
+          type: 'TA_CONSULTA_ESTADO_RESPONSE',
+          ok: true,
+          encontrado: Boolean(resultado.encontrado),
+          envio: resultado.envio || null,
+          diagnostico: {
+            motor: 'DIRECTO',
+            base: resultado.base || 'titulos-ec2fa',
+            coleccion: resultado.coleccion || 'envios',
+            documentoId: resultado.documentoId || '',
+            ruta: resultado.ruta || '',
+            rutasProbadas: resultado.rutasProbadas || [],
+            periodoCanonico: resultado.periodoCanonico || periodoId,
+            status: resultado.status || 0,
+            duracionMs: resultado.duracionMs || (Date.now() - inicio)
+          }
         };
+      })
+      .catch(function (error) {
+        if (!error.codigo) error.codigo = 'CONSULTA_TITULOS_ERROR';
 
-        if (!iframe || !iframe.contentWindow) {
-          window.clearTimeout(timer);
-          delete pendientes[requestId];
-          reject(crearError('IFRAME_NO_DISPONIBLE', 'El motor aislado de Títulos no está disponible.'));
-          return;
-        }
+        error.diagnostico = Object.assign({
+          motor: 'DIRECTO',
+          base: 'titulos-ec2fa',
+          coleccion: 'envios',
+          periodoCanonico: periodoId,
+          duracionMs: Date.now() - inicio
+        }, error.diagnostico || {});
 
-        iframe.contentWindow.postMessage({
-          type: 'TA_CONSULTA_ESTADO_REQUEST',
-          requestId: requestId,
-          cedula: cedula,
-          periodoId: periodoId
-        }, ORIGIN);
+        throw error;
       });
-    });
   }
 
   function asegurarListo() {
-    if (ready && iframe && iframe.contentWindow) return Promise.resolve(true);
-    if (readyPromise) return readyPromise;
-
-    readyPromise = new Promise(function (resolve, reject) {
-      readyResolve = resolve;
-      readyReject = reject;
-      limpiarReadyTimer();
-
-      readyTimer = window.setTimeout(function () {
-        if (ready) return;
-        fallarInicio(crearError('READY_TIMEOUT', 'No se pudo iniciar el motor aislado de consulta de Títulos.'));
-      }, READY_TIMEOUT_MS);
-
-      crearIframe();
-    });
-
-    return readyPromise;
-  }
-
-  function crearIframe() {
-    if (iframe && document.body.contains(iframe)) return iframe;
-
-    iframe = document.createElement('iframe');
-    iframe.id = 'taConsultaEstadoIframe';
-    iframe.title = 'Motor aislado de consulta de títulos';
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.tabIndex = -1;
-    iframe.style.position = 'fixed';
-    iframe.style.width = '1px';
-    iframe.style.height = '1px';
-    iframe.style.border = '0';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-    iframe.style.left = '-9999px';
-    iframe.onload = function () {
-      /* El READY del hijo confirma que sus scripts ya están operativos. */
-    };
-    iframe.onerror = function () {
-      fallarInicio(crearError('IFRAME_LOAD_ERROR', 'No se pudo cargar el motor aislado de consulta de Títulos.'));
-    };
-    iframe.src = '../consulta-estado/index.html?embed=1&v=' + encodeURIComponent(VERSION) + '&cb=' + Date.now();
-    document.body.appendChild(iframe);
-    return iframe;
-  }
-
-  function recibirMensaje(event) {
-    var data = event.data || {};
-    var pendiente;
-
-    if (event.origin !== ORIGIN) return;
-    if (!iframe || event.source !== iframe.contentWindow) return;
-
-    if (data.type === 'TA_CONSULTA_ESTADO_READY') {
-      ready = true;
-      limpiarReadyTimer();
-      if (readyResolve) readyResolve(true);
-      readyPromise = null;
-      readyResolve = null;
-      readyReject = null;
-      return;
+    try {
+      obtenerServicio();
+      return Promise.resolve(true);
+    } catch (error) {
+      return Promise.reject(error);
     }
-
-    if (data.type !== 'TA_CONSULTA_ESTADO_RESPONSE' || !data.requestId) return;
-
-    pendiente = pendientes[data.requestId];
-    if (!pendiente) return;
-
-    window.clearTimeout(pendiente.timer);
-    delete pendientes[data.requestId];
-
-    if (data.ok === false) {
-      var error = crearError(
-        data.error && data.error.codigo || 'CONSULTA_AISLADA_ERROR',
-        data.error && data.error.mensaje || 'No se pudo consultar el estado del título.'
-      );
-      error.diagnostico = data.diagnostico || null;
-      pendiente.reject(error);
-      return;
-    }
-
-    pendiente.resolve(data);
-  }
-
-  function fallarInicio(error) {
-    limpiarReadyTimer();
-    ready = false;
-    if (readyReject) readyReject(error);
-    readyPromise = null;
-    readyResolve = null;
-    readyReject = null;
-    destruirIframe();
-  }
-
-  function limpiarReadyTimer() {
-    if (readyTimer) {
-      window.clearTimeout(readyTimer);
-      readyTimer = null;
-    }
-  }
-
-  function destruirIframe() {
-    if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
-    iframe = null;
   }
 
   function reiniciar() {
-    ready = false;
-    limpiarReadyTimer();
-    if (readyReject) readyReject(crearError('REINICIO', 'Se reinició el motor aislado de consulta.'));
-    readyPromise = null;
-    readyResolve = null;
-    readyReject = null;
-
-    Object.keys(pendientes).forEach(function (key) {
-      window.clearTimeout(pendientes[key].timer);
-      pendientes[key].reject(crearError('REINICIO', 'Se reinició el motor aislado de consulta.'));
-      delete pendientes[key];
-    });
-
-    destruirIframe();
+    return true;
   }
 
   function crearError(codigo, mensaje) {
-    var error = new Error(mensaje || codigo || 'Error del motor aislado.');
-    error.codigo = codigo || 'BRIDGE_ERROR';
+    var error = new Error(mensaje || codigo || 'Error del servicio directo de Títulos.');
+    error.codigo = codigo || 'CONSULTA_TITULOS_ERROR';
     return error;
   }
 
@@ -190,6 +104,7 @@
     consultar: consultar,
     asegurarListo: asegurarListo,
     reiniciar: reiniciar,
-    version: VERSION
+    version: VERSION,
+    modo: 'DIRECTO_SIN_IFRAME'
   });
 })();
