@@ -1,7 +1,8 @@
 /*
   Repositorio del módulo estudiantes con separación estricta de bases:
   - utet-4387a: Estudiante + matriculas, solo lectura.
-  - titulos-ec2fa: configuracion + envios + workflow_events.\n  - La lectura de envios se delega exclusivamente a /consulta-estado/.
+  - titulos-ec2fa: configuracion + envios + workflow_events.
+  - La lectura de envios se delega exclusivamente a /consulta-estado/.
 */
 (function () {
   'use strict';
@@ -143,7 +144,7 @@
     /*
       Compatibilidad de repository para módulos antiguos.
       La lectura se delega directamente al mismo motor oficial
-      /consulta-estado/; no existe dependencia de TAConsultaEstadoBridge.
+      /consulta-estado/; no existe una segunda ruta de búsqueda.
     */
     if (!service || typeof service.consultar !== 'function') {
       return Promise.reject(new Error('El servicio directo /consulta-estado/ no está disponible.'));
