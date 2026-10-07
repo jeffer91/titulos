@@ -166,7 +166,7 @@
           }
 
           window.setTimeout(function () {
-            ocultarBloqueProceso();
+            /* Se mantiene visible el resumen de verificación para que el estudiante\n               pueda abrir el diagnóstico sin usar herramientas del navegador. */
             if (typeof opciones.onConsultaExitosa === 'function') opciones.onConsultaExitosa(resultado);
           }, 120);
         }
@@ -593,6 +593,7 @@
     var pre = bloque.querySelector('[data-diagnostico-texto]');
     var info = diagnostico || {};
     var lineas = [
+      'Motor: /consulta-estado/',
       'Base: ' + (info.base || 'titulos-ec2fa'),
       'Colección: ' + (info.coleccion || 'envios'),
       'Cédula: ' + String(cedula || (estudiante && estudiante.cedula) || ''),
