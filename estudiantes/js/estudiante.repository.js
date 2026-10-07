@@ -27,7 +27,7 @@
 
     return conTimeoutRepo(
       firebaseService.leerDocumento(config.collections.config, config.documents.appConfig),
-      1500,
+      900,
       'configuracion'
     ).then(function (doc) {
       appConfigCache = normalizarAppConfig(doc, doc ? 'firebase-titulos' : 'default-local');
