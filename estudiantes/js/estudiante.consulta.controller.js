@@ -22,7 +22,6 @@
     var validaciones = window.TAEstudianteValidaciones;
     var state = window.TAEstudianteState;
     var repository = window.TAEstudianteRepository;
-    var servicioTitulos = window.TAConsultaEstadoService;
     var inputCedula;
     var cedulaOriginal;
     var resultadoCedula;
@@ -40,7 +39,7 @@
 
     if (event && event.preventDefault) event.preventDefault();
 
-    if (!ui || !validaciones || !state || !repository || !servicioTitulos) {
+    if (!ui || !validaciones || !state || !repository) {
       mostrarErrorDependencias();
       return Promise.resolve(null);
     }
@@ -96,14 +95,14 @@
         actualizarBloqueProceso(3, 'trabajando', 'Consultando estado del título', 'Consultando tu envío en la base de Títulos para el período ' + (estudiante.periodoLabel || estudiante.periodoId || '') + '.');
 
         /*
-          La consulta de Títulos usa un único timeout: el de TAConsultaEstadoService
-          (7 segundos en consulta.config.js). No existe timeout adicional,
-          iframe, postMessage ni bridge en el flujo principal.
+          Ruta normal: lectura exacta por periodo__cedula mediante Firestore SDK.
+          El repository usa compatibilidad histórica únicamente si el documento
+          canónico no existe o si hay un fallo transitorio del transporte.
         */
-        return consultarEstadoTituloDirecto(
+        return consultarEstadoTituloRapido(
           estudiante.periodoId,
           estudiante.cedula || resultadoCedula.data,
-          servicioTitulos
+          repository
         );
       })
       .then(function (resultadoTitulo) {
@@ -122,8 +121,8 @@
           'completado',
           envio ? 'Registro de título encontrado' : 'Sin envío previo',
           envio
-            ? 'El motor independiente encontró el registro en titulos-ec2fa / envios.'
-            : 'El motor independiente no encontró un envío compatible para esta cédula y período.'
+            ? 'Se encontró el registro actualizado en titulos-ec2fa / envios.'
+            : 'No se encontró un envío compatible para esta cédula y período.'
         );
 
         mostrarDiagnosticoTitulos(
@@ -204,38 +203,34 @@
       });
   }
 
-  function consultarEstadoTituloDirecto(periodoId, cedula, service) {
-    if (!service || typeof service.consultar !== 'function') {
+  function consultarEstadoTituloRapido(periodoId, cedula, repository) {
+    if (!repository || typeof repository.consultarEnvio !== 'function') {
       return Promise.reject(crearError(
-        'SERVICIO_TITULOS_NO_DISPONIBLE',
-        'No se pudo iniciar el servicio directo de consulta de Títulos.'
+        'REPOSITORY_TITULOS_NO_DISPONIBLE',
+        'No se pudo iniciar la consulta del estado del título.'
       ));
     }
 
-    return Promise.resolve(service.consultar(periodoId, cedula))
-      .then(function (resultado) {
-        resultado = resultado || {};
-
-        if (resultado.ok === false) {
-          throw crearError(
-            resultado.codigo || 'CONSULTA_TITULOS_ERROR',
-            resultado.mensaje || 'No se pudo consultar la base de Títulos.'
-          );
-        }
+    return Promise.resolve(repository.consultarEnvio(periodoId, cedula))
+      .then(function (envio) {
+        var diagnostico = envio && envio._consultaDiagnostico
+          ? envio._consultaDiagnostico
+          : (typeof repository.obtenerDiagnosticoEnvio === 'function'
+            ? repository.obtenerDiagnosticoEnvio()
+            : null);
 
         return {
-          envio: resultado.encontrado ? (resultado.envio || null) : null,
-          diagnostico: {
-            motor: 'DIRECTO_SIN_BRIDGE',
-            estrategia: resultado.estrategia || 'IDENTIDAD_PRIMERO',
-            base: resultado.base || 'titulos-ec2fa',
-            coleccion: resultado.coleccion || 'envios',
-            documentoId: resultado.documentoId || '',
-            ruta: resultado.ruta || '',
-            rutasProbadas: Array.isArray(resultado.rutasProbadas) ? resultado.rutasProbadas.slice() : [],
-            periodoCanonico: resultado.periodoCanonico || String(periodoId || ''),
-            status: resultado.status || 0,
-            duracionMs: Number(resultado.duracionMs || 0)
+          envio: envio || null,
+          diagnostico: diagnostico || {
+            motor: 'FIRESTORE_SDK',
+            estrategia: 'ID_EXACTO_PRIMERO',
+            base: 'titulos-ec2fa',
+            coleccion: 'envios',
+            documentoId: String(periodoId || '') + '__' + String(cedula || ''),
+            ruta: envio ? 'SDK_ID_EXACTO' : 'NO_ENCONTRADO',
+            periodoCanonico: String(periodoId || ''),
+            status: envio ? 200 : 404,
+            duracionMs: 0
           }
         };
       })
@@ -243,8 +238,8 @@
         if (!error.codigo) error.codigo = 'CONSULTA_TITULOS_ERROR';
 
         error.diagnostico = Object.assign({
-          motor: 'DIRECTO_SIN_BRIDGE',
-          estrategia: 'IDENTIDAD_PRIMERO',
+          motor: 'FIRESTORE_SDK',
+          estrategia: 'ID_EXACTO_PRIMERO',
           base: 'titulos-ec2fa',
           coleccion: 'envios',
           periodoCanonico: String(periodoId || ''),
