@@ -36,13 +36,10 @@
 
     if (finalCard) {
       panel.classList.add('seguimiento-finalizado');
-      if (!finalCard.querySelector('.seguimiento-final-hero__icon')) {
-        var icon = document.createElement('span');
-        icon.className = 'seguimiento-final-hero__icon';
-        icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = '★';
-        finalCard.insertBefore(icon, finalCard.firstChild);
-      }
+      /*
+        El icono del título lo controla la capa premium únicamente cuando
+        existe aprobación final. En proceso no se inyecta ningún círculo.
+      */
       if (!finalCard.querySelector('.seguimiento-final-hero__eyebrow')) {
         var label = finalCard.querySelector('.seguimiento-label');
         if (label) {
