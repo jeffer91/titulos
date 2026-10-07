@@ -40,33 +40,74 @@
     });
   }
 
-  function revisarTitulo(titulo, accion, observacion, coordinador, tituloSeleccionadoNumero) {
+  function revisarTitulo(titulo, accion, observacion, coordinador, tituloSeleccionadoNumero, tituloCorregidoTexto) {
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título seleccionado.'));
     if (!coordinador || !coordinador.id) return Promise.reject(new Error('No se encontró el coordinador activo.'));
     if (!perteneceACoordinador(titulo, coordinador)) return Promise.reject(new Error('El título no pertenece a las carreras del coordinador.'));
 
     var accionNormalizada = String(accion || '').trim().toUpperCase();
-    if (accionNormalizada !== 'VALIDAR' && accionNormalizada !== 'DEVOLVER') return Promise.reject(new Error('Acción de revisión no válida.'));
+    var esAprobacion = accionNormalizada === 'VALIDAR' || accionNormalizada === 'VALIDAR_CORRECCION';
+    var esCorreccion = accionNormalizada === 'VALIDAR_CORRECCION';
+
+    if (!esAprobacion && accionNormalizada !== 'DEVOLVER') {
+      return Promise.reject(new Error('Acción de revisión no válida.'));
+    }
 
     var comentario = limpiar(observacion);
-    if (accionNormalizada === 'DEVOLVER' && !comentario) return Promise.reject(new Error('Escribe un comentario para devolver el título.'));
+    if ((accionNormalizada === 'DEVOLVER' || esCorreccion) && !comentario) {
+      return Promise.reject(new Error(esCorreccion
+        ? 'Escribe una observación breve que explique la corrección realizada.'
+        : 'Escribe un comentario para devolver el título.'));
+    }
 
-    var propuestas = titulo.titulosEnviados || [];
+    var propuestasOriginales = (titulo.titulosEnviados || []).map(function (item) {
+      return Object.assign({}, item || {});
+    });
     var numeroElegido = Number(tituloSeleccionadoNumero || 0);
-    var elegida = propuestas.filter(function (item) { return Number(item.numero) === numeroElegido; })[0] || null;
-    if (accionNormalizada === 'VALIDAR' && (!numeroElegido || !elegida)) return Promise.reject(new Error('Selecciona el título que será validado por Coordinación.'));
+    var elegida = propuestasOriginales.filter(function (item) {
+      return Number(item.numero) === numeroElegido;
+    })[0] || null;
+
+    if (esAprobacion && (!numeroElegido || !elegida)) {
+      return Promise.reject(new Error('Selecciona uno de los tres títulos antes de aprobar.'));
+    }
+
+    var textoOriginal = elegida ? limpiar(elegida.tituloFinal || elegida.titulo || '') : '';
+    var textoCorregido = esCorreccion ? limpiar(tituloCorregidoTexto) : textoOriginal;
+
+    if (esCorreccion && !textoCorregido) {
+      return Promise.reject(new Error('Escribe el título corregido antes de continuar.'));
+    }
+
+    if (esCorreccion && textoCorregido === textoOriginal) {
+      return Promise.reject(new Error('Modifica el título seleccionado o usa Aprobar si no requiere cambios.'));
+    }
 
     var ahora = new Date().toISOString();
-    var textoElegido = elegida ? limpiar(elegida.tituloFinal) : '';
+    var propuestasActualizadas = propuestasOriginales.map(function (item) {
+      var copia = Object.assign({}, item || {});
+      if (esCorreccion && Number(copia.numero) === numeroElegido) {
+        copia.tituloOriginalCoordinacion = textoOriginal;
+        copia.tituloCorregidoCoordinacion = textoCorregido;
+        copia.corregidoCoordinacion = true;
+        copia.tituloFinal = textoCorregido;
+        copia.titulo = textoCorregido;
+      }
+      return copia;
+    });
+
     var revision = {
-      estado: accionNormalizada === 'VALIDAR' ? 'VALIDADO' : 'DEVUELTO',
+      estado: esAprobacion ? 'VALIDADO' : 'DEVUELTO',
       accion: accionNormalizada,
+      resultado: esCorreccion ? 'APROBADO_CON_CORRECCION' : (esAprobacion ? 'APROBADO_SIN_CAMBIOS' : 'DEVUELTO'),
       observacion: comentario,
       coordinadorId: coordinador.id,
       coordinadorEmail: coordinador.email || '',
       coordinadorNombre: coordinador.nombre,
-      tituloSeleccionadoNumero: accionNormalizada === 'VALIDAR' ? numeroElegido : null,
-      tituloSeleccionadoTexto: accionNormalizada === 'VALIDAR' ? textoElegido : '',
+      tituloSeleccionadoNumero: esAprobacion ? numeroElegido : null,
+      tituloSeleccionadoTextoOriginal: esAprobacion ? textoOriginal : '',
+      tituloSeleccionadoTexto: esAprobacion ? textoCorregido : '',
+      corrigioTitulo: esCorreccion,
       fechaLocal: ahora
     };
 
@@ -82,22 +123,37 @@
       actualizadoPorModulo: 'coordinadores'
     };
 
-    if (accionNormalizada === 'VALIDAR') {
+    if (esAprobacion) {
       Object.assign(payload, {
         estado: 'PENDIENTE_INVESTIGADOR',
         estadoProceso: 'PENDIENTE_INVESTIGADOR',
         estadoCoordinador: 'VALIDADO',
         validadoCoordinacion: true,
         validadoCoordinador: true,
-        resultadoCoordinador: 'APROBADO_SIN_CAMBIOS',
-        tituloPreferidoNumero: numeroElegido,
-        tituloPreferidoTexto: textoElegido,
-        tituloElegido: textoElegido,
-        tituloCoordinador: textoElegido,
-        tituloCoordinadorAntes: textoElegido,
+        resultadoCoordinador: esCorreccion ? 'APROBADO_CON_CORRECCION' : 'APROBADO_SIN_CAMBIOS',
+
+        /*
+          La preferencia del estudiante se conserva intacta.
+          La decisión de Coordinación vive en revisionCoordinador/tituloCoordinador.
+        */
+        tituloCoordinadorNumero: numeroElegido,
+        tituloCoordinador: textoCorregido,
+        tituloCoordinadorAntes: textoOriginal,
+        tituloCoordinadorCorregido: esCorreccion ? textoCorregido : '',
         comentarioCoordinador: comentario,
         fechaValidacionCoordinador: ahora,
         fechaResolucion: ahora,
+
+        /*
+          Siempre viajan las tres propuestas a Investigación.
+          Solo cambia el texto de la propuesta seleccionada cuando hubo corrección.
+        */
+        titulosEnviados: propuestasActualizadas,
+        propuestasDetalle: propuestasActualizadas,
+        titulo1: tituloPorNumero(propuestasActualizadas, 1),
+        titulo2: tituloPorNumero(propuestasActualizadas, 2),
+        titulo3: tituloPorNumero(propuestasActualizadas, 3),
+
         requiereAccionDe: 'INVESTIGACION',
         requiereRevision: false,
         permitirReenvio: false,
@@ -127,14 +183,20 @@
     }
 
     var historial = Array.isArray(titulo.historialProceso) ? titulo.historialProceso.slice() : [];
-    historial.push({ version: historial.length + 1, fechaEnvio: fechaIso(titulo.fechaEnvio) || ahora, revisionCoordinador: revision });
+    historial.push({
+      version: historial.length + 1,
+      fechaEnvio: fechaIso(titulo.fechaEnvio) || ahora,
+      tituloPreferidoNumero: titulo.tituloPreferidoNumero,
+      titulosEnviados: propuestasOriginales,
+      revisionCoordinador: revision
+    });
     payload.historialProceso = historial;
 
     return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, payload, { merge: true })
       .then(function () {
         return firebaseService.agregarDocumento(config.collections.logs, {
           tipo: 'REVISION_TITULO_COORDINADOR',
-          accion: 'REVISION_TITULO_COORDINADOR',
+          accion: accionNormalizada,
           modulo: 'coordinadores',
           entidad: 'envios',
           entidadId: titulo.id,
@@ -145,10 +207,20 @@
           periodoId: titulo.periodoId,
           estado: payload.estado,
           revision: revision,
+          titulosEnviados: esAprobacion ? propuestasActualizadas : propuestasOriginales,
           fechaLocal: ahora
         }).catch(function () { return null; });
       })
-      .then(function () { return Object.assign({}, titulo, payload, { raw: Object.assign({}, titulo.raw || {}, payload) }); });
+      .then(function () {
+        return Object.assign({}, titulo, payload, { raw: Object.assign({}, titulo.raw || {}, payload) });
+      });
+  }
+
+  function tituloPorNumero(propuestas, numero) {
+    var item = (propuestas || []).filter(function (p) {
+      return Number(p.numero) === Number(numero);
+    })[0];
+    return item ? limpiar(item.tituloFinal || item.titulo || '') : '';
   }
 
   function perteneceACoordinador(titulo, coordinador) {
