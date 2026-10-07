@@ -25,35 +25,9 @@
   <script>
     (function () {
       'use strict';
-      var BUILD = '20261007-36';
-      var url = 'estudiante.html?build=' + encodeURIComponent(BUILD) + '&cb=' + Date.now();
-
-      fetch(url, {
-        cache: 'no-store',
-        credentials: 'same-origin',
-        headers: { 'Cache-Control': 'no-cache' }
-      })
-        .then(function (response) {
-          if (!response.ok) throw new Error('No se pudo cargar el módulo.');
-          return response.text();
-        })
-        .then(function (html) {
-
-          html = html.replace(/(src|href)="((?:js|css)\/[^"?]+\.(?:js|css))(?:\?[^\"]*)?"/g, function (_, attr, path) {
-            return attr + '=\"' + path + '?v=' + BUILD + '\"';
-          });
-
-          html = html.replace(/<script\s+src="js\/estudiante\.app\.js[^\"]*"><\/script>/i,
-            '<script src="js/estudiante.app.js?v=' + BUILD + '"><\/script>');
-
-          document.open();
-          document.write(html);
-          document.close();
-        })
-        .catch(function (error) {
-          console.error('[Estudiantes] Error del cargador:', error);
-          window.location.replace('estudiante.html?build=' + encodeURIComponent(BUILD) + '&cb=' + Date.now());
-        });
+      var BUILD = '20261007-37';
+      var destino = 'estudiante.html?build=' + encodeURIComponent(BUILD) + '&cb=' + Date.now();
+      window.location.replace(destino);
     })();
   </script>
 </body>
