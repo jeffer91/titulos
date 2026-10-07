@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Auditoría aislada Estudiantes | ITSQMET</title>
+  <style>
+    :root{font-family:Arial,Helvetica,sans-serif;color:#0b1f36;background:#eef4fb}
+    *{box-sizing:border-box}body{margin:0;padding:24px}
+    main{max-width:980px;margin:auto}.card{background:#fff;border:1px solid #d6e2ef;border-radius:18px;padding:20px;margin-bottom:16px;box-shadow:0 12px 32px rgba(7,27,52,.08)}
+    h1,h2{margin:.2rem 0 .6rem}p{color:#58708c;line-height:1.5}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:6px}.field input{padding:12px;border:1px solid #cbd9e8;border-radius:12px;font:inherit}
+    button{border:0;border-radius:12px;padding:12px 16px;font-weight:800;background:#0b57d0;color:#fff;cursor:pointer}.tests{display:grid;gap:10px}.test{border:1px solid #d8e4ef;border-radius:14px;padding:14px}.test strong{display:block}.meta{font-size:.86rem;color:#5f738a;margin-top:5px}.ok{background:#edf9f1;border-color:#bce4c9}.error{background:#fff0f0;border-color:#efb8b8}.running{background:#eef6ff;border-color:#acd0f3}.warn{background:#fff8e8;border-color:#ecd69a}pre{white-space:pre-wrap;word-break:break-word;background:#071b34;color:#eef6ff;border-radius:12px;padding:14px;max-height:360px;overflow:auto}
+    @media(max-width:650px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <p><strong>AUDITORÍA AISLADA · NO MODIFICA DATOS</strong></p>
+    <h1>Diagnóstico del estado de Títulos</h1>
+    <p>Ejecuta cada capa por separado para localizar exactamente dónde se detiene la consulta.</p>
+    <div class="grid">
+      <label class="field">Cédula<input id="cedula" value="1754049383" inputmode="numeric" /></label>
+      <label class="field">Período ID<input id="periodo" value="2026-04__2026-09" /></label>
+    </div>
+    <p><button id="ejecutar">Ejecutar auditoría completa</button></p>
+  </section>
+
+  <section class="card">
+    <h2>Resultados por capa</h2>
+    <div class="tests" id="tests"></div>
+  </section>
+
+  <section class="card">
+    <h2>Traza técnica</h2>
+    <pre id="log">Esperando ejecución…</pre>
+  </section>
+</main>
+
+<script src="../consulta-estado/consulta.config.js?v=20261007-audit1"></script>
+<script src="../consulta-estado/consulta.service.js?v=20261007-audit1"></script>
+<script src="../estudiantes/js/app.config.js?v=20261007-audit1"></script>
+<script src="../estudiantes/js/estudiante.repository.js?v=20261007-audit1"></script>
+<script src="auditoria.js?v=20261007-audit1"></script>
+</body>
+</html>
