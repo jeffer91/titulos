@@ -8,15 +8,36 @@
 
   var config = window.TA_ESTUDIANTES_CONFIG;
   var firebaseService = window.TAFirebaseService;
+  var appConfigCache = null;
+  var appConfigCacheAt = 0;
+  var envioCache = {};
 
   function cargarConfiguracionApp() {
-    if (!firebaseService || typeof firebaseService.leerDocumento !== 'function') {
-      return Promise.resolve(normalizarAppConfig(null, 'default-local-sin-firebase'));
+    var ahora = Date.now();
+
+    if (appConfigCache && (ahora - appConfigCacheAt) < 120000) {
+      return Promise.resolve(appConfigCache);
     }
 
-    return firebaseService.leerDocumento(config.collections.config, config.documents.appConfig)
-      .then(function (doc) { return normalizarAppConfig(doc, doc ? 'firebase-titulos' : 'default-local'); })
-      .catch(function () { return normalizarAppConfig(null, 'default-local-sin-config'); });
+    if (!firebaseService || typeof firebaseService.leerDocumento !== 'function') {
+      appConfigCache = normalizarAppConfig(null, 'default-local-sin-firebase');
+      appConfigCacheAt = ahora;
+      return Promise.resolve(appConfigCache);
+    }
+
+    return conTimeoutRepo(
+      firebaseService.leerDocumento(config.collections.config, config.documents.appConfig),
+      1500,
+      'configuracion'
+    ).then(function (doc) {
+      appConfigCache = normalizarAppConfig(doc, doc ? 'firebase-titulos' : 'default-local');
+      appConfigCacheAt = Date.now();
+      return appConfigCache;
+    }).catch(function () {
+      appConfigCache = normalizarAppConfig(null, 'default-local-rapido');
+      appConfigCacheAt = Date.now();
+      return appConfigCache;
+    });
   }
 
   function normalizarAppConfig(doc, origen) {
@@ -118,37 +139,230 @@
   }
 
   function consultarEnvio(periodoId, cedulaIngresada) {
-    var variantes = construirVariantesCedula(cedulaIngresada);
-    var periodo = obtenerPeriodoIdDesdeValor(periodoId);
-    var cadena = Promise.resolve(null);
+    var variantesCedula = construirVariantesCedula(cedulaIngresada);
+    var variantesPeriodo = construirVariantesPeriodo(periodoId);
+    var periodoPrincipal = variantesPeriodo[0] || obtenerPeriodoIdDesdeValor(periodoId);
+    var cedulaPrincipal = normalizarCedulaParaMostrar(cedulaIngresada);
+    var cacheKey = periodoPrincipal + '__' + cedulaPrincipal;
+    var cache = envioCache[cacheKey];
 
-    variantes.forEach(function (cedula) {
-      cadena = cadena.then(function (encontrado) {
-        if (encontrado) return encontrado;
-        return firebaseService.leerDocumento(config.collections.titulos, construirTituloId(periodo, cedula)).catch(function () { return null; });
+    if (cache && (Date.now() - cache.at) < 60000) {
+      return Promise.resolve(cache.value);
+    }
+
+    /*
+      Ruta rápida:
+      1. Lee por REST el documento exacto de envios.
+      2. En paralelo intenta la lectura directa con el SDK.
+      3. Solo si ambas rutas no encuentran el documento, consulta por cédula.
+      Esto evita encadenar varias lecturas Firestore una detrás de otra.
+    */
+    return buscarEnvioDirectoRapido(variantesPeriodo, variantesCedula)
+      .then(function (encontrado) {
+        if (encontrado) {
+          var normalizado = normalizarEnvioExistente(encontrado);
+          envioCache[cacheKey] = { at: Date.now(), value: normalizado };
+          return normalizado;
+        }
+
+        return buscarEnvioPorCedulaRapido(periodoPrincipal, variantesCedula)
+          .then(function (fallback) {
+            envioCache[cacheKey] = { at: Date.now(), value: fallback };
+            return fallback;
+          });
+      });
+  }
+
+  function buscarEnvioDirectoRapido(periodos, cedulas) {
+    var ids = [];
+
+    (periodos || []).forEach(function (periodo) {
+      (cedulas || []).forEach(function (cedula) {
+        agregarUnico(ids, construirTituloId(periodo, cedula));
       });
     });
 
-    return cadena.then(function (encontrado) {
-      if (encontrado) return normalizarEnvioExistente(encontrado);
-      return buscarEnvioPorCedula(periodo, variantes);
+    if (!ids.length) return Promise.resolve(null);
+
+    var lecturas = ids.map(function (id) {
+      return Promise.all([
+        leerEnvioRest(id).catch(function () { return null; }),
+        conTimeoutRepo(
+          firebaseService.leerDocumento(config.collections.titulos, id),
+          1800,
+          'envio-directo'
+        ).catch(function () { return null; })
+      ]).then(function (resultados) {
+        return resultados[0] || resultados[1] || null;
+      });
+    });
+
+    return Promise.all(lecturas).then(function (resultados) {
+      return resultados.filter(Boolean)[0] || null;
     });
   }
 
-  function buscarEnvioPorCedula(periodo, variantes) {
-    var cadena = Promise.resolve(null);
-    variantes.forEach(function (cedula) {
-      cadena = cadena.then(function (encontrado) {
-        if (encontrado) return encontrado;
-        return firebaseService.consultarColeccion(config.collections.titulos, 'cedula', '==', cedula, 20)
-          .then(function (docs) {
-            var match = (docs || []).filter(function (doc) { return !periodo || limpiarTexto(doc.periodoId) === periodo; })[0] || null;
-            return match ? normalizarEnvioExistente(match) : null;
-          }).catch(function () { return null; });
-      });
+  function buscarEnvioPorCedulaRapido(periodo, variantes) {
+    var consultas = (variantes || []).map(function (cedula) {
+      return conTimeoutRepo(
+        firebaseService.consultarColeccion(config.collections.titulos, 'cedula', '==', cedula, 12),
+        2200,
+        'envio-cedula'
+      ).catch(function () { return []; });
     });
-    return cadena;
+
+    if (!consultas.length) return Promise.resolve(null);
+
+    return Promise.all(consultas).then(function (listas) {
+      var docs = [];
+      var vistos = {};
+
+      listas.forEach(function (lista) {
+        (lista || []).forEach(function (doc) {
+          var id = doc.id || doc._docId || '';
+          if (id && vistos[id]) return;
+          if (id) vistos[id] = true;
+          docs.push(doc);
+        });
+      });
+
+      var exactos = docs.filter(function (doc) {
+        return periodosEquivalentes(
+          doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || '',
+          periodo
+        );
+      });
+
+      if (!exactos.length) return null;
+
+      exactos.sort(function (a, b) {
+        return fechaNumero(b.fechaEnvio || b.actualizadoEnLocal || b.actualizadoEn || b.creadoEn) -
+          fechaNumero(a.fechaEnvio || a.actualizadoEnLocal || a.actualizadoEn || a.creadoEn);
+      });
+
+      return normalizarEnvioExistente(exactos[0]);
+    });
   }
+
+  function leerEnvioRest(documentId) {
+    var firebaseCfg = window.TA_ESTUDIANTES_FIREBASE_TITULOS_CONFIG || {};
+    var projectId = firebaseCfg.projectId;
+    var apiKey = firebaseCfg.apiKey;
+
+    if (!window.fetch || !projectId || !apiKey || !documentId) {
+      return Promise.resolve(null);
+    }
+
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = window.setTimeout(function () {
+      if (controller) controller.abort();
+    }, 1500);
+
+    var url =
+      'https://firestore.googleapis.com/v1/projects/' +
+      encodeURIComponent(projectId) +
+      '/databases/(default)/documents/' +
+      encodeURIComponent(config.collections.titulos) +
+      '/' +
+      encodeURIComponent(documentId) +
+      '?key=' +
+      encodeURIComponent(apiKey);
+
+    return fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller ? controller.signal : undefined
+    }).then(function (response) {
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error('REST ' + response.status);
+      return response.json();
+    }).then(function (doc) {
+      if (!doc || !doc.fields) return null;
+      return Object.assign(
+        decodificarFirestoreFields(doc.fields),
+        { id: documentId, _docId: documentId }
+      );
+    }).finally(function () {
+      window.clearTimeout(timer);
+    });
+  }
+
+  function decodificarFirestoreFields(fields) {
+    var salida = {};
+    Object.keys(fields || {}).forEach(function (key) {
+      salida[key] = decodificarFirestoreValue(fields[key]);
+    });
+    return salida;
+  }
+
+  function decodificarFirestoreValue(value) {
+    if (!value || typeof value !== 'object') return value;
+    if (Object.prototype.hasOwnProperty.call(value, 'nullValue')) return null;
+    if (Object.prototype.hasOwnProperty.call(value, 'stringValue')) return value.stringValue;
+    if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return value.booleanValue;
+    if (Object.prototype.hasOwnProperty.call(value, 'integerValue')) return Number(value.integerValue);
+    if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue);
+    if (Object.prototype.hasOwnProperty.call(value, 'timestampValue')) return value.timestampValue;
+    if (Object.prototype.hasOwnProperty.call(value, 'referenceValue')) return value.referenceValue;
+    if (value.arrayValue) {
+      return (value.arrayValue.values || []).map(decodificarFirestoreValue);
+    }
+    if (value.mapValue) {
+      return decodificarFirestoreFields(value.mapValue.fields || {});
+    }
+    if (value.geoPointValue) return value.geoPointValue;
+    return null;
+  }
+
+  function construirVariantesPeriodo(periodoId) {
+    var raw = obtenerPeriodoIdDesdeValor(periodoId);
+    var variantes = [];
+    agregarUnico(variantes, raw);
+
+    var fechas = raw.match(/\d{4}-\d{2}/g) || [];
+    if (fechas.length >= 2) {
+      agregarUnico(variantes, fechas[0] + '__' + fechas[1]);
+      agregarUnico(variantes, fechas[0] + '_' + fechas[1]);
+      agregarUnico(variantes, fechas[0] + ' ' + fechas[1]);
+    }
+
+    return variantes;
+  }
+
+  function periodosEquivalentes(a, b) {
+    var claveA = clavePeriodo(a);
+    var claveB = clavePeriodo(b);
+    return Boolean(claveA && claveB && claveA === claveB);
+  }
+
+  function clavePeriodo(value) {
+    var texto = limpiarTexto(value);
+    var fechas = texto.match(/\d{4}-\d{2}/g) || [];
+    if (fechas.length >= 2) return fechas[0] + '__' + fechas[1];
+
+    return texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .trim()
+      .toUpperCase();
+  }
+
+  function conTimeoutRepo(promesa, ms, etiqueta) {
+    var timer;
+
+    return Promise.race([
+      Promise.resolve(promesa),
+      new Promise(function (_, reject) {
+        timer = window.setTimeout(function () {
+          reject(new Error('TIMEOUT_' + String(etiqueta || 'REPO').toUpperCase()));
+        }, Number(ms || 1500));
+      })
+    ]).finally(function () {
+      if (timer) window.clearTimeout(timer);
+    });
+  }
+
 
   function normalizarEnvioExistente(data) {
     if (!data) return null;
@@ -281,7 +495,13 @@
       });
 
       return firebaseService.guardarDocumento(config.collections.titulos, tituloId, payloadFinal, { merge: true })
-        .then(function () { return registrarLogEnvio(tituloId, payloadFinal, existente ? 'REENVIO_ESTUDIANTE' : 'ENVIO_ESTUDIANTE'); })
+        .then(function () {
+          envioCache[payloadFinal.periodoId + '__' + normalizarCedulaParaMostrar(payloadFinal.cedula)] = {
+            at: Date.now(),
+            value: normalizarEnvioExistente(payloadFinal)
+          };
+          return registrarLogEnvio(tituloId, payloadFinal, existente ? 'REENVIO_ESTUDIANTE' : 'ENVIO_ESTUDIANTE');
+        })
         .then(function () {
           return { ok: true, id: tituloId, data: payloadFinal, mensaje: 'Envío registrado correctamente.' };
         });
