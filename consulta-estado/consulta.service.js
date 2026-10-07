@@ -4,32 +4,219 @@
   var cfg = window.TA_CONSULTA_ESTADO_CONFIG || {};
 
   function consultar(periodoId, cedulaIngresada) {
-    var periodo = limpiar(periodoId);
+    var periodoSolicitado = limpiar(periodoId);
+    var periodoCanonico = clavePeriodo(periodoSolicitado);
     var cedula = normalizarCedula(cedulaIngresada);
-    var documentoId;
     var inicio = Date.now();
+    var rutasProbadas = [];
 
-    if (!periodo) return Promise.reject(crearError('PERIODO_INVALIDO', 'Falta el período académico.'));
+    if (!periodoSolicitado) return Promise.reject(crearError('PERIODO_INVALIDO', 'Falta el período académico.'));
     if (!cedula) return Promise.reject(crearError('CEDULA_INVALIDA', 'La cédula no es válida.'));
 
-    documentoId = periodo + '__' + cedula;
-
     return ejecutarConTimeoutGlobal(function (signal) {
-      return leerDocumentoConSignal(documentoId, signal)
-        .then(function (resultado) {
-          if (resultado.encontrado) {
-            return completarResultado(resultado, inicio, documentoId, 'ID_EXACTO');
+      return buscarPorIds(periodoSolicitado, periodoCanonico, cedula, signal, rutasProbadas)
+        .then(function (directo) {
+          if (directo) {
+            return completarResultado({
+              ok: true,
+              encontrado: true,
+              status: directo.status || 200,
+              envio: sanitizarEnvio(directo.envio)
+            }, inicio, directo.documentoId, directo.ruta, rutasProbadas, periodoCanonico);
           }
 
-          return leerDocumentoConSignal(cedula, signal).then(function (legacy) {
-            return completarResultado(
-              legacy,
-              inicio,
-              legacy.encontrado ? cedula : documentoId,
-              legacy.encontrado ? 'ID_LEGACY_CEDULA' : 'NO_ENCONTRADO'
-            );
-          });
+          return buscarPorIdentidad(periodoSolicitado, cedula, signal, rutasProbadas)
+            .then(function (encontrado) {
+              if (encontrado) {
+                return completarResultado({
+                  ok: true,
+                  encontrado: true,
+                  status: encontrado.status || 200,
+                  envio: sanitizarEnvio(encontrado.envio)
+                }, inicio, encontrado.documentoId, encontrado.ruta, rutasProbadas, periodoCanonico);
+              }
+
+              return completarResultado({
+                ok: true,
+                encontrado: false,
+                status: 404,
+                envio: null
+              }, inicio, periodoCanonico + '__' + cedula, 'NO_ENCONTRADO', rutasProbadas, periodoCanonico);
+            });
         });
+    }).catch(function (error) {
+      if (error && !error.diagnostico) {
+        error.diagnostico = {
+          base: cfg.projectId || 'titulos-ec2fa',
+          coleccion: cfg.collection || 'envios',
+          periodo: periodoSolicitado,
+          periodoCanonico: periodoCanonico,
+          cedula: cedula,
+          rutasProbadas: rutasProbadas.slice(),
+          duracionMs: Date.now() - inicio
+        };
+      }
+      throw error;
+    });
+  }
+
+  function buscarPorIds(periodoOriginal, periodoCanonico, cedula, signal, rutasProbadas) {
+    var ids = construirIdsCandidatos(periodoOriginal, periodoCanonico, cedula);
+    var cadena = Promise.resolve(null);
+
+    ids.forEach(function (id) {
+      cadena = cadena.then(function (encontrado) {
+        if (encontrado) return encontrado;
+        rutasProbadas.push('ID:' + id);
+
+        return leerDocumentoConSignal(id, signal).then(function (resultado) {
+          if (!resultado.encontrado) return null;
+          if (!periodoCompatibleDocumento(resultado.envio, periodoOriginal, true)) return null;
+
+          return {
+            documentoId: id,
+            ruta: id === cedula ? 'ID_LEGACY_CEDULA' : 'ID_DIRECTO',
+            status: resultado.status,
+            envio: resultado.envio
+          };
+        });
+      });
+    });
+
+    return cadena;
+  }
+
+  function construirIdsCandidatos(periodoOriginal, periodoCanonico, cedula) {
+    var ids = [];
+    var variantes = construirVariantesPeriodo(periodoOriginal);
+    agregarUnico(variantes, periodoCanonico);
+
+    variantes.forEach(function (periodo) {
+      if (periodo) agregarUnico(ids, periodo + '__' + cedula);
+    });
+
+    agregarUnico(ids, cedula);
+    return ids;
+  }
+
+  function buscarPorIdentidad(periodoSolicitado, cedula, signal, rutasProbadas) {
+    var especificaciones = [];
+    var vistos = {};
+    var numeroCedula = Number(cedula);
+
+    ['cedula', 'numeroIdentificacion'].forEach(function (campo) {
+      agregarSpec(campo, { stringValue: cedula }, 'STRING');
+
+      if (Number.isSafeInteger(numeroCedula)) {
+        agregarSpec(campo, { integerValue: String(numeroCedula) }, 'NUMBER');
+      }
+    });
+
+    function agregarSpec(campo, value, tipo) {
+      var key = campo + '|' + tipo;
+      if (vistos[key]) return;
+      vistos[key] = true;
+      especificaciones.push({ campo: campo, value: value, tipo: tipo });
+    }
+
+    var consultas = especificaciones.map(function (spec) {
+      rutasProbadas.push('QUERY:' + spec.campo + ':' + spec.tipo);
+
+      return ejecutarRunQuery(spec.campo, spec.value, signal)
+        .then(function (docs) {
+          return { ok: true, docs: docs || [] };
+        })
+        .catch(function (error) {
+          if (error && (error.codigo === 'PERMISSION_DENIED' || error.codigo === 'UNAUTHENTICATED')) throw error;
+          return { ok: false, docs: [], error: error };
+        });
+    });
+
+    return Promise.all(consultas).then(function (resultados) {
+      var exitosas = resultados.filter(function (item) { return item.ok; });
+      var docs = [];
+      var ids = {};
+
+      if (!exitosas.length) {
+        throw crearError('CONSULTA_IDENTIDAD_FALLIDA', 'No se pudo consultar envios por cédula o número de identificación.');
+      }
+
+      exitosas.forEach(function (resultado) {
+        (resultado.docs || []).forEach(function (doc) {
+          var id = doc.id || doc._docId || '';
+          var key = id || JSON.stringify(doc);
+          if (ids[key]) return;
+          ids[key] = true;
+          docs.push(doc);
+        });
+      });
+
+      var exactos = docs.filter(function (doc) {
+        return periodoCompatibleDocumento(doc, periodoSolicitado, false);
+      });
+
+      if (!exactos.length) {
+        var sinPeriodo = docs.filter(function (doc) {
+          return !limpiar(periodoDocumento(doc));
+        });
+        if (docs.length === 1 && sinPeriodo.length === 1) exactos = sinPeriodo;
+      }
+
+      if (!exactos.length) return null;
+
+      exactos.sort(function (a, b) {
+        return fechaMs(b.fechaEnvio || b.actualizadoEn || b.actualizadoEnLocal || b.creadoEn) -
+          fechaMs(a.fechaEnvio || a.actualizadoEn || a.actualizadoEnLocal || a.creadoEn);
+      });
+
+      var elegido = exactos[0];
+      return {
+        documentoId: elegido.id || elegido._docId || '',
+        ruta: 'QUERY_IDENTIDAD',
+        status: 200,
+        envio: elegido
+      };
+    });
+  }
+
+  function ejecutarRunQuery(campo, firestoreValue, signal) {
+    var url = construirRunQueryUrl();
+
+    return fetch(url, {
+      method: 'POST',
+      cache: 'no-store',
+      mode: 'cors',
+      credentials: 'omit',
+      signal: signal,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: cfg.collection || 'envios' }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: campo },
+              op: 'EQUAL',
+              value: firestoreValue
+            }
+          },
+          limit: 30
+        }
+      })
+    }).then(function (response) {
+      return response.text().then(function (texto) {
+        var body = parseJsonSeguro(texto);
+        if (!response.ok) throw errorHttp(response.status, body);
+
+        return (Array.isArray(body) ? body : []).map(function (item) {
+          var doc = item && item.document;
+          if (!doc || !doc.fields) return null;
+          return normalizarDocumentoRest(doc);
+        }).filter(Boolean);
+      });
     });
   }
 
@@ -111,6 +298,15 @@
     var apiKey = encodeURIComponent(cfg.apiKey || '');
 
     return base + '/projects/' + project + '/databases/' + database + '/documents/' + collection + '/' + docId + '?key=' + apiKey;
+  }
+
+  function construirRunQueryUrl() {
+    var base = String(cfg.firestoreRestBase || 'https://firestore.googleapis.com/v1').replace(/\/$/, '');
+    var project = encodeURIComponent(cfg.projectId || '');
+    var database = encodeURIComponent(cfg.databaseId || '(default)');
+    var apiKey = encodeURIComponent(cfg.apiKey || '');
+
+    return base + '/projects/' + project + '/databases/' + database + '/documents:runQuery?key=' + apiKey;
   }
 
   function normalizarDocumentoRest(doc) {
