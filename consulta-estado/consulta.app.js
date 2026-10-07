@@ -4,7 +4,7 @@
   var service = window.TAConsultaEstadoService;
   var EMBED = new URLSearchParams(window.location.search).get('embed') === '1';
   var TARGET_ORIGIN = window.location.origin;
-  var VERSION = '20261006-13';
+  var VERSION = '20261007-36';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -60,8 +60,12 @@
           encontrado: Boolean(resultado && resultado.encontrado),
           envio: resultado && resultado.envio || null,
           diagnostico: {
+            base: resultado && resultado.base || 'titulos-ec2fa',
+            coleccion: resultado && resultado.coleccion || 'envios',
             documentoId: resultado && resultado.documentoId || '',
             ruta: resultado && resultado.ruta || '',
+            rutasProbadas: resultado && resultado.rutasProbadas || [],
+            periodoCanonico: resultado && resultado.periodoCanonico || '',
             status: resultado && resultado.status || 0,
             duracionMs: resultado && resultado.duracionMs || (Date.now() - inicio)
           }
@@ -82,9 +86,11 @@
             codigo: error && error.codigo || 'CONSULTA_ERROR',
             mensaje: error && error.message || 'No se pudo consultar el estado del título.'
           },
-          diagnostico: {
+          diagnostico: Object.assign({
+            base: 'titulos-ec2fa',
+            coleccion: 'envios',
             duracionMs: Date.now() - inicio
-          }
+          }, error && error.diagnostico || {})
         };
 
         renderResultado(respuesta);
@@ -108,8 +114,14 @@
 
     if (!respuesta.encontrado) {
       output.className = 'result result--warning';
-      output.innerHTML = '<strong>No existe un envío para ese período y cédula.</strong>' +
-        '<br><small>Documento consultado: ' + escapar(respuesta.diagnostico.documentoId || '') + '</small>';
+      output.innerHTML = [
+        '<strong>No existe un envío compatible para ese período y cédula.</strong>',
+        '<div><b>Base:</b> ' + escapar(respuesta.diagnostico.base || 'titulos-ec2fa') + '</div>',
+        '<div><b>Colección:</b> ' + escapar(respuesta.diagnostico.coleccion || 'envios') + '</div>',
+        '<div><b>Período:</b> ' + escapar(respuesta.diagnostico.periodoCanonico || '') + '</div>',
+        '<div><b>Ruta final:</b> ' + escapar(respuesta.diagnostico.ruta || 'NO_ENCONTRADO') + '</div>',
+        '<div><b>Tiempo:</b> ' + escapar(String(respuesta.diagnostico.duracionMs || 0)) + ' ms</div>'
+      ].join('');
       return;
     }
 
@@ -119,7 +131,10 @@
       '<strong>Título encontrado</strong>',
       '<div><b>Estado:</b> ' + escapar(envio.estado || envio.estadoProceso || 'Sin estado') + '</div>',
       '<div><b>Título final:</b> ' + escapar(envio.tituloFinal || envio.tituloFinalInvestigacion || envio.tituloElegido || 'Aún no definido') + '</div>',
+      '<div><b>Base:</b> ' + escapar(respuesta.diagnostico.base || 'titulos-ec2fa') + '</div>',
+      '<div><b>Colección:</b> ' + escapar(respuesta.diagnostico.coleccion || 'envios') + '</div>',
       '<div><b>Documento:</b> ' + escapar(respuesta.diagnostico.documentoId || '') + '</div>',
+      '<div><b>Ruta:</b> ' + escapar(respuesta.diagnostico.ruta || '') + '</div>',
       '<div><b>Tiempo:</b> ' + escapar(String(respuesta.diagnostico.duracionMs || 0)) + ' ms</div>'
     ].join('');
   }
