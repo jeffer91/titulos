@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Investigadores | Revisión de títulos</title>
-  <link rel="stylesheet" href="css/investigador.css?v=4.3.0" />
+  <link rel="stylesheet" href="css/investigador.css?v=4.4.0" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
@@ -67,44 +67,76 @@
     <section class="workspace is-hidden" id="panelTrabajo">
       <section class="welcome-row">
         <div>
-          <span class="step">Investigador activo</span>
+          <span class="step">Investigación · segunda revisión</span>
           <h2 id="investigadorNombre">Investigador</h2>
           <p id="investigadorDetalle">Acceso habilitado</p>
         </div>
         <button class="btn btn--ghost" type="button" id="btnSalir">Salir</button>
       </section>
 
-      <section class="summary-grid">
-        <article class="summary"><span>Habilitados por Coordinación</span><strong id="totalHabilitados">0</strong></article>
-        <article class="summary"><span>Pendientes de mi revisión</span><strong id="totalPendientes">0</strong></article>
+      <section class="summary-grid queue-summary">
+        <article class="summary summary--warning"><span>Pendientes totales</span><strong id="totalPendientes">0</strong></article>
+        <article class="summary"><span>Carreras con pendientes</span><strong id="totalCarrerasPendientes">0</strong></article>
         <article class="summary summary--success"><span>Revisados por mí</span><strong id="totalRevisados">0</strong></article>
       </section>
 
-      <section class="card filter-card">
-        <div>
-          <label for="periodoInput">Período</label>
-          <input id="periodoInput" placeholder="Todos los períodos" />
-        </div>
-        <div>
-          <label for="estadoFiltro">Mi revisión</label>
-          <select id="estadoFiltro">
-            <option value="TODOS">Todos</option>
-            <option value="PENDIENTE">Pendientes</option>
-            <option value="REVISADO">Revisados</option>
-          </select>
-        </div>
-        <button class="btn btn--primary" type="button" id="btnActualizarTitulos">Actualizar</button>
+      <div class="message" id="revisionMensaje" role="status" aria-live="polite"></div>
+
+      <section class="queue-view" id="panelCarreras">
+        <section class="card careers-card">
+          <div class="queue-section-head">
+            <div>
+              <span class="step">Cola de revisión</span>
+              <h3>Carreras pendientes</h3>
+              <p id="periodoActualTexto">Los expedientes se atienden por orden de envío.</p>
+            </div>
+            <button class="btn btn--secondary" type="button" id="btnActualizarTitulos">Actualizar</button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="career-table">
+              <thead>
+                <tr>
+                  <th>Carrera</th>
+                  <th class="text-center">Pendientes</th>
+                  <th>Primer envío pendiente</th>
+                  <th class="text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="carrerasPendientesBody">
+                <tr><td colspan="4" class="queue-empty">Cargando carreras...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </section>
 
-      <div class="message" id="revisionMensaje" role="status" aria-live="polite"></div>
-      <section class="titles-list" id="titulosLista"></section>
-    </section>
+      <section class="queue-view is-hidden" id="panelCola">
+        <section class="queue-toolbar">
+          <button class="btn btn--ghost" type="button" id="btnVolverCarreras">← Volver a carreras</button>
+          <div class="queue-toolbar__info">
+            <span id="colaCarreraNombre">Carrera</span>
+            <strong id="colaContador">0 pendientes</strong>
+          </div>
+        </section>
+
+        <section class="queue-position">
+          <div>
+            <span class="step">Siguiente expediente</span>
+            <strong id="colaPosicion">Primero en la cola</strong>
+          </div>
+          <span id="colaOrdenInfo">Ordenado por fecha de envío</span>
+        </section>
+
+        <section id="tituloActual"></section>
+      </section>
+    </section>    </section>
   </main>
 
   <script src="../administradores/js/firebase.config.js"></script>
-  <script src="js/app.config.js?v=4.3.0"></script>
+  <script src="js/app.config.js?v=4.4.0"></script>
   <script src="../administradores/js/firebase.service.js"></script>
-  <script src="js/investigador.repository.js?v=4.3.0"></script>
-  <script src="js/investigador.app.js?v=4.3.0"></script>
+  <script src="js/investigador.repository.js?v=4.4.0"></script>
+  <script src="js/investigador.app.js?v=4.4.0"></script>
 </body>
 </html>
