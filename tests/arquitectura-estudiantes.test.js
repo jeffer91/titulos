@@ -69,6 +69,13 @@ assert(controller.includes('window.TAConsultaEstadoService'), 'Controlador debe 
 assert.strictEqual(loader.includes('document.write'), false, 'Loader no debe volver a usar document.write');
 assert.strictEqual(html.includes('shared/css/base.css'), false, 'No debe existir referencia al CSS inexistente base.css');
 
+const premium = read('estudiantes/js/seguimiento.premium.js');
+assert.strictEqual(
+  premium.includes("icon.textContent = 'T'"),
+  false,
+  'El seguimiento en proceso no debe volver a mostrar la T azul decorativa.'
+);
+
 const order = [
   '../consulta-estado/consulta.config.js',
   '../consulta-estado/consulta.service.js',
