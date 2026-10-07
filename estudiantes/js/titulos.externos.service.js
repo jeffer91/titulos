@@ -35,7 +35,7 @@
     section.innerHTML = [
       '<div class="titulo-externo__sticky-nav" data-ronda="' + numero + '">',
       '  <button class="btn btn--ghost" type="button" data-action="prev">← Regresar</button>',
-      '  <button class="btn btn--primary titulo-externo__continuar" type="button" data-action="next" disabled>Continuar →</button>',
+      '  <button class="btn btn--primary titulo-externo__continuar" type="button" data-action="next" data-nav-lock="true" disabled>Continuar →</button>',
       '</div>',
       '<div class="section-heading titulo-externo__heading">',
       '  <p class="section-kicker">' + ronda + '</p>',
@@ -588,7 +588,19 @@
       estado.classList.toggle('is-ready', listo);
     }
 
-    if (continuar) continuar.disabled = !listo;
+    if (continuar) {
+      continuar.setAttribute('data-nav-lock', listo ? 'false' : 'true');
+
+      if (
+        window.TAEstudiantePaginacion &&
+        typeof window.TAEstudiantePaginacion.refrescarControles === 'function'
+      ) {
+        window.TAEstudiantePaginacion.refrescarControles();
+      } else {
+        continuar.disabled = !listo;
+      }
+    }
+
     campo.classList.toggle('is-ready', listo);
   }
 

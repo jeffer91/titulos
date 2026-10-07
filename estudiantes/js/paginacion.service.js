@@ -282,9 +282,15 @@ var pasos = [
     });
 
     buscarTodos('[data-action="next"]').forEach(function (boton) {
-      boton.disabled = estado.avanzando || esUltimo;
+      var bloqueoExterno = boton.getAttribute('data-nav-lock') === 'true';
+      boton.disabled = estado.avanzando || esUltimo || bloqueoExterno;
       boton.classList.toggle('is-disabled', boton.disabled);
     });
+  }
+
+  function refrescarControles() {
+    actualizarBotonesAccion();
+    return true;
   }
 
   function validarAntesDeAvanzar(actual, destino) {
@@ -360,6 +366,7 @@ var pasos = [
     puedeIrA: puedeIrA,
     obtenerPasoActual: obtenerPasoActual,
     obtenerPasos: obtenerPasos,
-    obtenerEstado: obtenerEstado
+    obtenerEstado: obtenerEstado,
+    refrescarControles: refrescarControles
   });
 })();

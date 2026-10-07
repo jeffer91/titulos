@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261006-29';
+  var BUILD = '20261006-30';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -149,16 +149,13 @@
       TAEstudianteValidaciones: window.TAEstudianteValidaciones,
       TAEstudianteUI: window.TAEstudianteUI,
       TAEstudianteModal: window.TAEstudianteModal,
-      TAEstudianteLoading: window.TAEstudianteLoading,
       TAEstudianteFormulario: window.TAEstudianteFormulario,
       TAEstudiantePaginacion: window.TAEstudiantePaginacion,
       TAEstudianteTelegram: window.TAEstudianteTelegram,
-      TAEstudianteSugerencias: window.TAEstudianteSugerencias,
       TAEstudianteState: window.TAEstudianteState,
       TAEstudianteConsultaController: window.TAEstudianteConsultaController,
       TAEstudianteRecomendacionesController: window.TAEstudianteRecomendacionesController,
       TAEstudianteFormularioController: window.TAEstudianteFormularioController,
-      TAEstudianteSugerenciasController: window.TAEstudianteSugerenciasController,
       TAEstudianteBorradorController: window.TAEstudianteBorradorController,
       TAEstudianteEnvioController: window.TAEstudianteEnvioController,
       TAEstudianteEvents: window.TAEstudianteEvents

@@ -67,9 +67,6 @@
     conectar(qs('#btnCerrarRecomendaciones'), 'click', cerrarRecomendaciones, 'taCerrarRecomendacionesClick');
     conectar(qs('#btnEntendidoRecomendaciones'), 'click', cerrarRecomendaciones, 'taEntendidoRecomendacionesClick');
     conectar(qs('#modalRecomendaciones .modal__backdrop'), 'click', cerrarRecomendaciones, 'taBackdropRecomendacionesClick');
-
-    conectarBotonesSugerencias();
-    conectarBotonesPaginacionDirectos();
   }
 
   function manejarConsulta(event) {
@@ -339,32 +336,6 @@
 
         sugerenciasController.manejarSugerencias(numero, button);
       }, 'taGenerarSugerenciasClick');
-    });
-  }
-
-  function conectarBotonesPaginacionDirectos() {
-    qsa('[data-action="next"], [data-action="prev"]').forEach(function (button) {
-      conectar(button, 'click', function (event) {
-        var paginacion = window.TAEstudiantePaginacion;
-        var action = button.getAttribute('data-action');
-
-        if (event && event.preventDefault) {
-          event.preventDefault();
-        }
-
-        if (!paginacion) {
-          return;
-        }
-
-        if (action === 'next' && typeof paginacion.siguiente === 'function') {
-          paginacion.siguiente();
-          return;
-        }
-
-        if (action === 'prev' && typeof paginacion.anterior === 'function') {
-          paginacion.anterior();
-        }
-      }, 'taPaginacionDirectaClick');
     });
   }
 
