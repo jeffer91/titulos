@@ -14,7 +14,7 @@
   var TIMEOUT_FIREBASE_MS = 4000;
   var TIMEOUT_CONFIG_MS = 1200;
   var TIMEOUT_ACADEMICO_MS = 5500;
-  var TIMEOUT_TITULO_MS = 7000;
+  var TIMEOUT_TITULO_MS = 9500;
   var TIMEOUT_HISTORIAL_MS = 4500;
   var consultaToken = 0;
 
@@ -113,6 +113,7 @@
         envio = resultadoTitulo.envio || null;
         contexto.envio = envio;
         contexto.diagnosticoTitulos = resultadoTitulo.diagnostico || null;
+        contexto.titulosConsultados = true;
 
         actualizarBloqueProceso(
           3,
@@ -655,7 +656,7 @@
 
   function determinarPasoError(contexto) {
     if (!contexto.estudiante) return 2;
-    if (contexto.envio === null) return 3;
+    if (!contexto.titulosConsultados) return 3;
     return 4;
   }
 
