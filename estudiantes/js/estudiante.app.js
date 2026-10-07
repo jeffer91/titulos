@@ -145,7 +145,8 @@
     var dependencias = {
       TA_ESTUDIANTES_CONFIG: window.TA_ESTUDIANTES_CONFIG,
       TAFirebaseService: window.TAFirebaseService,
-      TAEstudianteRepository: window.TAEstudianteRepository,\n      TAConsultaEstadoBridge: window.TAConsultaEstadoBridge,
+      TAEstudianteRepository: window.TAEstudianteRepository,
+      TAConsultaEstadoBridge: window.TAConsultaEstadoBridge,
       TAEstudianteValidaciones: window.TAEstudianteValidaciones,
       TAEstudianteUI: window.TAEstudianteUI,
       TAEstudianteModal: window.TAEstudianteModal,
