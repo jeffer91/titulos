@@ -31,6 +31,11 @@ jobs:
             -not -path './.git/*' \
             -print0 | xargs -0 -n1 node --check
 
+      - name: Probar flujo de estudiantes
+        run: |
+          node tests/consulta-estado.test.js
+          node tests/arquitectura-estudiantes.test.js
+
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
 
