@@ -191,6 +191,7 @@
 
   function mostrarSeguimiento(resultado) {
     resultado = resultado || ultimoResultado || {};
+    ultimoResultado = resultado;
 
     var envio = resultado.envioExistente || {};
     var estudiante = resultado.estudiante || {};
@@ -198,11 +199,19 @@
     var panel = obtenerPanel();
     var estados = calcularEstados(envio);
 
+    /*
+      Un envío existente SIEMPRE entra a seguimiento.
+      Se cierran las rutas de registro nuevo para impedir que otro controlador
+      vuelva a mostrar el formulario por accidente.
+    */
     ocultar('#consultaCard');
     ocultar('#seccionEstudiante');
     ocultar('#formPropuestas');
     ocultar('#comprobanteFinal');
+    cerrarModal('#modalRecomendaciones');
+    cerrarModal('#modalResumen');
     mostrar('#wizardSteps');
+    sincronizarCabeceraSeguimiento(estudiante, envio, estados);
 
     panel.innerHTML = construirHtmlSeguimiento(estudiante, envio, seguimiento, estados);
     panel.classList.remove('is-hidden');
@@ -237,16 +246,9 @@
     var revisionCoord = envio.revisionCoordinador || {};
     var revisionInv = envio.revisionInvestigador || {};
     var tituloCoord = estados.coordinacionAprobada
-      ? limpiar(
-          revisionCoord.tituloSeleccionadoTexto ||
-          envio.tituloCoordinador || ''
-        )
+      ? obtenerTituloCoordinacion(envio)
       : '';
-    var tituloFinal = limpiar(
-      envio.tituloFinal ||
-      envio.tituloFinalInvestigacion ||
-      (estados.finalAprobado ? tituloCoord : '')
-    );
+    var tituloFinal = obtenerTituloFinal(envio, tituloCoord, estados);
     var historial = construirHistorial(seguimiento, envio);
     var puedeReenviar = envio.puedeReenviar === true || envio.permitirReenvio === true;
 
@@ -316,57 +318,223 @@
 
     var revisionCoord = envio.revisionCoordinador || {};
     var revisionInv = envio.revisionInvestigador || {};
-    var general = normalizarEstado(envio.estado || envio.estadoProceso || '');
-    var proceso = normalizarEstado(envio.estadoProceso || '');
+    var canonico = resolverEstadoCanonico(envio);
     var coord = normalizarEstado(envio.estadoCoordinador || revisionCoord.estado || '');
     var inv = normalizarEstado(envio.estadoInvestigador || revisionInv.estado || '');
-    var devueltoPor = normalizarEstado(envio.devueltoPor || '');
 
-    var finalExplicito = general === 'APROBADO_FINAL' || proceso === 'APROBADO_FINAL';
-    var coordDevuelto = coord === 'DEVUELTO' ||
-      ((general === 'DEVUELTO' || proceso === 'DEVUELTO') && devueltoPor === 'COORDINADOR');
-    var invDevuelto = inv === 'DEVUELTO' ||
-      ((general === 'DEVUELTO' || proceso === 'DEVUELTO') &&
-        (devueltoPor === 'INVESTIGACION' || devueltoPor === 'INVESTIGADOR'));
+    var coordDevuelto = canonico === 'DEVUELTO_COORDINACION';
+    var invDevuelto = canonico === 'DEVUELTO_INVESTIGACION';
+    var finalAprobado = canonico === 'APROBADO_FINAL';
 
-    var hayTituloCoordinacion = Boolean(limpiar(
-      revisionCoord.tituloSeleccionadoTexto || envio.tituloCoordinador || ''
-    ));
+    var coordAprobado = finalAprobado ||
+      canonico === 'INVESTIGACION_PENDIENTE' ||
+      invDevuelto ||
+      coord === 'VALIDADO' ||
+      coord === 'APROBADO' ||
+      coord === 'APROBADO_CON_OBSERVACION' ||
+      envio.validadoCoordinador === true ||
+      envio.validadoCoordinacion === true ||
+      Boolean(obtenerTituloCoordinacion(envio));
 
-    var coordAprobado = finalExplicito ||
-      coord === 'VALIDADO' || coord === 'APROBADO' ||
-      envio.validadoCoordinador === true || envio.validadoCoordinacion === true ||
-      general === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR' ||
-      hayTituloCoordinacion;
+    var invAprobado = finalAprobado ||
+      inv === 'APROBADO' ||
+      inv === 'APROBADO_CON_OBSERVACION';
 
-    var invAprobado = finalExplicito ||
-      inv === 'APROBADO' || inv === 'APROBADO_CON_OBSERVACION';
+    var estadoCoord = coordDevuelto
+      ? estado('Devuelto', 'danger')
+      : coordAprobado
+        ? estado('Aprobado', 'success')
+        : estado('Pendiente', 'pending');
 
-    var finalAprobado = finalExplicito ||
-      (coordAprobado && invAprobado && !coordDevuelto && !invDevuelto);
-
-    var estadoCoord = coordDevuelto ? estado('Devuelto', 'danger')
-      : coordAprobado ? estado('Aprobado', 'success') : estado('Pendiente', 'pending');
-
-    var estadoInv = invDevuelto ? estado('Devuelto', 'danger')
+    var estadoInv = invDevuelto
+      ? estado('Devuelto', 'danger')
       : finalAprobado
         ? estado(inv === 'APROBADO_CON_OBSERVACION' ? 'Aprobado con observación' : 'Aprobado', inv === 'APROBADO_CON_OBSERVACION' ? 'warning' : 'success')
-        : coordAprobado ? estado('Pendiente', 'pending') : estado('Aún no habilitado', 'muted');
+        : coordAprobado
+          ? estado('Pendiente', 'pending')
+          : estado('Aún no habilitado', 'muted');
 
     var estadoGeneral;
-    if (finalAprobado) estadoGeneral = estado('Aprobación final', 'success');
-    else if (coordDevuelto || invDevuelto) estadoGeneral = estado('Requiere corrección', 'danger');
-    else if (coordAprobado) estadoGeneral = estado('Pendiente de revisión de Investigación', 'pending');
-    else estadoGeneral = estado('Pendiente de revisión', 'pending');
+
+    if (finalAprobado) {
+      estadoGeneral = estado('Aprobación final', 'success');
+    } else if (coordDevuelto || invDevuelto) {
+      estadoGeneral = estado('Requiere corrección', 'danger');
+    } else if (canonico === 'INVESTIGACION_PENDIENTE' || coordAprobado) {
+      estadoGeneral = estado('Pendiente de revisión de Investigación', 'pending');
+    } else {
+      estadoGeneral = estado('Pendiente de revisión de Coordinación', 'pending');
+    }
 
     return {
+      canonico: canonico,
       general: estadoGeneral,
       coordinacion: estadoCoord,
       investigacion: estadoInv,
       finalAprobado: finalAprobado,
       coordinacionAprobada: coordAprobado,
-      investigacionAprobada: invAprobado
+      investigacionAprobada: invAprobado,
+      coordinacionDevuelta: coordDevuelto,
+      investigacionDevuelta: invDevuelto
     };
+  }
+
+  function resolverEstadoCanonico(envio) {
+    envio = envio || {};
+
+    var general = aliasEstado(envio.estado);
+    var proceso = aliasEstado(envio.estadoProceso);
+    var coord = normalizarEstado(envio.estadoCoordinador || (envio.revisionCoordinador && envio.revisionCoordinador.estado) || '');
+    var inv = normalizarEstado(envio.estadoInvestigador || (envio.revisionInvestigador && envio.revisionInvestigador.estado) || '');
+    var devueltoPor = normalizarEstado(envio.devueltoPor || '');
+
+    if (
+      general === 'APROBADO_FINAL' ||
+      proceso === 'APROBADO_FINAL' ||
+      envio.procesoCerrado === true ||
+      ((inv === 'APROBADO' || inv === 'APROBADO_CON_OBSERVACION') && envio.investigacionRevisada === true)
+    ) {
+      return 'APROBADO_FINAL';
+    }
+
+    if (
+      general === 'DEVUELTO_INVESTIGACION' ||
+      proceso === 'DEVUELTO_INVESTIGACION' ||
+      inv === 'DEVUELTO' ||
+      ((general === 'DEVUELTO' || proceso === 'DEVUELTO') &&
+        (devueltoPor === 'INVESTIGACION' || devueltoPor === 'INVESTIGADOR'))
+    ) {
+      return 'DEVUELTO_INVESTIGACION';
+    }
+
+    if (
+      general === 'DEVUELTO_COORDINACION' ||
+      proceso === 'DEVUELTO_COORDINACION' ||
+      coord === 'DEVUELTO' ||
+      ((general === 'DEVUELTO' || proceso === 'DEVUELTO') &&
+        (!devueltoPor || devueltoPor === 'COORDINADOR' || devueltoPor === 'COORDINACION'))
+    ) {
+      return 'DEVUELTO_COORDINACION';
+    }
+
+    if (
+      general === 'INVESTIGACION_PENDIENTE' ||
+      proceso === 'INVESTIGACION_PENDIENTE' ||
+      coord === 'VALIDADO' ||
+      coord === 'APROBADO' ||
+      coord === 'APROBADO_CON_OBSERVACION' ||
+      envio.validadoCoordinador === true ||
+      envio.validadoCoordinacion === true ||
+      Boolean(obtenerTituloCoordinacion(envio))
+    ) {
+      return 'INVESTIGACION_PENDIENTE';
+    }
+
+    if (
+      general === 'COORDINACION_PENDIENTE' ||
+      proceso === 'COORDINACION_PENDIENTE' ||
+      general === 'PENDIENTE_REVISION' ||
+      proceso === 'PENDIENTE_REVISION' ||
+      (Array.isArray(envio.titulosEnviados) && envio.titulosEnviados.length)
+    ) {
+      return 'COORDINACION_PENDIENTE';
+    }
+
+    return 'COORDINACION_PENDIENTE';
+  }
+
+  function aliasEstado(valor) {
+    var estadoNormal = normalizarEstado(valor);
+    var aliases = {
+      PENDIENTE_COORDINADOR: 'COORDINACION_PENDIENTE',
+      COORDINACION_PENDIENTE: 'COORDINACION_PENDIENTE',
+      PENDIENTE_REVISION: 'COORDINACION_PENDIENTE',
+      PENDIENTE_INVESTIGADOR: 'INVESTIGACION_PENDIENTE',
+      INVESTIGACION_PENDIENTE: 'INVESTIGACION_PENDIENTE',
+      DEVUELTO_COORDINADOR: 'DEVUELTO_COORDINACION',
+      DEVUELTO_COORDINACION: 'DEVUELTO_COORDINACION',
+      DEVUELTO_INVESTIGADOR: 'DEVUELTO_INVESTIGACION',
+      DEVUELTO_INVESTIGACION: 'DEVUELTO_INVESTIGACION',
+      APROBADO_FINAL: 'APROBADO_FINAL'
+    };
+
+    return aliases[estadoNormal] || estadoNormal;
+  }
+
+  function obtenerTituloCoordinacion(envio) {
+    envio = envio || {};
+    var revision = envio.revisionCoordinador || {};
+    var directo = limpiar(
+      revision.tituloSeleccionadoTexto ||
+      envio.tituloCoordinador ||
+      envio.tituloSeleccionadoTexto ||
+      ''
+    );
+
+    if (directo) return directo;
+
+    var numero = Number(
+      revision.tituloSeleccionadoNumero ||
+      envio.tituloCoordinadorNumero ||
+      envio.tituloSeleccionadoNumero ||
+      0
+    );
+
+    if (!numero) return '';
+
+    var propuesta = obtenerPropuestas(envio).filter(function (item) {
+      return Number(item.numero) === numero;
+    })[0];
+
+    return propuesta ? limpiar(propuesta.tituloFinal || propuesta.titulo || '') : '';
+  }
+
+  function obtenerTituloFinal(envio, tituloCoord, estados) {
+    envio = envio || {};
+    var revisionInv = envio.revisionInvestigador || {};
+
+    var directo = limpiar(
+      envio.tituloFinal ||
+      envio.tituloFinalInvestigacion ||
+      revisionInv.tituloFinal ||
+      revisionInv.tituloSeleccionadoTexto ||
+      ''
+    );
+
+    if (directo) return directo;
+    if (estados && estados.finalAprobado) return limpiar(tituloCoord);
+
+    return '';
+  }
+
+  function sincronizarCabeceraSeguimiento(estudiante, envio, estados) {
+    var badge = document.querySelector('#estadoProcesoBadge');
+    var periodo = document.querySelector('#periodoActivoBadge');
+
+    if (badge && estados && estados.general) {
+      badge.textContent = estados.general.label;
+      badge.className = 'status-pill ' + (
+        estados.general.tipo === 'success' ? 'status-pill--success' :
+        estados.general.tipo === 'danger' ? 'status-pill--danger' :
+        'status-pill--info'
+      );
+    }
+
+    if (periodo) {
+      periodo.textContent =
+        (estudiante && (estudiante.periodoLabel || estudiante.periodoId)) ||
+        envio.periodoNombre ||
+        envio.periodoLabel ||
+        envio.periodoId ||
+        'Período por confirmar';
+    }
+  }
+
+  function cerrarModal(selector) {
+    var modal = document.querySelector(selector);
+    if (!modal) return;
+    modal.classList.add('is-hidden');
+    modal.setAttribute('aria-hidden', 'true');
   }
 
   function renderEstadoPrincipal(estados, puedeReenviar) {
@@ -636,7 +804,8 @@
         var datos = {
           estudiante: estado.estudiante || (ultimoResultado && ultimoResultado.estudiante) || {},
           appConfig: estado.appConfig || (ultimoResultado && ultimoResultado.appConfig) || {},
-          envioExistente: envio
+          envioExistente: envio,
+          forzarReenvio: true
         };
 
         if (!(envio.puedeReenviar === true || envio.permitirReenvio === true)) return;
