@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Administrador | Sistema de títulos</title>
-  <link rel="stylesheet" href="css/administrador.css" />
+  <link rel="stylesheet" href="css/administrador.css?v=20261006-1" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
@@ -292,6 +292,26 @@
             <button class="btn btn--primary" type="submit" id="btnCrearInvestigador">Agregar investigador</button>
           </div>
         </form>
+      </section>
+
+      <section class="card bulk-pin-card">
+        <div class="card__header">
+          <div>
+            <p class="section-kicker">Acceso masivo</p>
+            <h3>Asignar PIN a investigadores</h3>
+            <p class="muted">Pega una fila por investigador en formato: Nombres | Apellidos | Cédula | PIN. Los PIN se protegen antes de guardarse y no quedan escritos en el repositorio.</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="investigadoresBulkInput">Lista de investigadores</label>
+          <textarea id="investigadoresBulkInput" rows="8" placeholder="Carla Thalia | Rivera Ávalos | 1723704191 | 5831"></textarea>
+          <small>También acepta columnas separadas por tabulador, coma o punto y coma.</small>
+        </div>
+        <div class="form-actions bulk-pin-actions">
+          <button class="btn btn--primary" type="button" id="btnAplicarPinesInvestigadores">Crear/activar accesos</button>
+          <button class="btn btn--ghost" type="button" id="btnLimpiarPinesInvestigadores">Limpiar</button>
+        </div>
+        <div class="status-message" id="investigadoresBulkMensaje" role="status" aria-live="polite"></div>
       </section>
 
       <section class="card">
@@ -761,7 +781,7 @@
   <script src="js/inicio.admin.js"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js"></script>
-  <script src="js/investigadores.admin.js"></script>
+  <script src="js/investigadores.admin.js?v=20261006-1"></script>
   <script src="js/estudiantes.admin.js"></script>
   <script src="js/ajustes.admin.js"></script>
   <script src="js/respaldo.admin.js"></script>
