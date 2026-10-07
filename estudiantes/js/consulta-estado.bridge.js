@@ -8,7 +8,7 @@
     pero este objeto delega de forma directa a TAConsultaEstadoService.
     En el Bloque 3 el controlador dejará de usar este alias.
   */
-  var VERSION = '20261007-38';
+  var VERSION = '20261007-39';
 
   function obtenerServicio() {
     var service = window.TAConsultaEstadoService;
