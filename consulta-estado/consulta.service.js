@@ -383,7 +383,7 @@
       'resultadoCoordinador', 'resultadoInvestigacion', 'requiereAccionDe', 'requiereRevision',
       'validadoCoordinador', 'validadoCoordinacion', 'coordinadorRevisado', 'investigacionRevisada',
       'titulo1', 'titulo2', 'titulo3', 'tituloElegido', 'tituloPreferidoTexto', 'tituloPreferidoNumero',
-      'tituloCoordinador', 'tituloFinal', 'tituloFinalInvestigacion', 'tituloSeleccionadoNumero', 'tituloSeleccionadoTexto',
+      'tituloCoordinador', 'tituloCoordinadorNumero', 'tituloFinal', 'tituloFinalInvestigacion', 'tituloSeleccionadoNumero', 'tituloSeleccionadoTexto',
       'comentarioCoordinador', 'comentarioInvestigador', 'observacionDevolucion', 'observacionInvestigacion',
       'devueltoPor', 'permitirReenvio', 'puedeReenviar', 'intentosUsados', 'numeroEnvios', 'numeroReenvios',
       'versionActual', 'fechaEnvio', 'fechaValidacionCoordinador', 'fechaResolucionInvestigacion',
@@ -399,6 +399,9 @@
     salida.propuestasDetalle = sanitizarPropuestas(data && data.propuestasDetalle);
     salida.revisionCoordinador = sanitizarRevision(data && data.revisionCoordinador);
     salida.revisionInvestigador = sanitizarRevision(data && data.revisionInvestigador);
+    salida.historialProceso = Array.isArray(data && data.historialProceso)
+      ? data.historialProceso.slice(0, 60)
+      : [];
 
     return salida;
   }
