@@ -209,20 +209,29 @@
     var estado = titulo.estadoInvestigador || 'PENDIENTE';
     var coordinador = titulo.revisionCoordinador || {};
     article.className = 'title-card';
+    var tituloCoord = titulo.tituloCoordinador || coordinador.tituloSeleccionadoTexto || titulo.tituloPreferidoTexto || 'Título sin texto';
     article.innerHTML =
       '<div class="title-head"><div><span class="state state--coord">Coordinación: ' + escapeHtml(titulo.estadoCoordinador || 'APROBADO') + '</span>' +
-      '<h3>' + escapeHtml(titulo.tituloPreferidoTexto || 'Título sin texto') + '</h3></div>' +
+      '<h3>' + escapeHtml(tituloCoord) + '</h3></div>' +
       '<span class="state ' + claseEstado(estado) + '">' + escapeHtml(estado) + '</span></div>' +
       '<div class="meta"><span>' + escapeHtml(titulo.nombres || 'Sin nombre') + '</span><span>' + escapeHtml(titulo.cedula || 'Sin cédula') + '</span><span>' + escapeHtml(titulo.carrera || 'Sin carrera') + '</span><span>' + escapeHtml(titulo.periodoId || 'Sin período') + '</span></div>' +
       '<div class="coord-note"><strong>Primera revisión:</strong> ' + escapeHtml(coordinador.coordinadorNombre || coordinador.coordinadorEmail || 'Coordinación') +
+      (titulo.resultadoCoordinador === 'APROBADO_CON_CORRECCION' ? ' · Título corregido por Coordinación' : '') +
       (coordinador.observacion ? ' · ' + escapeHtml(coordinador.observacion) : '') + '</div>';
 
     var proposals = document.createElement('div');
     proposals.className = 'proposals';
     (titulo.titulosEnviados || []).forEach(function (p) {
       var item = document.createElement('div');
-      item.className = 'proposal';
-      item.innerHTML = '<strong>Propuesta ' + escapeHtml(p.numero || '') + '</strong><p>' + escapeHtml(p.tituloFinal || 'Sin título') + '</p>';
+      var seleccionado = Number(p.numero) === Number(titulo.tituloCoordinadorNumero || coordinador.tituloSeleccionadoNumero || 0);
+      var corregido = Boolean(p.corregidoCoordinacion || (seleccionado && titulo.resultadoCoordinador === 'APROBADO_CON_CORRECCION'));
+      item.className = 'proposal' + (seleccionado ? ' is-selected-by-coord' : '') + (corregido ? ' is-corrected-by-coord' : '');
+      item.innerHTML =
+        '<div class="proposal__head"><strong>Título ' + escapeHtml(p.numero || '') + '</strong>' +
+        (seleccionado ? '<span>Seleccionado por Coordinación</span>' : '') +
+        (corregido ? '<span class="proposal__corrected">Corregido</span>' : '') +
+        '</div><p>' + escapeHtml(p.tituloFinal || p.titulo || 'Sin título') + '</p>' +
+        (corregido && p.tituloOriginalCoordinacion ? '<small><b>Original:</b> ' + escapeHtml(p.tituloOriginalCoordinacion) + '</small>' : '');
       proposals.appendChild(item);
     });
     if (titulo.titulosEnviados && titulo.titulosEnviados.length) article.appendChild(proposals);
