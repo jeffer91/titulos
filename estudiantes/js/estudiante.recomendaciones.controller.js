@@ -46,6 +46,34 @@
       return false;
     }
 
+    /*
+      Si ya existe un envío, ninguna ruta de recomendaciones puede volver a
+      abrir el formulario como si fuera un registro nuevo.
+    */
+    if (estado.envioExistente && !(opciones && opciones.forzarFormulario === true)) {
+      var seguimiento = window.TAEstudianteSeguimiento;
+
+      if (seguimiento && typeof seguimiento.mostrar === 'function') {
+        seguimiento.mostrar({
+          estudiante: estado.estudiante,
+          appConfig: estado.appConfig,
+          envioExistente: estado.envioExistente,
+          seguimiento: {
+            envio: estado.envioExistente,
+            estudiante: estado.estudiante,
+            versiones: [],
+            eventos: [],
+            historialProceso: Array.isArray(estado.envioExistente.historialProceso)
+              ? estado.envioExistente.historialProceso.slice()
+              : []
+          },
+          modoConsulta: 'SEGUIMIENTO'
+        });
+      }
+
+      return true;
+    }
+
     cierreEnProceso = true;
 
     if (state && state.marcarRecomendacionesCerradas) {
