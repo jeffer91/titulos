@@ -2,7 +2,7 @@
   'use strict';
 
   window.TA_CONSULTA_ESTADO_CONFIG = Object.freeze({
-    version: '20261007-42',
+    version: '20261007-43',
     projectId: 'titulos-ec2fa',
     databaseId: '(default)',
     collection: 'envios',
