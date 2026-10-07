@@ -157,9 +157,13 @@
       3. Solo si ambas rutas no encuentran el documento, consulta por cédula.
       Esto evita encadenar varias lecturas Firestore una detrás de otra.
     */
-    var fallbackPromise = buscarEnvioPorCedulaRapido(periodoPrincipal, variantesCedula)
-      .then(function (value) { return { ok: true, value: value }; })
-      .catch(function (error) { return { ok: false, error: error }; });
+    var restQueryPromise = buscarEnvioRestPorCedula(periodoPrincipal, variantesCedula)
+      .then(function (value) { return { ok: true, value: value, origen: 'rest-query' }; })
+      .catch(function (error) { return { ok: false, error: error, origen: 'rest-query' }; });
+
+    var sdkQueryPromise = buscarEnvioPorCedulaRapido(periodoPrincipal, variantesCedula)
+      .then(function (value) { return { ok: true, value: value, origen: 'sdk-query' }; })
+      .catch(function (error) { return { ok: false, error: error, origen: 'sdk-query' }; });
 
     return buscarEnvioDirectoRapido(variantesPeriodo, variantesCedula)
       .then(function (encontrado) {
@@ -169,12 +173,20 @@
           return normalizado;
         }
 
-        return fallbackPromise.then(function (resultadoFallback) {
-          if (!resultadoFallback.ok) throw resultadoFallback.error;
-          if (resultadoFallback.value) {
-            envioCache[cacheKey] = { at: Date.now(), value: resultadoFallback.value };
+        return Promise.all([restQueryPromise, sdkQueryPromise]).then(function (resultados) {
+          var conRegistro = resultados.filter(function (item) {
+            return item.ok && item.value;
+          })[0];
+
+          if (conRegistro) {
+            envioCache[cacheKey] = { at: Date.now(), value: conRegistro.value };
+            return conRegistro.value;
           }
-          return resultadoFallback.value || null;
+
+          var exitosas = resultados.filter(function (item) { return item.ok; });
+          if (exitosas.length) return null;
+
+          throw new Error('No se pudo consultar el estado del título. Intenta nuevamente.');
         });
       });
   }
@@ -195,7 +207,7 @@
         leerEnvioRest(id).catch(function () { return null; }),
         conTimeoutRepo(
           firebaseService.leerDocumento(config.collections.titulos, id),
-          1800,
+          1200,
           'envio-directo'
         ).catch(function () { return null; })
       ]).then(function (resultados) {
@@ -208,11 +220,123 @@
     });
   }
 
+  function buscarEnvioRestPorCedula(periodo, variantes) {
+    var firebaseCfg = window.TA_ESTUDIANTES_FIREBASE_TITULOS_CONFIG || {};
+    var projectId = firebaseCfg.projectId;
+    var apiKey = firebaseCfg.apiKey;
+
+    if (!window.fetch || !projectId || !apiKey) {
+      return Promise.reject(new Error('REST_NO_DISPONIBLE'));
+    }
+
+    var cedulas = [];
+    (variantes || []).forEach(function (cedula) {
+      agregarUnico(cedulas, normalizarCedulaParaMostrar(cedula));
+    });
+
+    if (!cedulas.length) return Promise.resolve(null);
+
+    var url =
+      'https://firestore.googleapis.com/v1/projects/' +
+      encodeURIComponent(projectId) +
+      '/databases/(default)/documents:runQuery?key=' +
+      encodeURIComponent(apiKey);
+
+    var consultas = cedulas.map(function (cedula) {
+      return fetchJsonRepo(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: config.collections.titulos }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: 'cedula' },
+                op: 'EQUAL',
+                value: { stringValue: cedula }
+              }
+            },
+            limit: 12
+          }
+        })
+      }, 1700).then(function (respuesta) {
+        return {
+          ok: true,
+          docs: (Array.isArray(respuesta) ? respuesta : []).map(function (item) {
+            var doc = item && item.document;
+            if (!doc || !doc.fields) return null;
+            var nombre = String(doc.name || '');
+            var id = decodeURIComponent(nombre.split('/').pop() || '');
+            return Object.assign(
+              decodificarFirestoreFields(doc.fields),
+              { id: id, _docId: id }
+            );
+          }).filter(Boolean)
+        };
+      }).catch(function (error) {
+        return { ok: false, docs: [], error: error };
+      });
+    });
+
+    return Promise.all(consultas).then(function (resultados) {
+      var exitosas = resultados.filter(function (item) { return item.ok; });
+      if (!exitosas.length) throw new Error('REST_QUERY_FALLO');
+
+      var docs = [];
+      var vistos = {};
+
+      exitosas.forEach(function (resultado) {
+        (resultado.docs || []).forEach(function (doc) {
+          var id = doc.id || doc._docId || '';
+          if (id && vistos[id]) return;
+          if (id) vistos[id] = true;
+          docs.push(doc);
+        });
+      });
+
+      var exactos = docs.filter(function (doc) {
+        return periodosEquivalentes(
+          doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || '',
+          periodo
+        );
+      });
+
+      if (!exactos.length) return null;
+
+      exactos.sort(function (a, b) {
+        return fechaNumero(b.fechaEnvio || b.actualizadoEnLocal || b.actualizadoEn || b.creadoEn) -
+          fechaNumero(a.fechaEnvio || a.actualizadoEnLocal || a.actualizadoEn || a.creadoEn);
+      });
+
+      return normalizarEnvioExistente(exactos[0]);
+    });
+  }
+
+  function fetchJsonRepo(url, options, timeoutMs) {
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = window.setTimeout(function () {
+      if (controller) controller.abort();
+    }, Number(timeoutMs || 1700));
+
+    var opts = Object.assign({}, options || {});
+    if (controller) opts.signal = controller.signal;
+
+    return fetch(url, opts)
+      .then(function (response) {
+        if (!response.ok) throw new Error('HTTP_' + response.status);
+        return response.json();
+      })
+      .finally(function () {
+        window.clearTimeout(timer);
+      });
+  }
+
   function buscarEnvioPorCedulaRapido(periodo, variantes) {
     var consultas = (variantes || []).map(function (cedula) {
       return conTimeoutRepo(
         firebaseService.consultarColeccion(config.collections.titulos, 'cedula', '==', cedula, 12),
-        2200,
+        1400,
         'envio-cedula'
       ).then(function (docs) {
         return { ok: true, docs: docs || [] };
