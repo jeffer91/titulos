@@ -240,13 +240,24 @@
   function renderDetalle(titulo, historial) {
     var body = el('detalleModalBody');
     if (!body) return;
+
+    var modalCard = body.closest('.modal-card--detail');
+    var footerAnterior = modalCard && modalCard.querySelector('.modal-decision-footer');
+    if (footerAnterior && footerAnterior.parentNode) footerAnterior.parentNode.removeChild(footerAnterior);
+
     var vista = repository.clasificarTitulo(titulo);
     var editable = vista === 'POR_REVISAR';
+
     body.innerHTML = '';
     body.appendChild(renderMetaDetalle(titulo));
     body.appendChild(renderPropuestas(titulo, editable));
     body.appendChild(renderHistorial(titulo, historial));
-    body.appendChild(renderDecision(titulo, editable));
+
+    var decision = renderDecision(titulo, editable);
+    decision.classList.add('modal-decision-footer');
+
+    if (modalCard) modalCard.appendChild(decision);
+    else body.appendChild(decision);
   }
 
   function renderMetaDetalle(titulo) {
