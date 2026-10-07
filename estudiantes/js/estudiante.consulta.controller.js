@@ -14,7 +14,6 @@
   var TIMEOUT_FIREBASE_MS = 4000;
   var TIMEOUT_CONFIG_MS = 1200;
   var TIMEOUT_ACADEMICO_MS = 5500;
-  var TIMEOUT_TITULO_MS = 9500;
   var TIMEOUT_HISTORIAL_MS = 4500;
   var consultaToken = 0;
 
@@ -23,7 +22,7 @@
     var validaciones = window.TAEstudianteValidaciones;
     var state = window.TAEstudianteState;
     var repository = window.TAEstudianteRepository;
-    var bridgeTitulos = window.TAConsultaEstadoBridge;
+    var servicioTitulos = window.TAConsultaEstadoService;
     var inputCedula;
     var cedulaOriginal;
     var resultadoCedula;
@@ -41,7 +40,7 @@
 
     if (event && event.preventDefault) event.preventDefault();
 
-    if (!ui || !validaciones || !state || !repository || !bridgeTitulos) {
+    if (!ui || !validaciones || !state || !repository || !servicioTitulos) {
       mostrarErrorDependencias();
       return Promise.resolve(null);
     }
@@ -96,14 +95,15 @@
         actualizarBloqueProceso(2, 'completado', 'Datos académicos encontrados', resumenEstudiante(estudiante));
         actualizarBloqueProceso(3, 'trabajando', 'Consultando estado del título', 'Consultando tu envío en la base de Títulos para el período ' + (estudiante.periodoLabel || estudiante.periodoId || '') + '.');
 
-        return conTimeout(
-          consultarEstadoTituloAislado(
-            estudiante.periodoId,
-            estudiante.cedula || resultadoCedula.data,
-            bridgeTitulos
-          ),
-          TIMEOUT_TITULO_MS,
-          'El motor independiente de Títulos no respondió a tiempo. Intenta nuevamente.'
+        /*
+          La consulta de Títulos usa un único timeout: el de TAConsultaEstadoService
+          (7 segundos en consulta.config.js). No existe timeout adicional,
+          iframe, postMessage ni bridge en el flujo principal.
+        */
+        return consultarEstadoTituloDirecto(
+          estudiante.periodoId,
+          estudiante.cedula || resultadoCedula.data,
+          servicioTitulos
         );
       })
       .then(function (resultadoTitulo) {
@@ -204,45 +204,55 @@
       });
   }
 
-  function consultarEstadoTituloAislado(periodoId, cedula, bridge) {
-    if (!bridge || typeof bridge.consultar !== 'function') {
+  function consultarEstadoTituloDirecto(periodoId, cedula, service) {
+    if (!service || typeof service.consultar !== 'function') {
       return Promise.reject(crearError(
-        'MOTOR_TITULOS_NO_DISPONIBLE',
-        'No se pudo iniciar el motor independiente de consulta de Títulos.'
+        'SERVICIO_TITULOS_NO_DISPONIBLE',
+        'No se pudo iniciar el servicio directo de consulta de Títulos.'
       ));
     }
 
-    return bridge.consultar({
-      periodoId: periodoId,
-      cedula: cedula
-    }).then(function (respuesta) {
-      if (!respuesta || respuesta.ok === false) {
-        var error = crearError(
-          respuesta && respuesta.error && respuesta.error.codigo || 'CONSULTA_TITULOS_ERROR',
-          respuesta && respuesta.error && respuesta.error.mensaje || 'No se pudo consultar la base de Títulos.'
-        );
-        error.diagnostico = respuesta && respuesta.diagnostico || null;
-        throw error;
-      }
+    return Promise.resolve(service.consultar(periodoId, cedula))
+      .then(function (resultado) {
+        resultado = resultado || {};
 
-      return {
-        envio: respuesta.encontrado ? (respuesta.envio || null) : null,
-        diagnostico: respuesta.diagnostico || {
-          base: 'titulos-ec2fa',
-          coleccion: 'envios'
+        if (resultado.ok === false) {
+          throw crearError(
+            resultado.codigo || 'CONSULTA_TITULOS_ERROR',
+            resultado.mensaje || 'No se pudo consultar la base de Títulos.'
+          );
         }
-      };
-    }).catch(function (error) {
-      if (error && !error.diagnostico) {
-        error.diagnostico = {
+
+        return {
+          envio: resultado.encontrado ? (resultado.envio || null) : null,
+          diagnostico: {
+            motor: 'DIRECTO_SIN_BRIDGE',
+            estrategia: resultado.estrategia || 'IDENTIDAD_PRIMERO',
+            base: resultado.base || 'titulos-ec2fa',
+            coleccion: resultado.coleccion || 'envios',
+            documentoId: resultado.documentoId || '',
+            ruta: resultado.ruta || '',
+            rutasProbadas: Array.isArray(resultado.rutasProbadas) ? resultado.rutasProbadas.slice() : [],
+            periodoCanonico: resultado.periodoCanonico || String(periodoId || ''),
+            status: resultado.status || 0,
+            duracionMs: Number(resultado.duracionMs || 0)
+          }
+        };
+      })
+      .catch(function (error) {
+        if (!error.codigo) error.codigo = 'CONSULTA_TITULOS_ERROR';
+
+        error.diagnostico = Object.assign({
+          motor: 'DIRECTO_SIN_BRIDGE',
+          estrategia: 'IDENTIDAD_PRIMERO',
           base: 'titulos-ec2fa',
           coleccion: 'envios',
           periodoCanonico: String(periodoId || ''),
           duracionMs: 0
-        };
-      }
-      throw error;
-    });
+        }, error.diagnostico || {});
+
+        throw error;
+      });
   }
 
   function cargarConfiguracionSegura(repository) {
@@ -595,7 +605,8 @@
     var pre = bloque.querySelector('[data-diagnostico-texto]');
     var info = diagnostico || {};
     var lineas = [
-      'Motor: /consulta-estado/',
+      'Motor: ' + (info.motor || 'DIRECTO_SIN_BRIDGE'),
+      'Estrategia: ' + (info.estrategia || 'IDENTIDAD_PRIMERO'),
       'Base: ' + (info.base || 'titulos-ec2fa'),
       'Colección: ' + (info.coleccion || 'envios'),
       'Cédula: ' + String(cedula || (estudiante && estudiante.cedula) || ''),
