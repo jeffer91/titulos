@@ -574,13 +574,153 @@
   }
 
   function clasificarEstadoTitulo(titulo) {
-    var estado = normalizarTexto(titulo && (titulo.estadoRevision || titulo.estadoCoordinador || titulo.estado));
+    titulo = titulo || {};
 
-    if (estado === 'APROBADO') return config.estadosTitulo.aprobado;
-    if (estado === 'DEVUELTO') return config.estadosTitulo.devuelto;
-    if (estado === 'BORRADOR_REINICIADO' || estado === 'ARCHIVADO') return config.estadosTitulo.sinEnviar;
+    var estado = normalizarTexto(titulo.estado);
+    var proceso = normalizarTexto(titulo.estadoProceso);
+    var estadoCoord = normalizarTexto(titulo.estadoCoordinador || (titulo.revisionCoordinador && titulo.revisionCoordinador.estado));
+    var estadoInv = normalizarTexto(titulo.estadoInvestigador || (titulo.revisionInvestigador && titulo.revisionInvestigador.estado));
 
-    return config.estadosTitulo.pendiente;
+    /*
+      El estado global manda sobre estados parciales.
+      Antes se priorizaba estadoCoordinador y un APROBADO_FINAL podía
+      terminar visualizado como pendiente.
+    */
+    if (
+      estado === 'APROBADO_FINAL' ||
+      proceso === 'APROBADO_FINAL' ||
+      (titulo.investigacionRevisada === true && (estadoInv === 'APROBADO' || estadoInv === 'APROBADO_CON_OBSERVACION'))
+    ) {
+      return config.estadosTitulo.aprobado;
+    }
+
+    if (estado === 'DEVUELTO' || proceso === 'DEVUELTO' || estadoCoord === 'DEVUELTO' || estadoInv === 'DEVUELTO') {
+      return config.estadosTitulo.devuelto;
+    }
+
+    if (estado === 'BORRADOR_REINICIADO' || estado === 'ARCHIVADO' || proceso === 'ARCHIVADO') {
+      return config.estadosTitulo.sinEnviar;
+    }
+
+    if (
+      proceso === 'PENDIENTE_COORDINADOR' ||
+      proceso === 'PENDIENTE_INVESTIGADOR' ||
+      estado === 'PENDIENTE_REVISION' ||
+      estado === 'PENDIENTE_COORDINADOR' ||
+      estado === 'PENDIENTE_INVESTIGADOR'
+    ) {
+      return config.estadosTitulo.pendiente;
+    }
+
+    if (estadoInv === 'APROBADO' || estadoInv === 'APROBADO_CON_OBSERVACION') {
+      return config.estadosTitulo.aprobado;
+    }
+
+    return tituloActivo(titulo) ? config.estadosTitulo.pendiente : config.estadosTitulo.sinEnviar;
+  }
+
+  function obtenerEtapaRevision(titulo) {
+    titulo = titulo || {};
+
+    if (!tituloActivo(titulo)) return '';
+
+    var estado = normalizarTexto(titulo.estado);
+    var proceso = normalizarTexto(titulo.estadoProceso);
+    var estadoCoord = normalizarTexto(titulo.estadoCoordinador || (titulo.revisionCoordinador && titulo.revisionCoordinador.estado));
+    var estadoInv = normalizarTexto(titulo.estadoInvestigador || (titulo.revisionInvestigador && titulo.revisionInvestigador.estado));
+    var coordValidado = titulo.validadoCoordinador === true ||
+      titulo.validadoCoordinacion === true ||
+      titulo.coordinadorRevisado === true ||
+      estadoCoord === 'VALIDADO' ||
+      estadoCoord === 'APROBADO';
+    var invRevisado = titulo.investigacionRevisada === true ||
+      estadoInv === 'APROBADO' ||
+      estadoInv === 'APROBADO_CON_OBSERVACION' ||
+      estadoInv === 'DEVUELTO';
+
+    if (
+      estado === 'APROBADO_FINAL' ||
+      proceso === 'APROBADO_FINAL' ||
+      estado === 'DEVUELTO' ||
+      proceso === 'DEVUELTO' ||
+      estado === 'ARCHIVADO' ||
+      proceso === 'ARCHIVADO' ||
+      estado === 'BORRADOR_REINICIADO'
+    ) {
+      return '';
+    }
+
+    if (
+      proceso === 'PENDIENTE_INVESTIGADOR' ||
+      estado === 'PENDIENTE_INVESTIGADOR' ||
+      (coordValidado && !invRevisado && (!estadoInv || estadoInv === 'PENDIENTE'))
+    ) {
+      return 'INVESTIGACION';
+    }
+
+    if (
+      proceso === 'PENDIENTE_COORDINADOR' ||
+      estado === 'PENDIENTE_COORDINADOR' ||
+      estado === 'PENDIENTE_REVISION' ||
+      (!coordValidado && (!estadoCoord || estadoCoord === 'PENDIENTE'))
+    ) {
+      return 'COORDINACION';
+    }
+
+    return '';
+  }
+
+  function obtenerFaltantesRevision(periodoId) {
+    var periodoFiltro = normalizarPeriodoIdCanonico(periodoId);
+
+    return listarTitulos().then(function (titulos) {
+      var coordinacion = {};
+      var investigacion = {};
+
+      (titulos || []).forEach(function (titulo) {
+        if (periodoFiltro && normalizarPeriodoIdCanonico(titulo.periodoId) !== periodoFiltro) return;
+
+        var etapa = obtenerEtapaRevision(titulo);
+        if (!etapa) return;
+
+        var carrera = normalizarCarreraVista(titulo.carrera || titulo.nombreCarrera || titulo.carreraNombre || 'Sin carrera');
+        var mapa = etapa === 'INVESTIGACION' ? investigacion : coordinacion;
+        var key = normalizarTexto(carrera) || 'SIN CARRERA';
+
+        if (!mapa[key]) {
+          mapa[key] = { carrera: carrera || 'Sin carrera', total: 0 };
+        }
+
+        mapa[key].total += 1;
+      });
+
+      function convertir(mapa) {
+        return Object.keys(mapa).map(function (key) {
+          return mapa[key];
+        }).sort(function (a, b) {
+          if (Number(b.total || 0) !== Number(a.total || 0)) return Number(b.total || 0) - Number(a.total || 0);
+          return String(a.carrera || '').localeCompare(String(b.carrera || ''));
+        });
+      }
+
+      var carrerasCoordinacion = convertir(coordinacion);
+      var carrerasInvestigacion = convertir(investigacion);
+      var totalCoordinacion = carrerasCoordinacion.reduce(function (suma, item) { return suma + Number(item.total || 0); }, 0);
+      var totalInvestigacion = carrerasInvestigacion.reduce(function (suma, item) { return suma + Number(item.total || 0); }, 0);
+
+      return {
+        periodoId: periodoFiltro || '',
+        coordinacion: {
+          total: totalCoordinacion,
+          carreras: carrerasCoordinacion
+        },
+        investigacion: {
+          total: totalInvestigacion,
+          carreras: carrerasInvestigacion
+        },
+        total: totalCoordinacion + totalInvestigacion
+      };
+    });
   }
 
   function tituloActivo(titulo) {
@@ -1180,6 +1320,8 @@
     obtenerDetalleEstudiante: obtenerDetalleEstudiante,
     archivarIntento: archivarIntento,
     clasificarEstadoTitulo: clasificarEstadoTitulo,
+    obtenerEtapaRevision: obtenerEtapaRevision,
+    obtenerFaltantesRevision: obtenerFaltantesRevision,
     formatearPeriodoId: formatearPeriodoId,
     normalizarPeriodoIdCanonico: normalizarPeriodoIdCanonico,
     normalizarCarreraVista: normalizarCarreraVista,
