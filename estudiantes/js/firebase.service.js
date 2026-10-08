@@ -20,6 +20,18 @@
     matriculas: true
   });
 
+  var COLECCIONES_TITULOS_LECTURA = Object.freeze({
+    configuracion: true,
+    envios: true,
+    workflow_events: true,
+    ia: true
+  });
+
+  var COLECCIONES_TITULOS_ESCRITURA = Object.freeze({
+    envios: true,
+    workflow_events: true
+  });
+
   var FIREBASE_VERSION = '10.12.5';
   var FIREBASE_APP_CDN = 'https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-app-compat.js';
   var FIREBASE_FIRESTORE_CDN = 'https://www.gstatic.com/firebasejs/' + FIREBASE_VERSION + '/firebase-firestore-compat.js';
@@ -204,8 +216,27 @@
   }
 
   function asegurarColeccionTitulos(collectionName) {
-    if (COLECCIONES_ACADEMICAS[String(collectionName || '')]) {
-      throw new Error('Separación de bases: ' + collectionName + ' pertenece a utet-4387a y no puede consultarse en titulos-ec2fa.');
+    var nombre = String(collectionName || '');
+
+    if (COLECCIONES_ACADEMICAS[nombre]) {
+      throw new Error('Separación de bases: ' + nombre + ' pertenece a utet-4387a y no puede consultarse en titulos-ec2fa.');
+    }
+
+    if (!COLECCIONES_TITULOS_LECTURA[nombre]) {
+      var error = new Error('Backend de Estudiantes: la colección ' + nombre + ' no está autorizada para esta app.');
+      error.codigo = 'COLECCION_NO_AUTORIZADA_ESTUDIANTES';
+      throw error;
+    }
+  }
+
+  function asegurarEscrituraTitulos(collectionName) {
+    var nombre = String(collectionName || '');
+    asegurarColeccionTitulos(nombre);
+
+    if (!COLECCIONES_TITULOS_ESCRITURA[nombre]) {
+      var error = new Error('Backend de Estudiantes: no se permite escribir en la colección ' + nombre + '.');
+      error.codigo = 'ESCRITURA_NO_AUTORIZADA_ESTUDIANTES';
+      throw error;
     }
   }
 
@@ -245,19 +276,19 @@
   function guardarDocumento(collectionName, documentId, data, options) {
     var merge = Boolean(options && options.merge);
     if (!collectionName || !documentId) return Promise.reject(new Error('No se pudo guardar: colección o documento inválido.'));
-    asegurarColeccionTitulos(collectionName);
+    asegurarEscrituraTitulos(collectionName);
     return getDbTitulos().collection(collectionName).doc(String(documentId)).set(agregarFechas(data || {}, merge), { merge: merge });
   }
 
   function actualizarDocumento(collectionName, documentId, data) {
     if (!collectionName || !documentId) return Promise.reject(new Error('No se pudo actualizar: colección o documento inválido.'));
-    asegurarColeccionTitulos(collectionName);
+    asegurarEscrituraTitulos(collectionName);
     return getDbTitulos().collection(collectionName).doc(String(documentId)).update(Object.assign({}, data || {}, { actualizadoEn: serverTimestamp() }));
   }
 
   function agregarDocumento(collectionName, data) {
     if (!collectionName) return Promise.reject(new Error('No se pudo agregar: colección inválida.'));
-    asegurarColeccionTitulos(collectionName);
+    asegurarEscrituraTitulos(collectionName);
     return getDbTitulos().collection(collectionName).add(agregarFechas(data || {}, false));
   }
 
