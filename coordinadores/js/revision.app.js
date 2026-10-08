@@ -3,7 +3,7 @@
   'use strict';
 
   var config = window.TA_COORDINADORES_CONFIG;
-  var firebaseService = window.TACoordFirebaseService;
+  var firebaseService = window.TACoordinadorFirebaseService;
   var repository = window.TACoordRepository;
   var coord = null;
   var filtro = null;
