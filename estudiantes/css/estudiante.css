@@ -1500,3 +1500,57 @@ small {
     grid-column: auto;
   }
 }
+
+
+/* =========================================================
+   Consulta académica siempre interactiva · build 20261008-49
+   ========================================================= */
+body.ta-query-active {
+  pointer-events: auto !important;
+  overflow-y: auto !important;
+}
+
+/*
+  La consulta de estudiante/título NO usa el modal de IA.
+  Cualquier instancia heredada queda fuera del flujo mientras consulta.
+*/
+body.ta-query-active .ia-loading-modal,
+body.ta-query-active #modalLoadingIA,
+body.ta-query-active #iaLoadingModal,
+.ia-loading-modal[data-ta-query-disabled="true"],
+#modalLoadingIA[data-ta-query-disabled="true"],
+#iaLoadingModal[data-ta-query-disabled="true"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.ia-loading-modal.is-hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* El diagnóstico debe poder abrirse, seleccionarse y copiarse durante la consulta. */
+#consultaProcesoBloque,
+#consultaProcesoBloque .consulta-bloque__diagnostico,
+#consultaProcesoBloque .consulta-bloque__diagnostico summary,
+#consultaProcesoBloque .consulta-bloque__diagnostico-toolbar,
+#consultaProcesoBloque .consulta-bloque__copy,
+#consultaProcesoBloque [data-diagnostico-texto] {
+  pointer-events: auto !important;
+}
+
+body.ta-query-active #consultaProcesoBloque {
+  position: relative;
+  z-index: 10000;
+}
+
+#consultaProcesoBloque .consulta-bloque__diagnostico summary {
+  cursor: pointer !important;
+  user-select: text;
+}
+
+#consultaProcesoBloque [data-diagnostico-texto] {
+  user-select: text;
+}
