@@ -8,6 +8,7 @@
 
   var modulos = {
     inicio: window.TAAdminInicio,
+    faltantes: window.TAAdminFaltantes,
     periodos: window.TAAdminPeriodos,
     coordinadores: window.TAAdminCoordinadores,
     investigadores: window.TAAdminInvestigadores,
@@ -78,12 +79,17 @@
   function conectarEventosGlobales() {
     window.addEventListener('admin:periodos-actualizados', function () {
       estado.modulosCargados.inicio = false;
+      estado.modulosCargados.faltantes = false;
       estado.modulosCargados.estudiantes = false;
       estado.modulosCargados.coordinadores = false;
       estado.modulosCargados.investigadores = false;
 
       if (estado.tabActual === 'inicio') {
         cargarModulo('inicio', true);
+      }
+
+      if (estado.tabActual === 'faltantes') {
+        cargarModulo('faltantes', true);
       }
 
       if (estado.tabActual === 'estudiantes') {
@@ -96,6 +102,16 @@
 
       if (estado.tabActual === 'investigadores') {
         cargarModulo('investigadores', true);
+      }
+    });
+
+    window.addEventListener('admin:faltantes-actualizados', function (event) {
+      var total = event && event.detail ? Number(event.detail.total || 0) : 0;
+      var badge = ui.qs('#faltantesSidebarBadge');
+
+      if (badge) {
+        badge.textContent = String(total);
+        badge.classList.toggle('is-zero', total === 0);
       }
     });
 
@@ -234,6 +250,7 @@
   function mostrarMensajeModulo(nombreTab, mensaje, tipo) {
     var mapa = {
       inicio: '#inicioMensaje',
+      faltantes: '#faltantesMensaje',
       periodos: '#periodosMensaje',
       coordinadores: '#coordinadoresMensaje',
       investigadores: '#investigadoresMensaje',
