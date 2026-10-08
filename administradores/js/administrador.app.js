@@ -35,6 +35,30 @@
 
     ui.setText('#adminEstadoGeneral', 'Conectando');
 
+    var seguro = window.TAAdministradorSeguro;
+    if (seguro && seguro.activo && seguro.activo()) {
+      seguro.iniciar().then(function (autenticado) {
+        if (!autenticado) {
+          ui.setText('#adminEstadoGeneral', 'Sesión requerida');
+          return false;
+        }
+        return repository.iniciarFirebase().then(function () {
+          estado.firebaseListo = true;
+          estado.inicializado = true;
+          document.body.classList.remove('admin-auth-pending');
+          ui.setText('#adminEstadoGeneral', 'Acceso verificado');
+          activarTab('coordinadores');
+          return true;
+        });
+      }).catch(function (error) {
+        estado.firebaseListo = false;
+        ui.setText('#adminEstadoGeneral', 'Acceso denegado');
+        var estadoLogin = document.getElementById('adminLoginMensaje');
+        if (estadoLogin) estadoLogin.textContent = obtenerMensaje(error, 'No autorizado');
+      });
+      return;
+    }
+
     repository.iniciarFirebase()
       .then(function () {
         estado.firebaseListo = true;
@@ -206,6 +230,16 @@
   }
 
   function cargarModulo(nombreTab, forzar) {
+    var seguro = window.TAAdministradorSeguro;
+    if (seguro && seguro.activo && seguro.activo() &&
+        ['coordinadores','investigadores','periodos','ajustes'].indexOf(nombreTab) === -1) {
+      mostrarMensajeModulo(nombreTab, {
+        titulo:'Operación pendiente de migración',
+        mensaje:'Esta sección todavía no tiene endpoints autorizados del backend.',
+        detalle:'No se permite consultar directamente Firebase desde el modo seguro.'
+      }, 'error');
+      return Promise.resolve(false);
+    }
     var modulo = modulos[nombreTab];
 
     if (!modulo || typeof modulo.cargar !== 'function') return Promise.resolve(false);

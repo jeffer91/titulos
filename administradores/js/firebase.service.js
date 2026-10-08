@@ -114,6 +114,11 @@
   }
 
   function getDb() {
+    if (window.TA_ADMIN_SEGURIDAD && window.TA_ADMIN_SEGURIDAD.habilitado === true) {
+      var blocked = new Error('El modo seguro prohíbe el acceso directo a Firestore.');
+      blocked.codigo = 'ADMIN_FIRESTORE_DIRECTO_BLOQUEADO';
+      throw blocked;
+    }
     if (!initialized || !dbTitulos) {
       var error = new Error('Firebase de Títulos del Administrador no está inicializado.');
       error.codigo = 'FIREBASE_ADMIN_TITULOS_NO_INICIALIZADO';
@@ -123,6 +128,11 @@
   }
 
   function getDbAcademico() {
+    if (window.TA_ADMIN_SEGURIDAD && window.TA_ADMIN_SEGURIDAD.habilitado === true) {
+      var blocked = new Error('La base académica solo puede consultarse desde el backend autorizado.');
+      blocked.codigo = 'ADMIN_ACADEMICO_DIRECTO_BLOQUEADO';
+      throw blocked;
+    }
     if (!initialized || !dbAcademico) {
       var error = new Error('Firebase académico del Administrador no está inicializado.');
       error.codigo = 'FIREBASE_ADMIN_ACADEMICO_NO_INICIALIZADO';

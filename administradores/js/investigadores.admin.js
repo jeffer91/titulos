@@ -11,6 +11,10 @@
   var pinesSesion = {};
 
   function iniciar() {
+    if(modoSeguro()){
+      var pin=document.getElementById('investigadorPinCrear');
+      if(pin){pin.required=false;pin.disabled=true;}
+    }
     var actualizar = ui.qs('#btnActualizarInvestigadores');
     var abrirCrear = ui.qs('#btnAbrirCrearInvestigador');
     var formCrear = ui.qs('#formCrearInvestigador');

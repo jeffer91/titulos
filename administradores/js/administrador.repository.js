@@ -4,12 +4,15 @@
 
   var config = window.TA_ADMINISTRADORES_CONFIG;
   var firebaseService = window.TAAdminFirebaseService;
+  var seguro = window.TAAdministradorSeguro;
+  function modoSeguro(){return Boolean(seguro&&seguro.activo&&seguro.activo());}
 
   var estado = {
     firebaseListo: false
   };
 
   function iniciarFirebase() {
+    if(modoSeguro())return seguro.sesion().then(function(){estado.firebaseListo=true;return true;});
     if (estado.firebaseListo) return Promise.resolve(true);
 
     if (!firebaseService || !firebaseService.iniciar) {
@@ -34,6 +37,7 @@
   }
 
   function cargarAppConfig() {
+    if(modoSeguro())return seguro.config().then(function(data){return Object.assign({},config.defaultAppConfig,data||{});});
     return leerDocumento(config.collections.config, config.documents.appConfig)
       .then(function (data) {
         return Object.assign({}, config.defaultAppConfig, data || {});
@@ -41,6 +45,7 @@
   }
 
   function guardarAppConfig(data) {
+    if(modoSeguro())return seguro.guardarConfig(data);
     var payload = Object.assign({}, data || {}, {
       actualizadoEn: ahoraIso()
     });
@@ -49,18 +54,21 @@
   }
 
   function listarEstudiantes() {
+    if(modoSeguro())return seguro.noMigrado('consultas académicas');
     return listarColeccion(config.collections.estudiantes).then(function (docs) {
       return deduplicarEstudiantesBasico(docs.map(normalizarEstudiante));
     });
   }
 
   function listarTitulos() {
+    if(modoSeguro())return seguro.noMigrado('consulta general de expedientes');
     return listarColeccion(config.collections.titulos).then(function (docs) {
       return docs.map(normalizarTitulo);
     });
   }
 
   function listarRevisionesInvestigacion() {
+    if(modoSeguro())return seguro.noMigrado('reporte general de revisiones');
     var reportService = window.TARevisionReportService;
     if (!reportService || typeof reportService.normalizarLista !== 'function') {
       return Promise.reject(new Error('No se cargó el motor de reportes de revisiones.'));
@@ -72,6 +80,7 @@
   }
 
   function listarCoordinadores() {
+    if(modoSeguro())return seguro.coordinadores().then(function(docs){return docs.map(normalizarCoordinador);});
     return listarColeccion(config.collections.coordinadores).then(function (docs) {
       return docs.map(normalizarCoordinador).sort(function (a, b) {
         return a.nombre.localeCompare(b.nombre);
@@ -80,6 +89,7 @@
   }
 
   function listarPeriodos() {
+    if(modoSeguro())return seguro.llamar('periodos');
     return Promise.all([
       cargarAppConfig(),
       listarEstudiantes(),
@@ -181,6 +191,7 @@
   }
 
   function obtenerCarreras() {
+    if(modoSeguro())return seguro.carreras();
     return listarEstudiantes().then(function (estudiantes) {
       var mapa = {};
 
@@ -207,6 +218,9 @@
   }
 
   function crearCoordinador(nombre) {
+    if(modoSeguro())return seguro.crearCoordinador({nombre:nombre,
+      email:(document.getElementById('coordEmailSeguro')||{}).value||'',
+      authUid:(document.getElementById('coordUidSeguro')||{}).value||''});
     var limpio = limpiarTexto(nombre);
     var id = generarIdDesdeNombre(limpio);
 
@@ -236,6 +250,7 @@
   }
 
   function eliminarCoordinador(coordinadorId) {
+    if(modoSeguro())return seguro.coordinadorEstado({id:coordinadorId,activo:false});
     if (!coordinadorId) {
       return Promise.reject(new Error('Selecciona un coordinador.'));
     }
@@ -250,6 +265,7 @@
   }
 
   function asignarCarreraACoordinador(nombreCarrera, coordinadorId) {
+    if(modoSeguro())return seguro.coordinadorCarrera({id:coordinadorId,carrera:nombreCarrera,asignar:true});
     var carreraLimpia = normalizarCarreraVista(nombreCarrera);
     var carreraKey = normalizarTexto(carreraLimpia);
 
@@ -354,6 +370,7 @@
   }
 
   function normalizarDatosAutomaticamente() {
+    if(modoSeguro())return seguro.noMigrado('normalización global de datos');
     var resultado = {
       ok: true,
       cambios: 0,
@@ -948,6 +965,7 @@
   }
 
   function listarColeccion(nombre) {
+    if(modoSeguro())return seguro.noMigrado('lectura directa '+nombre);
     if (firebaseService && firebaseService.listarColeccion) {
       return firebaseService.listarColeccion(nombre).then(normalizarListaDocumentos);
     }
@@ -968,6 +986,7 @@
   }
 
   function leerDocumento(coleccion, id) {
+    if(modoSeguro())return seguro.noMigrado('lectura directa '+coleccion);
     if (firebaseService && firebaseService.leerDocumento) {
       return firebaseService.leerDocumento(coleccion, id);
     }
@@ -983,6 +1002,7 @@
   }
 
   function guardarDocumento(coleccion, id, data, merge) {
+    if(modoSeguro())return seguro.noMigrado('escritura directa '+coleccion);
     if (firebaseService && firebaseService.guardarDocumento) {
       return firebaseService.guardarDocumento(coleccion, id, data, merge);
     }
@@ -995,6 +1015,7 @@
   }
 
   function actualizarDocumento(coleccion, id, data) {
+    if(modoSeguro())return seguro.noMigrado('actualización directa '+coleccion);
     if (!id) return Promise.resolve(false);
 
     if (firebaseService && firebaseService.actualizarDocumento) {

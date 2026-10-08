@@ -3,6 +3,8 @@
   'use strict';
 
   var config = window.TA_ADMINISTRADORES_CONFIG;
+  var seguro=window.TAAdministradorSeguro;
+  function modoSeguro(){return Boolean(seguro&&seguro.activo&&seguro.activo());}
   var ui = window.TAAdminUI;
   var repository = window.TAAdministradorRepository;
   var firebaseService = window.TAAdminFirebaseService;
@@ -37,6 +39,10 @@
   }
 
   function cargar() {
+    if(modoSeguro()){
+      ui.qsa('[data-save-provider], [data-test-provider]').forEach(function(b){b.disabled=true;b.title='La clave se configura desde Secret Manager, no desde el navegador.';});
+      ui.qsa('[id$="ApiKey"]').forEach(function(e){e.value='';e.disabled=true;e.placeholder='Clave gestionada exclusivamente en servidor';});
+    }
     ui.showStatus('#ajustesMensaje', 'Cargando ajustes...', 'info');
 
     return Promise.all([
@@ -86,6 +92,7 @@
   }
 
   function leerProveedor(providerId) {
+    if(modoSeguro())return seguro.proveedores().then(function(data){return (data||[]).filter(function(d){return d.id===providerId;})[0]||null;});
     if (!firebaseService || !firebaseService.leerDocumento) {
       return Promise.reject(new Error('No se pudo leer la configuración del proveedor.'));
     }
@@ -96,6 +103,10 @@
   }
 
   function guardarProveedor(providerId, button) {
+    if(modoSeguro()){
+      ui.showStatus('#ajustesMensaje','Por seguridad, las claves de IA se configuran en Google Secret Manager. No se guardan en Firestore ni en el navegador.','error');
+      return;
+    }
     var proveedorBase = buscarProveedorBase(providerId);
     var form = ui.obtenerProviderForm(providerId);
     var validacion = validarFormularioProveedor(form, proveedorBase);
@@ -218,6 +229,10 @@
   }
 
   function probarProveedor(providerId, button) {
+    if(modoSeguro()){
+      ui.showStatus('#ajustesMensaje','Prueba no disponible desde navegador: usa una operación autenticada de backend.','error');
+      return;
+    }
     var proveedorBase = buscarProveedorBase(providerId);
     var form = ui.obtenerProviderForm(providerId);
     var validacion = validarFormularioPrueba(form, proveedorBase);

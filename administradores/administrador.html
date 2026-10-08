@@ -6,8 +6,30 @@
   <title>Panel de Titulación | ITSQMET</title>
   <link rel="stylesheet" href="css/administrador.css?v=20261008-admin4" />
   <link rel="stylesheet" href="css/visibility-fixes.css?v=20261008-admin4" />
+  <style>
+    #adminLoginSeguro[hidden],#adminLoginSeguroForm[hidden],#adminSalirSeguro[hidden]{display:none!important}
+    .admin-auth-pending .admin-shell{display:none!important}
+    .admin-secure-only{display:none!important}
+    .admin-modo-seguro .admin-secure-only{display:block!important}
+    .admin-modo-seguro #investigadorPinCrear,
+    .admin-modo-seguro #btnGenerarPinCrear,
+    .admin-modo-seguro #modalPinInvestigador{display:none!important}
+  </style>
 </head>
 <body>
+  <section id="adminLoginSeguro" hidden style="max-width:460px;margin:8vh auto;padding:28px;border:1px solid #cbd5e1;border-radius:14px">
+    <h1>Acceso institucional de Administración</h1>
+    <p>Identifícate con una cuenta que tenga permisos administrativos verificados.</p>
+    <form id="adminLoginSeguroForm">
+      <label for="adminLoginCorreo">Correo institucional</label>
+      <input id="adminLoginCorreo" type="email" required autocomplete="username" style="width:100%;margin:7px 0 18px;padding:10px" />
+      <label for="adminLoginClave">Contraseña</label>
+      <input id="adminLoginClave" type="password" required autocomplete="current-password" style="width:100%;margin:7px 0 18px;padding:10px" />
+      <button class="btn btn--primary" type="submit">Ingresar</button>
+    </form>
+    <button id="adminSalirSeguro" class="btn btn--secondary" type="button" hidden>Cerrar sesión</button>
+    <p id="adminLoginMensaje" role="status"></p>
+  </section>
   <div class="admin-shell">
     <aside class="admin-sidebar" aria-label="Menú administrador">
       <div class="admin-brand">
@@ -350,6 +372,13 @@
             <div class="field field--full">
               <label for="coordNombreInput">Nombre del coordinador</label>
               <input id="coordNombreInput" name="nombre" type="text" placeholder="Ejemplo: Amado Chiluisa" />
+              <div class="admin-secure-only" style="margin-top:14px">
+                <label for="coordEmailSeguro">Correo institucional vinculado</label>
+                <input id="coordEmailSeguro" type="email" placeholder="coordinador@instituto.edu.ec" />
+                <label for="coordUidSeguro">UID de Firebase Authentication (recomendado)</label>
+                <input id="coordUidSeguro" type="text" placeholder="UID proporcionado por Firebase Authentication" />
+                <small>En modo seguro, asigna el rol coordinador a la cuenta real desde el servidor.</small>
+              </div>
               <small>El ID se generará automáticamente desde el nombre.</small>
             </div>
             <div class="form-actions field--full">
@@ -873,6 +902,11 @@
           <div class="field">
             <label for="investigadorEmailInput">Correo <span class="field-optional">opcional</span></label>
             <input id="investigadorEmailInput" type="email" placeholder="correo@dominio.edu" />
+            <div class="admin-secure-only" style="margin-top:12px">
+              <label for="investigadorUidSeguro">UID de Firebase Authentication</label>
+              <input id="investigadorUidSeguro" placeholder="UID de cuenta verificada" />
+              <small>El nuevo acceso se realiza con Firebase Authentication y rol investigador, no por PIN.</small>
+            </div>
           </div>
           <div class="field field--full">
             <label for="investigadorNombreInput">Nombres y apellidos</label>
@@ -989,24 +1023,26 @@
   </section>
 
   <script src="js/firebase.config.js"></script>
+  <script src="js/secure.config.js?v=20261008-admin5"></script>
+  <script src="js/secure.service.js?v=20261008-admin5"></script>
   <script src="js/app.config.js"></script>
-  <script src="js/firebase.service.js"></script>
+  <script src="js/firebase.service.js?v=20261008-admin5"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="js/reporte-revisiones.service.js?v=20261008-admin4"></script>
   <script src="js/pdf-revisiones.service.js?v=20261008-admin4"></script>
   <script src="js/admin.ui.js?v=20261008-admin4"></script>
 
-  <script src="js/administrador.repository.js?v=20261008-admin4"></script>
+  <script src="js/administrador.repository.js?v=20261008-admin5"></script>
   <script src="js/inicio.admin.js?v=20261008-admin2"></script>
   <script src="js/faltantes.admin.js?v=20261008-admin2"></script>
   <script src="js/reportes.revisiones.admin.js?v=20261008-admin4"></script>
   <script src="js/periodos.admin.js"></script>
-  <script src="js/coordinadores.admin.js"></script>
-  <script src="js/investigadores.admin.js?v=20261006-4"></script>
+  <script src="js/coordinadores.admin.js?v=20261008-admin5"></script>
+  <script src="js/investigadores.admin.js?v=20261008-admin5"></script>
   <script src="js/estudiantes.admin.js"></script>
-  <script src="js/ajustes.admin.js"></script>
+  <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>
-  <script src="js/administrador.app.js?v=20261008-admin4"></script>
+  <script src="js/administrador.app.js?v=20261008-admin5"></script>
 </body>
 </html>
