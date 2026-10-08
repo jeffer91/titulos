@@ -28,3 +28,21 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Credenciales, certificados y archivos locales privados
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*service-account*.json
+*service_account*.json
+*adminsdk*.json
+*.pem
+*.p12
+*.key
+firebase-debug.log
+firebase-debug.*.log
+.site/
+

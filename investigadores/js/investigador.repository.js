@@ -53,31 +53,10 @@
           throw new Error('PIN incorrecto.');
         }
 
-        if (investigador.pinActivo) {
-          return investigador;
+        if (!investigador.pinActivo) {
+          throw new Error('Tu acceso está desactivado. Solicita activación a Administración.');
         }
-
-        /*
-          Los PIN asignados por Administración pueden ingresar directamente.
-          Si el hash es correcto, se activa el acceso en ese momento para
-          eliminar el bloqueo histórico de "pendiente de activación".
-        */
-        var ahora = new Date().toISOString();
-
-        return firebaseService.guardarDocumento(config.collections.investigadores, investigador.id, {
-          pinActivo: true,
-          pinActivadoEn: ahora,
-          pinActivadoPor: 'validacion_pin',
-          pinDesactivadoEn: null
-        }, { merge: true }).then(function () {
-          investigador.pinActivo = true;
-          investigador.raw = Object.assign({}, investigador.raw || {}, {
-            pinActivo: true,
-            pinActivadoEn: ahora,
-            pinActivadoPor: 'validacion_pin'
-          });
-          return investigador;
-        });
+        return investigador;
       });
   }
 
@@ -126,6 +105,7 @@
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título.'));
     if (!estaHabilitadoPorCoordinador(titulo)) return Promise.reject(new Error('Este título todavía no está habilitado por Coordinación.'));
     if (!investigador || !investigador.pinActivo) return Promise.reject(new Error('El acceso del investigador no está activo.'));
+    if (!perteneceAlInvestigador(titulo, investigador)) return Promise.reject(new Error('El título no pertenece a tus carreras asignadas.'));
 
     var estadoRevision = estadoDesdeAccion(accion);
     var comentario = limpiar(observacion);
@@ -257,7 +237,7 @@
 
   function perteneceAlInvestigador(titulo, investigador) {
     var carreras = investigador && investigador.carreras || [];
-    if (!carreras.length) return true;
+    if (!carreras.length) return false;
     var carrera = normalizarTexto(titulo.carrera);
     var codigo = normalizarTexto(titulo.codigoCarrera);
     return carreras.some(function (item) {

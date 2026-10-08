@@ -1,0 +1,11 @@
+'use strict';
+const {onRequest} = require('firebase-functions/v2/https');
+const {initializeApp,getApps} = require('firebase-admin/app');
+const {getAuth} = require('firebase-admin/auth');
+if (!getApps().length) initializeApp();
+const settings = {region:'us-central1',cors:false,maxInstances:10,invoker:'public'};
+const options = {auth:getAuth(),origins:process.env.CORS_ORIGINS||''};
+exports.estudiantesApi = onRequest(settings,require('./modules/estudiantes').crearModulo(options));
+exports.coordinadoresApi = onRequest(settings,require('./modules/coordinadores').crearModulo(options));
+exports.investigadoresApi = onRequest(settings,require('./modules/investigadores').crearModulo(options));
+exports.administradoresApi = onRequest(settings,require('./modules/administradores').crearModulo(options));

@@ -44,13 +44,35 @@ jobs:
           node tests/administrador-faltantes.test.js
           node tests/reportes-revisiones.test.js
 
+      - name: Probar aislamiento y permisos de los cuatro backends
+        run: node --test functions/test/*.test.js
+
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
+
+      - name: Aislar sitio público del backend y credenciales
+        run: |
+          mkdir -p .site
+          rsync -a ./ .site/ \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.site/' \
+            --exclude='functions/' \
+            --exclude='tests/' \
+            --exclude='node_modules/' \
+            --exclude='.env*' \
+            --exclude='*service-account*.json' \
+            --exclude='*service_account*.json' \
+            --exclude='*adminsdk*.json' \
+            --exclude='*.pem' \
+            --exclude='*.p12' \
+            --exclude='*.key' \
+            --exclude='firebase.json'
 
       - name: Preparar sitio estático
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: .site
 
       - name: Esperar disponibilidad del artefacto
         run: sleep 5
