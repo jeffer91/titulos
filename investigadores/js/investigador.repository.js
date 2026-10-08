@@ -14,11 +14,17 @@
 
     return firebaseService.leerDocumento(config.collections.investigadores, id)
       .then(function (doc) {
-        if (doc) return normalizarInvestigador(doc);
+        if (doc) {
+          var encontradoDirecto = normalizarInvestigador(doc);
+          if (encontradoDirecto.cedula !== id)
+            throw new Error('La cédula del registro de Firebase no coincide. Solicita revisión a Administración.');
+          return encontradoDirecto;
+        }
         return firebaseService.listarDocumentos(config.collections.investigadores, { limit: 1000 }).then(function (docs) {
-          var encontrado = (docs || []).map(normalizarInvestigador).filter(function (item) { return item.cedula === id; })[0];
-          if (!encontrado) throw new Error('Tu cédula no consta en el registro de investigadores. Comunícate con Administración.');
-          return encontrado;
+          var candidatos = (docs || []).map(normalizarInvestigador).filter(function (item) { return item.cedula === id; });
+          if (!candidatos.length) throw new Error('Tu cédula no consta en el registro de investigadores. Comunícate con Administración.');
+          if (candidatos.length > 1) throw new Error('Hay varios registros para esta cédula. Administración debe resolverlos antes del acceso.');
+          return candidatos[0];
         });
       })
       .then(function (investigador) {
@@ -55,7 +61,7 @@
     return hashPin(investigador.cedula || investigador.id, pin)
       .then(function (hash) {
         if (!compararSeguro(hash, investigador.pinHash)) {
-          throw new Error('PIN incorrecto.');
+          throw new Error('PIN incorrecto para el registro guardado en Firebase. Solicita a Administración comprobar o restablecer tu PIN.');
         }
 
         if (!investigador.pinActivo) {

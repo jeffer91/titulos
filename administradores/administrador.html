@@ -957,7 +957,7 @@
           <div class="field field--full">
             <label for="investigadorNuevoPin">Nuevo PIN</label>
             <div class="pin-input-row">
-              <input id="investigadorNuevoPin" type="text" inputmode="numeric" autocomplete="off" minlength="4" maxlength="8" placeholder="4 dígitos" required />
+              <input id="investigadorNuevoPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="4" placeholder="4 dígitos" required />
               <button class="btn btn--secondary" type="button" id="btnGenerarPinCambio">Generar PIN</button>
             </div>
           </div>
@@ -978,6 +978,7 @@
 
         <div class="modal__actions">
           <button class="btn btn--ghost" type="button" id="btnCancelarPinInvestigador">Cancelar</button>
+          <button class="btn btn--secondary" type="button" id="btnComprobarPinInvestigador">Comprobar PIN registrado</button>
           <button class="btn btn--primary" type="submit" id="btnGuardarPinInvestigador">Guardar y verificar</button>
         </div>
       </form>
@@ -1039,7 +1040,7 @@
   <script src="js/reportes.revisiones.admin.js?v=20261008-admin4"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js?v=20261008-admin5"></script>
-  <script src="js/investigadores.admin.js?v=20261008-admin5"></script>
+  <script src="js/investigadores.admin.js?v=20261008-pin-fix1"></script>
   <script src="js/estudiantes.admin.js"></script>
   <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>

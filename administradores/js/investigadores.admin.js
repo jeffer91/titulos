@@ -5,6 +5,8 @@
   var ui = window.TAAdminUI;
   var firebaseService = window.TAAdminFirebaseService;
   var config = window.TA_ADMINISTRADORES_CONFIG;
+  var seguro = window.TAAdministradorSeguro;
+  function modoSeguro(){return Boolean(seguro && seguro.activo && seguro.activo());}
 
   var investigadores = [];
   var investigadorPinActual = null;
@@ -41,6 +43,8 @@
     var generarCambio = ui.qs('#btnGenerarPinCambio');
     var copiarCrear = ui.qs('#btnCopiarPinCreado');
     var copiarCambio = ui.qs('#btnCopiarPinCambiado');
+    var comprobarPin = ui.qs('#btnComprobarPinInvestigador');
+    if(comprobarPin)comprobarPin.addEventListener('click',verificarPinIngresado);
 
     if (generarCrear) generarCrear.addEventListener('click', function () {
       ui.setValue('#investigadorPinCrear', generarPin4());
@@ -75,8 +79,9 @@
   function cargar() {
     ui.showStatus('#investigadoresMensaje', 'Cargando investigadores...', 'info');
 
-    return firebaseService.listarDocumentos(config.collections.investigadores, { limit: 1000 })
-      .then(function (docs) {
+    var consulta = modoSeguro() ? seguro.investigadores() :
+      firebaseService.listarDocumentos(config.collections.investigadores, { limit: 1000 });
+    return consulta.then(function (docs) {
         investigadores = (docs || []).map(normalizarInvestigador).sort(function (a, b) {
           return a.nombre.localeCompare(b.nombre);
         });
@@ -265,8 +270,57 @@
     if (recibo) recibo.classList.add('is-hidden');
   }
 
+  // Comprueba el PIN indicado contra la versión almacenada SIN modificar el registro
+  // ni enviar PIN, hash o cédula a logs externos. No sustituye a Auth seguro.
+  function verificarPinIngresado() {
+    if(modoSeguro())return;
+    var actual = investigadorPinActual;
+    var pin = ui.value('#investigadorNuevoPin');
+    var button = ui.qs('#btnComprobarPinInvestigador');
+    if(!actual || !/^\d{4}$/.test(pin)){
+      ui.showStatus('#modalPinInvestigadorMensaje','Selecciona al investigador e ingresa un PIN de 4 dígitos.','warning');
+      return;
+    }
+    ui.setLoading(button,true,'Comprobando...');
+    ui.showStatus('#modalPinInvestigadorMensaje','Comprobando el PIN guardado sin modificarlo...','info');
+    return Promise.all([
+      hashPin(actual.cedula,pin),
+      firebaseService.leerDocumento(config.collections.investigadores,actual.id)
+    ]).then(function(resultados){
+      var esperado=resultados[0],doc=resultados[1];
+      if(!doc)throw new Error('El documento de este investigador no existe en Firebase.');
+      var cedulaGuardada=soloNumeros(doc.cedula||doc.identificacion||doc.numeroIdentificacion||doc.id);
+      if(cedulaGuardada!==actual.cedula){
+        throw new Error('La cédula guardada no corresponde a este investigador. No se cambiará su PIN.');
+      }
+      if(!doc.pinHash){
+        ui.showStatus('#modalPinInvestigadorMensaje','No hay PIN registrado para esta cédula. Usa Guardar y verificar para asignarlo.','warning');
+        return false;
+      }
+      if(String(doc.pinHash).toLowerCase()!==esperado){
+        ui.showStatus('#modalPinInvestigadorMensaje',
+          'El PIN ingresado NO coincide con el guardado en Firebase. Usa Guardar y verificar para restablecerlo.', 'warning');
+        return false;
+      }
+      if(doc.activo===false||doc.pinActivo!==true){
+        ui.showStatus('#modalPinInvestigadorMensaje','El PIN coincide, pero el acceso está desactivado. Actívalo desde Administración.','warning');
+        return true;
+      }
+      ui.showStatus('#modalPinInvestigadorMensaje','PIN correcto: coincide con el hash de Firebase y el acceso está activo.','success');
+      return true;
+    }).catch(function(error){
+      ui.showStatus('#modalPinInvestigadorMensaje',mensaje(error,'No se pudo verificar el PIN.'),'warning');
+      return false;
+    }).finally(function(){ui.setLoading(button,false);});
+  }
+
   function guardarPinIndividual(event) {
     event.preventDefault();
+    if(modoSeguro()){
+      ui.showStatus('#modalPinInvestigadorMensaje',
+        'El modo seguro utiliza Firebase Authentication. No se permite actualizar PINs heredados.', 'warning');
+      return;
+    }
 
     if (!investigadorPinActual) {
       ui.showStatus('#modalPinInvestigadorMensaje', 'Selecciona nuevamente al investigador.', 'error');
@@ -285,7 +339,15 @@
     ui.setLoading(button, true, 'Guardando...');
     ui.showStatus('#modalPinInvestigadorMensaje', 'Guardando y verificando el PIN...', 'info');
 
-    hashPin(investigador.cedula, pin)
+    // Verificar que el documento a modificar pertenece a la cédula mostrada.
+    firebaseService.leerDocumento(config.collections.investigadores, investigador.id)
+      .then(function(doc){
+        if(!doc)throw new Error('No existe este investigador. Actualiza la lista antes de asignar un PIN.');
+        var cedulaGuardada=soloNumeros(doc.cedula||doc.identificacion||doc.numeroIdentificacion||doc.id);
+        if(cedulaGuardada!==investigador.cedula)
+          throw new Error('La cédula y el registro de Firebase no coinciden. No se modificó el PIN.');
+        return hashPin(investigador.cedula,pin);
+      })
       .then(function (hash) {
         var ahora = new Date().toISOString();
 
