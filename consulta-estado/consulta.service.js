@@ -675,7 +675,11 @@
       mensaje = 'Firebase de Títulos no está disponible temporalmente.';
     }
 
-    return crearError(codigo, mensaje, body);
+    var error = crearError(codigo, mensaje, body);
+    error.httpStatus = Number(status || 0);
+    error.firebaseStatus = firebaseStatus || '';
+    error.firebaseMessage = firebaseMessage || '';
+    return error;
   }
 
   function crearError(codigo, mensaje, original) {
