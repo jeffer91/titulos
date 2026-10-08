@@ -244,16 +244,13 @@
         return {
           envio: envio || null,
           diagnostico: diagnostico || {
-            motor: 'RESOLVER_FLEXIBLE',
-            estrategia: 'RUTAS_PARALELAS',
+            motor: 'CONSULTA_CEDULA',
+            estrategia: 'CEDULA_MAS_PERIODO',
             base: 'titulos-ec2fa',
             coleccion: 'envios',
-            documentoId: String(estudiante.periodoId || '') + '__' + String(estudiante.cedula || ''),
-            ruta: envio ? 'PRIMER_RESULTADO_SEGURO' : 'NO_ENCONTRADO',
+            cedula: String(estudiante.cedula || ''),
             periodoCanonico: String(estudiante.periodoId || ''),
-            periodosCandidatos: Array.isArray(estudiante.periodosCandidatos)
-              ? estudiante.periodosCandidatos.slice()
-              : [String(estudiante.periodoId || '')],
+            ruta: 'TITULOS_CEDULA',
             status: envio ? 200 : 404,
             duracionMs: 0
           }
@@ -263,14 +260,13 @@
         if (!error.codigo) error.codigo = 'CONSULTA_TITULOS_ERROR';
 
         error.diagnostico = Object.assign({
-          motor: 'RESOLVER_FLEXIBLE',
-          estrategia: 'RUTAS_PARALELAS',
+          motor: 'CONSULTA_CEDULA',
+          estrategia: 'CEDULA_MAS_PERIODO',
           base: 'titulos-ec2fa',
           coleccion: 'envios',
+          cedula: String(estudiante.cedula || ''),
           periodoCanonico: String(estudiante.periodoId || ''),
-          periodosCandidatos: Array.isArray(estudiante.periodosCandidatos)
-            ? estudiante.periodosCandidatos.slice()
-            : [String(estudiante.periodoId || '')],
+          ruta: 'TITULOS_CEDULA',
           duracionMs: 0
         }, error.diagnostico || {});
 
@@ -655,15 +651,15 @@
       : diagnosticoRutasLive.slice();
     var lineas = [
       'Build: ' + obtenerBuildActual(),
-      'Motor: ' + (info.motor || 'RESOLVER_FLEXIBLE'),
-      'Estrategia: ' + (info.estrategia || 'RUTAS_PARALELAS'),
+      'Motor: ' + (info.motor || 'CONSULTA_CEDULA'),
+      'Estrategia: ' + (info.estrategia || 'CEDULA_MAS_PERIODO'),
       'Base: ' + (info.base || 'titulos-ec2fa'),
       'Colección: ' + (info.coleccion || 'envios'),
       'Cédula: ' + String(cedula || (estudiante && estudiante.cedula) || ''),
       'Período: ' + String(info.periodoCanonico || (estudiante && estudiante.periodoId) || ''),
       'Resultado: ' + String(resultado || 'SIN_RESULTADO'),
-      'Ruta ganadora: ' + String(info.ruta || '—'),
-      'Documento: ' + String(info.documentoId || '—'),
+      'Consulta: ' + String(info.ruta || 'TITULOS_CEDULA'),
+      'Documento elegido: ' + String(info.documentoId || '—'),
       'Tiempo total: ' + String(info.duracionMs || 0) + ' ms'
     ];
 
@@ -831,13 +827,13 @@
     }
 
     mostrarDiagnosticoTitulos({
-      motor: 'RESOLVER_FLEXIBLE',
-      estrategia: 'RUTAS_PARALELAS',
+      motor: 'CONSULTA_CEDULA',
+      estrategia: 'CEDULA_MAS_PERIODO',
       base: 'titulos-ec2fa',
       coleccion: 'envios',
-      documentoId: String(estudiante && estudiante.periodoId || '') + '__' + String(estudiante && estudiante.cedula || ''),
+      cedula: estudiante && estudiante.cedula || '',
       periodoCanonico: estudiante && estudiante.periodoId || '',
-      periodosCandidatos: estudiante && estudiante.periodosCandidatos || [],
+      ruta: 'TITULOS_CEDULA',
       rutasDetalle: []
     }, estudiante, estudiante && estudiante.cedula || '', 'INICIANDO');
 
@@ -919,16 +915,13 @@
 
     var existente = error.diagnostico || {};
     error.diagnostico = Object.assign({}, existente, {
-      motor: existente.motor || 'RESOLVER_FLEXIBLE',
-      estrategia: existente.estrategia || 'RUTAS_PARALELAS',
+      motor: existente.motor || 'CONSULTA_CEDULA',
+      estrategia: existente.estrategia || 'CEDULA_MAS_PERIODO',
       base: existente.base || 'titulos-ec2fa',
       coleccion: existente.coleccion || 'envios',
       cedula: cedula || (contexto.estudiante && contexto.estudiante.cedula) || '',
       periodoCanonico: existente.periodoCanonico || (contexto.estudiante && contexto.estudiante.periodoId) || '',
-      documentoId: existente.documentoId || (
-        ((contexto.estudiante && contexto.estudiante.periodoId) || '') + '__' +
-        ((contexto.estudiante && contexto.estudiante.cedula) || cedula || '')
-      ),
+      cedula: existente.cedula || ((contexto.estudiante && contexto.estudiante.cedula) || cedula || ''),
       rutasDetalle: diagnosticoRutasLive.slice(),
       build: obtenerBuildActual()
     });
