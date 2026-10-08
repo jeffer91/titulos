@@ -167,6 +167,11 @@
     return leerDocumentoEn(getDbTitulos(), collectionName, documentId);
   }
 
+  function leerDocumentoServidor(collectionName, documentId) {
+    asegurarColeccionTitulos(collectionName);
+    return leerDocumentoEn(getDbTitulos(), collectionName, documentId, { source: 'server' });
+  }
+
   function consultarPrimero(collectionName, fieldName, operator, value) {
     asegurarColeccionTitulos(collectionName);
     return consultarPrimeroEn(getDbTitulos(), collectionName, fieldName, operator, value);
@@ -210,9 +215,11 @@
     }
   }
 
-  function leerDocumentoEn(db, collectionName, documentId) {
+  function leerDocumentoEn(db, collectionName, documentId, getOptions) {
     if (!collectionName || !documentId) return Promise.resolve(null);
-    return db.collection(collectionName).doc(String(documentId)).get().then(function (snapshot) {
+    var ref = db.collection(collectionName).doc(String(documentId));
+    var lectura = getOptions ? ref.get(getOptions) : ref.get();
+    return lectura.then(function (snapshot) {
       return snapshot.exists ? normalizarDocumento(snapshot) : null;
     });
   }
@@ -294,6 +301,7 @@
     getDbTitulos: getDbTitulos,
     getDbAcademico: getDbAcademico,
     leerDocumento: leerDocumento,
+    leerDocumentoServidor: leerDocumentoServidor,
     consultarPrimero: consultarPrimero,
     consultarColeccion: consultarColeccion,
     listarColeccion: listarColeccion,
