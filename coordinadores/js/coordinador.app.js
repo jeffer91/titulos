@@ -32,7 +32,11 @@
     setEstado('Conectando…');
     firebaseService.iniciar(config.firebase).then(function (resultado) {
       estado.firebase = Boolean(resultado.ok);
-      if (!resultado.ok) throw new Error(resultado.mensaje || 'No se pudo conectar con Firebase.');
+      if (!resultado.ok) {
+        var errorConexion = new Error(resultado.mensaje || 'No se pudo conectar con Firebase.');
+        errorConexion.codigo = resultado.codigo || 'FIREBASE_COORDINADORES_ERROR';
+        throw errorConexion;
+      }
       setEstado('Conectado');
       return cargarCoordinadores();
     }).catch(function (error) {
@@ -850,7 +854,16 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
   }
-  function errorMensaje(error) { return error && error.message ? error.message : String(error || 'Error desconocido'); }
+  function errorMensaje(error) {
+    if (!error) return 'Error desconocido';
+    var partes = [];
+    var codigo = error.codigo || error.code || error.name || '';
+    if (codigo) partes.push('[' + codigo + ']');
+    if (error.operacion) partes.push(String(error.operacion));
+    if (error.coleccion) partes.push('colección ' + String(error.coleccion));
+    partes.push(error.message || String(error));
+    return partes.join(' · ');
+  }
   function el(id) { return document.getElementById(id); }
   function on(id, event, fn) { var node = el(id); if (node) node.addEventListener(event, fn); }
   function valor(id) { var node = el(id); return node ? String(node.value || '').trim() : ''; }
