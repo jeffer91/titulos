@@ -38,6 +38,7 @@ jobs:
           node tests/arquitectura-estudiantes.test.js
           node tests/investigacion-cola.test.js
           node tests/auditoria-e2e.test.js
+          node tests/administrador-faltantes.test.js
 
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
