@@ -34,6 +34,7 @@ const usuario={uid:'auth-123',rol:'coordinador',email:'coord@itsqmet.edu.ec',ema
 const periodo='2026-04__2026-09';
 function base(){
  return {
+  configuracion:{general:{periodosActivos:[periodo],periodoActivoId:periodo}},
   coordinadores:{c1:{authUid:usuario.uid,nombre:'Coordinador',email:usuario.email,activo:true,
    carrerasNombres:['Marketing Digital y Comercio Electrónico']}},
   envios:{
@@ -125,4 +126,54 @@ test('coordinador desactivado no puede operar',async()=>{
  await assert.rejects(()=>rutas['/revision'].handle({usuario,body:{tituloId:'m1',accion:'VALIDAR',tituloSeleccionadoNumero:1}}),
   e=>e.status===403);
  assert.equal(db.tables.workflow_events.size,0);
+});
+
+test('períodos activos: lista oculta solo los expedientes desactivados de la misma carrera',async()=>{
+ const datos=base();
+ const otro='2026-05__2026-11';
+ datos.envios.mayo={...datos.envios.m1,cedula:'1700000009',periodoId:otro};
+ const {rutas,db}=montar(datos);
+ const listar=()=>rutas['/titulos'].handle({usuario});
+ assert.deepEqual((await listar()).titulos.map(x=>x.id),['m1']);
+ db.tables.configuracion.get('general').periodosActivos=[otro];
+ assert.deepEqual((await listar()).titulos.map(x=>x.id),['mayo']);
+ db.tables.configuracion.get('general').periodosActivos=[periodo,otro];
+ assert.deepEqual((await listar()).titulos.map(x=>x.id).sort(),['m1','mayo']);
+});
+test('período desactivado bloquea validación y devolución aunque modal estuviera abierto',async()=>{
+ const {rutas,db}=montar();
+ db.tables.configuracion.get('general').periodosActivos=[];
+ const validar=()=>rutas['/revision'].handle({usuario,body:{
+  tituloId:'m1',accion:'VALIDAR',tituloSeleccionadoNumero:1
+ }});
+ const devolver=()=>rutas['/revision'].handle({usuario,body:{
+  tituloId:'m1',accion:'DEVOLVER',observacion:'Cambiar delimitación.'
+ }});
+ await assert.rejects(validar,e=>e.code==='PERIODO_DESACTIVADO'&&e.status===409);
+ await assert.rejects(devolver,e=>e.code==='PERIODO_DESACTIVADO'&&e.status===409);
+ assert.equal(db.tables.workflow_events.size,0);
+ assert.equal(db.tables.envios.get('m1').estado,'PENDIENTE_REVISION');
+ assert.deepEqual((await rutas['/titulos'].handle({usuario})).titulos,[]);
+});
+test('período principal antiguo no reactiva períodos si la lista de activos está vacía',async()=>{
+ const {rutas,db}=montar();
+ const general=db.tables.configuracion.get('general');
+ general.periodosActivos=[];
+ general.periodoActivoId=periodo;
+ assert.deepEqual((await rutas['/titulos'].handle({usuario})).titulos,[]);
+ delete general.periodosActivos;
+ assert.deepEqual((await rutas['/titulos'].handle({usuario})).titulos.map(x=>x.id),['m1']);
+});
+test('ID abreviado no activa por accidente otro período; reactivar devuelve expediente',async()=>{
+ const {rutas,db}=montar();
+ const cfg=db.tables.configuracion.get('general');
+ cfg.periodosActivos=['2026-04'];
+ assert.deepEqual((await rutas['/titulos'].handle({usuario})).titulos,[]);
+ cfg.periodosActivos=[periodo];
+ assert.deepEqual((await rutas['/titulos'].handle({usuario})).titulos.map(x=>x.id),['m1']);
+});
+test('error al obtener configuración falla cerrado, no muestra títulos',async()=>{
+ const datos=base();delete datos.configuracion;
+ const {rutas}=montar(datos);
+ await assert.rejects(()=>rutas['/titulos'].handle({usuario}),e=>e.code==='CONFIGURACION_PERIODOS_NO_DISPONIBLE');
 });

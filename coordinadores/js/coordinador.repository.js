@@ -7,6 +7,54 @@
   var seguro = window.TACoordinadorSeguro;
   function modoSeguro(){return Boolean(seguro&&seguro.activo&&seguro.activo());}
 
+  // El estado de periodosActivos en configuracion/general lo define Administración.
+  // No se interpretan IDs incompletos como "2026-02" ni etiquetas visibles.
+  function periodoCanonico(value) {
+    var raw = limpiar(value);
+    var match = /^(\d{4})[-_](0?[1-9]|1[0-2])(?:__|[-_\s]+)(\d{4})[-_](0?[1-9]|1[0-2])$/.exec(raw);
+    if (!match) return '';
+    function mes(v){return String(v).padStart(2, '0');}
+    return match[1] + '-' + mes(match[2]) + '__' + match[3] + '-' + mes(match[4]);
+  }
+
+  function conjuntoPeriodos(data) {
+    if (!data || typeof data !== 'object') return new Set();
+    // El array vacío es una orden de desactivar TODOS los períodos.
+    if (Array.isArray(data.periodosActivos)) {
+      return new Set(data.periodosActivos.map(periodoCanonico).filter(Boolean));
+    }
+    if (data.periodoActivoDesactivado === true) return new Set();
+    var principal = data.periodoActivoId ||
+      (data.periodoActivo && data.periodoActivo.id) || data.periodoActivo;
+    var id = periodoCanonico(principal);
+    return id ? new Set([id]) : new Set();
+  }
+
+  function cargarPeriodosActivos() {
+    return firebaseService.leerDocumento(config.collections.config, config.documents.appConfig)
+      .then(function (general) {
+        if (!general) {
+          var error = new Error('No se pudo consultar qué períodos están activos en Administración.');
+          error.codigo = 'CONFIGURACION_PERIODOS_NO_DISPONIBLE';
+          throw error;
+        }
+        return conjuntoPeriodos(general);
+      });
+  }
+
+  function periodoDeTitulo(titulo) {
+    if (!titulo) return '';
+    var raw = titulo.raw || titulo;
+    return periodoCanonico(raw.periodoCanonicoId) ||
+      periodoCanonico(raw.periodoId) || periodoCanonico(raw.periodo && raw.periodo.id) ||
+      periodoCanonico(titulo.periodoId);
+  }
+
+  function tituloDePeriodoActivo(titulo, activos) {
+    var id = periodoDeTitulo(titulo);
+    return Boolean(id && activos.has(id));
+  }
+
   function listarCoordinadores() {
     if(modoSeguro())return seguro.perfil().then(function(perfil){return [normalizarCoordinador(perfil)];});
     return firebaseService.listarDocumentos(config.collections.coordinadores, { limit: 500 })
@@ -23,12 +71,17 @@
       return (resultado.titulos||[]).map(normalizarTitulo);
     });
     if (!coordinador || !coordinador.carreras.length) return Promise.resolve([]);
-    return firebaseService.listarDocumentos(config.collections.titulos, { limit: 2500 })
-      .then(function (docs) {
-        return (docs || []).map(normalizarTitulo).filter(function (titulo) {
-          return perteneceACoordinador(titulo, coordinador);
-        }).sort(function (a, b) { return fechaMs(b.fechaEnvio) - fechaMs(a.fechaEnvio); });
-      });
+    // Leer PRIMERO los períodos activos; una consulta fallida nunca muestra todos.
+    return cargarPeriodosActivos().then(function(activos) {
+      if (!activos.size) return [];
+      return firebaseService.listarDocumentos(config.collections.titulos, { limit: 2500 })
+        .then(function (docs) {
+          return (docs || []).map(normalizarTitulo).filter(function (titulo) {
+            return perteneceACoordinador(titulo, coordinador) &&
+              tituloDePeriodoActivo(titulo, activos);
+          }).sort(function (a, b) { return fechaMs(b.fechaEnvio) - fechaMs(a.fechaEnvio); });
+        });
+    });
   }
 
   function cargarHistorialTitulo(titulo) {
@@ -204,8 +257,15 @@
     });
     payload.historialProceso = historial;
 
-    return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, payload, { merge: true })
-      .then(function () {
+    // Una revisión abierta previamente no debe guardarse si el período fue desactivado.
+    return cargarPeriodosActivos().then(function(activos) {
+      if (!tituloDePeriodoActivo(titulo, activos)) {
+        var error = new Error('El período fue desactivado por Administración. No se puede revisar este expediente.');
+        error.codigo = 'PERIODO_DESACTIVADO';
+        throw error;
+      }
+      return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, payload, { merge: true });
+    }).then(function () {
         return firebaseService.agregarDocumento(config.collections.logs, {
           tipo: 'REVISION_TITULO_COORDINADOR',
           accion: accionNormalizada,

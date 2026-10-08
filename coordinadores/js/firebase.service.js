@@ -166,6 +166,18 @@
       });
   }
 
+  function escucharDocumento(collectionName, documentId, alCambiar, alError) {
+    asegurarLectura(collectionName);
+    return getDb().collection(collectionName).doc(documentId).onSnapshot(
+      function (snapshot) {
+        alCambiar(snapshot.exists ? normalizarDocumento(snapshot) : null);
+      },
+      function (error) {
+        if (alError) alError(crearErrorOperacion('ESCUCHAR_DOCUMENTO', collectionName, error));
+      }
+    );
+  }
+
   function guardarDocumento(collectionName, documentId, data, options) {
     asegurarEscritura(collectionName);
     var merge = !options || options.merge !== false;
@@ -255,6 +267,7 @@
     estaListo: estaListo,
     getDb: getDb,
     leerDocumento: leerDocumento,
+    escucharDocumento: escucharDocumento,
     guardarDocumento: guardarDocumento,
     agregarDocumento: agregarDocumento,
     listarDocumentos: listarDocumentos,

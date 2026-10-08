@@ -14,7 +14,9 @@
     tipo: 'TODOS',
     busqueda: '',
     tituloModal: null,
-    tituloSeleccionado: 0
+    tituloSeleccionado: 0,
+    versionConsulta: 0,
+    firmaPeriodos: null
   };
 
   var textosVista = {
@@ -58,13 +60,42 @@
         throw errorConexion;
       }
       setEstado('Conectado');
-      return cargarCoordinadores();
+      return cargarCoordinadores().then(function () {
+        observarPeriodosAdministracion();
+      });
     }).catch(function (error) {
       estado.firebase = false;
       setEstado('Sin conexión');
       mensaje('No se pudo cargar Coordinadores. ' + errorMensaje(error), 'error');
       renderDiagnostico(errorMensaje(error));
     });
+  }
+
+  function observarPeriodosAdministracion() {
+    if (!firebaseService.escucharDocumento) return;
+    firebaseService.escucharDocumento(config.collections.config, config.documents.appConfig,
+      function (general) {
+        // Firestore notifica cuando Administración activa o desactiva un período.
+        var periodos = Array.isArray(general && general.periodosActivos)
+          ? general.periodosActivos.slice().sort()
+          : [general && general.periodoActivoId || ''];
+        var firma = JSON.stringify(periodos);
+        if (firma === estado.firmaPeriodos) return;
+        estado.firmaPeriodos = firma;
+        estado.versionConsulta += 1;
+        estado.titulos = [];
+        cerrarDetalle();
+        renderTabla();
+        if (estado.coordinador) cargarTitulos().catch(function(){});
+      },
+      function (error) {
+        estado.versionConsulta += 1;
+        estado.titulos = [];
+        cerrarDetalle();
+        renderTabla();
+        mensaje('No se pudo actualizar la lista de períodos activos. ' + errorMensaje(error), 'error');
+        renderDiagnostico(errorMensaje(error));
+      });
   }
 
   function conectarEventos() {
@@ -163,14 +194,17 @@
 
   function cargarTitulos() {
     if (!estado.coordinador) return Promise.resolve([]);
+    var version = ++estado.versionConsulta;
     mensaje('Cargando títulos de ' + estado.coordinador.nombre + '…', 'info');
     return repository.listarTitulosParaCoordinador(estado.coordinador).then(function (items) {
+      if (version !== estado.versionConsulta) return [];
       estado.titulos = items;
       renderTabla();
       mensajeResumen(items);
       renderDiagnostico('');
       return items;
     }).catch(function (error) {
+      if (version !== estado.versionConsulta) return [];
       estado.titulos = [];
       renderTabla();
       mensaje('No se pudieron consultar los títulos. ' + errorMensaje(error), 'error');

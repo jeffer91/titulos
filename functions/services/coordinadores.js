@@ -2,6 +2,7 @@
 
 // Seguridad de Coordinadores: identidad, carrera y estado SIEMPRE desde Firestore en servidor.
 // El navegador solo envía IDs y decisiones; jamás perfiles ni carreras autodeclarados.
+const periodos=require('./periodos-activos');
 const CAMPOS_CARRERAS=['carrerasNombres','carreras','carrerasAsignadas','carrerasIds','carrera'];
 const CAMPOS_BUSQUEDA=['carreraNombre','carrera','nombreCarrera','carreraCodigo','codigoCarrera'];
 const CAMPOS_TITULO=[
@@ -78,6 +79,7 @@ async function obtenerPerfil(db,usuario) {
  return perfil;
 }
 async function consultarTitulos(db,perfil) {
+ const habilitados=await periodos.cargar(db);
  const carreras=carrerasDe(perfil).filter(c=>!['*','TODOS','TODAS','ALL'].includes(clave(c)));
  if(!carreras.length)return {titulos:[],truncado:false};
  const consultas=[];
@@ -95,7 +97,7 @@ async function consultarTitulos(db,perfil) {
    if(grupo.docs.length>=500)truncado=true;
    for(const snap of grupo.docs){
      const d=doc(snap);
-     if(d&&permitida(d,perfil))mapa.set(d.id,filtro(d,CAMPOS_TITULO));
+     if(d&&permitida(d,perfil)&&periodos.permitido(d,habilitados))mapa.set(d.id,filtro(d,CAMPOS_TITULO));
    }
  }
  const titulos=[...mapa.values()].sort((a,b)=>texto(b.fechaEnvio||b.actualizadoEnLocal).localeCompare(texto(a.fechaEnvio||a.actualizadoEnLocal)));
@@ -148,8 +150,13 @@ async function revisar(db,perfil,actor,body) {
   if(perfilActual.authUid&&perfilActual.authUid!==actor.uid)rechazo(403,'CUENTA_NO_COINCIDE');
   if(!perfilActual.authUid&&(!actor.emailVerified||!actor.email||texto(perfilActual.email||perfilActual.correo).toLowerCase()!==actor.email))
     rechazo(403,'VINCULO_CORREO_REVOCADO');
+  // La configuración se relee DENTRO de la transacción para bloquear una revisión
+  // si Administración desactivó el período mientras el expediente estaba abierto.
+  const configuracion=await tx.get(db.collection('configuracion').doc('general'));
+  if(!configuracion.exists)rechazo(503,'CONFIGURACION_PERIODOS_NO_DISPONIBLE');
   const titulo=doc(await tx.get(ref));
   if(!titulo)rechazo(404,'TITULO_NO_ENCONTRADO');
+  periodos.validar(titulo,periodos.activos(configuracion.data()));
   if(!permitida(titulo,perfilActual))rechazo(403,'CARRERA_NO_AUTORIZADA');
   const estado=clave(titulo.estadoProceso||titulo.estado);
   if(!['PENDIENTE_COORDINADOR','PENDIENTE_REVISION','ENVIADO','PENDIENTE'].includes(estado))
