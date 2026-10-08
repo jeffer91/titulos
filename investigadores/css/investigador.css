@@ -734,3 +734,150 @@ textarea { resize: vertical; }
     font-size: .58rem;
   }
 }
+
+
+/* =========================================================
+   Mis revisiones y reportes PDF
+   ========================================================= */
+.workspace-nav {
+  display: flex;
+  gap: 7px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 7px 20px rgba(7, 26, 51, .04);
+}
+
+.workspace-nav__btn {
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 11px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 900;
+}
+
+.workspace-nav__btn.is-active {
+  background: var(--navy);
+  color: #ffffff;
+}
+
+.reviews-panel {
+  padding: 14px;
+}
+
+.reviews-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.reviews-head h3 {
+  margin: 3px 0 2px;
+  font-size: 1.08rem;
+}
+
+.reviews-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.reviews-head__actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.review-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #f8fafc;
+}
+
+.review-filters label {
+  margin: 0;
+  font-size: .72rem;
+}
+
+.review-filters select {
+  margin-top: 4px;
+  min-height: 36px;
+  padding: 7px 9px;
+  font-size: .78rem;
+}
+
+.reviews-summary {
+  margin-bottom: 10px;
+}
+
+.reviews-table {
+  min-width: 980px;
+}
+
+.reviews-table td {
+  font-size: .77rem;
+}
+
+.review-title-cell {
+  min-width: 260px;
+  line-height: 1.35;
+}
+
+.report-state {
+  display: inline-flex;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: .67rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.report-state--success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.report-state--warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.report-state--danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .workspace-nav {
+    overflow-x: auto;
+  }
+
+  .workspace-nav__btn {
+    min-width: max-content;
+  }
+
+  .reviews-head {
+    flex-direction: column;
+  }
+
+  .reviews-head__actions {
+    width: 100%;
+  }
+
+  .reviews-head__actions .btn {
+    flex: 1;
+  }
+
+  .review-filters {
+    grid-template-columns: 1fr;
+  }
+}
