@@ -94,7 +94,7 @@ function loadRepository(options) {
           maxIntentos: 1
         }
       },
-      TAFirebaseService: firebaseService
+      TAEstudianteFirebaseService: firebaseService
     }
   };
 
