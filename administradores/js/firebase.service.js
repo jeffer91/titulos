@@ -185,9 +185,116 @@
     });
   }
 
+
+  // Un PIN nunca se confirma con una copia local pendiente de sincronización.
+  function leerDocumentoServidor(collectionName, documentId) {
+    asegurarLectura(collectionName);
+    var db = esAcademica(collectionName) ? getDbAcademico() : getDb();
+    return db.collection(collectionName).doc(String(documentId)).get({ source: 'server' })
+      .then(function(snapshot){
+        return snapshot.exists ? adaptarDocumento(collectionName, normalizarDocumento(snapshot)) : null;
+      }).catch(function(error){
+        throw crearErrorOperacion('LEER_DOCUMENTO_SERVIDOR', collectionName, error);
+      });
+  }
+
+  function listarDocumentosServidor(collectionName, options) {
+    asegurarLectura(collectionName);
+    var db = esAcademica(collectionName) ? getDbAcademico() : getDb();
+    var query = db.collection(collectionName);
+    var opts = options || {};
+    if(opts.where && opts.where.length === 3) query=query.where(opts.where[0],opts.where[1],opts.where[2]);
+    if(opts.limit) query=query.limit(Number(opts.limit));
+    return query.get({ source: 'server' }).then(function(snapshot){
+      var result=[];
+      snapshot.forEach(function(item){
+        result.push(adaptarDocumento(collectionName, normalizarDocumento(item)));
+      });
+      return result;
+    }).catch(function(error){
+      throw crearErrorOperacion('LISTAR_DOCUMENTOS_SERVIDOR', collectionName, error);
+    });
+  }
+
+  // Única escritura autorizada en el modo PIN heredado: operación atómica con
+  // comprobación de la cédula y auditoría sin secretos. El modo seguro debe usar Auth.
+  function guardarPinInvestigador(data) {
+    var docId=String(data && data.docId || '');
+    var cedula=String(data && data.cedula || '');
+    var hash=String(data && data.hash || '');
+    var crear=Boolean(data && data.crear);
+    if(!/^\d{10}$/.test(cedula) || !docId || docId.indexOf('/')!==-1 ||
+      !/^[a-f0-9]{64}$/i.test(hash)) {
+      return Promise.reject(new Error('Datos de PIN inválidos. No se guardó ningún cambio.'));
+    }
+    asegurarEscritura('investigadores');
+    asegurarEscritura('workflow_events');
+    var firestore=getDb();
+    var ref=firestore.collection('investigadores').doc(docId);
+    var momento=new Date().toISOString();
+    return firestore.runTransaction(function(tx){
+      return tx.get(ref).then(function(snapshot){
+        var actual=snapshot.exists?snapshot.data():null;
+        if(crear&&actual)throw new Error('El investigador ya tiene un documento. No se reemplazó.');
+        if(!crear&&!actual)throw new Error('El documento no existe. Actualiza la lista antes de cambiar el PIN.');
+        if(actual){
+          var guardada=String(actual.cedula||actual.identificacion||actual.numeroIdentificacion||snapshot.id||'').replace(/\D/g,'');
+          if(guardada!==cedula)throw new Error('La cédula del documento ha cambiado. No se modificó el PIN.');
+        }
+        var revision=Number(actual && actual.pinRevision || 0)+1;
+        var fields={
+          cedula:cedula,
+          pinHash:hash.toLowerCase(),
+          pinCreado:true,
+          pinActivo:true,
+          activo:true,
+          pinHashActualizadoEn:window.firebase.firestore.FieldValue.serverTimestamp(),
+          pinRevision:revision,
+          pinCreadoEn:actual&&actual.pinCreadoEn||momento,
+          pinActivadoEn:momento,
+          pinActivadoPor:crear?'administrador_alta':'administrador_pin',
+          pinDesactivadoEn:null,
+          pinVerificadoEn:momento,
+          pinVerificadoPor:crear?'administrador_alta':'administrador_pin'
+        };
+        if(crear){
+          fields.nombres=String(data.nombre||'').trim();
+          fields.email=String(data.email||'').trim().toLowerCase();
+          fields.rol='investigador';
+          fields.origen='administrador';
+          fields.creadoEn=window.firebase.firestore.FieldValue.serverTimestamp();
+        }
+        tx.set(ref,fields,{merge:true});
+        // No escribir el PIN, ni siquiera el hash, en logs o eventos.
+        var log=firestore.collection('workflow_events').doc();
+        tx.set(log,{
+          modulo:'administradores',tipo:crear?'ADMIN_PIN_INVESTIGADOR_ALTA':'ADMIN_PIN_INVESTIGADOR_CAMBIO',
+          entidad:'investigadores',entidadId:docId,
+          pinRevision:revision,fechaLocal:momento,
+          actor:'administrador_legacy',creadoEn:window.firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return {docId:docId,revision:revision};
+      });
+    }).catch(function(error){
+      throw crearErrorOperacion('GUARDAR_PIN_TRANSACCIONAL', 'investigadores', error);
+    });
+  }
+
+  function protegerCredencialesInvestigadores(nombre,data,merge) {
+    if(nombre!=='investigadores')return;
+    // Las credenciales SOLO pueden modificarse mediante guardarPinInvestigador,
+    // con comprobación de identidad, transacción y evento de auditoría.
+    if(merge===false)throw new Error('No se permite reemplazar por completo los registros de investigadores.');
+    var claves=['pinHash','pinCreado','pinRevision','pinHashActualizadoEn',
+      'pinCreadoEn','pinVerificadoEn','pinVerificadoPor'];
+    if(claves.some(function(k){return Object.prototype.hasOwnProperty.call(data||{},k);}))
+      throw new Error('Cambio de credenciales rechazado: utiliza el guardado transaccional de PIN.');
+  }
+
   function guardarDocumento(collectionName, documentId, data, options) {
     asegurarEscritura(collectionName);
     var merge = typeof options === 'boolean' ? options : (!options || options.merge !== false);
+    protegerCredencialesInvestigadores(collectionName,data,merge);
     var payload = Object.assign({}, data || {}, { actualizadoEn: serverTimestamp() });
     if (!merge) payload.creadoEn = payload.creadoEn || serverTimestamp();
     return getDb().collection(collectionName).doc(documentId).set(payload, { merge: merge })
@@ -198,6 +305,7 @@
 
   function actualizarDocumento(collectionName, documentId, data) {
     asegurarEscritura(collectionName);
+    protegerCredencialesInvestigadores(collectionName,data,true);
     return getDb().collection(collectionName).doc(documentId).set(Object.assign({}, data || {}, { actualizadoEn: serverTimestamp() }), { merge: true })
       .catch(function (error) {
         throw crearErrorOperacion('ACTUALIZAR_DOCUMENTO', collectionName, error);
@@ -206,6 +314,7 @@
 
   function eliminarDocumento(collectionName, documentId) {
     asegurarEscritura(collectionName);
+    if(collectionName==='investigadores')return Promise.reject(new Error('Los investigadores no pueden eliminarse desde el servicio genérico.'));
     return getDb().collection(collectionName).doc(documentId).delete()
       .catch(function (error) {
         throw crearErrorOperacion('ELIMINAR_DOCUMENTO', collectionName, error);
@@ -223,6 +332,7 @@
 
   function guardarLote(collectionName, documents, options) {
     asegurarEscritura(collectionName);
+    if(collectionName==='investigadores')return Promise.reject(new Error('No se permite sobrescribir investigadores por lote.'));
     var docs = Array.isArray(documents) ? documents : [];
     var merge = !options || options.merge !== false;
     var chunks = dividirEnBloques(docs, BATCH_LIMIT);
@@ -458,6 +568,9 @@
     getDb: getDb,
     getDbAcademico: getDbAcademico,
     leerDocumento: leerDocumento,
+    leerDocumentoServidor: leerDocumentoServidor,
+    listarDocumentosServidor: listarDocumentosServidor,
+    guardarPinInvestigador: guardarPinInvestigador,
     guardarDocumento: guardarDocumento,
     actualizarDocumento: actualizarDocumento,
     eliminarDocumento: eliminarDocumento,

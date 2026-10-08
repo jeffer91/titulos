@@ -10,7 +10,6 @@
 
   var investigadores = [];
   var investigadorPinActual = null;
-  var pinesSesion = {};
 
   function iniciar() {
     if(modoSeguro()){
@@ -80,7 +79,7 @@
     ui.showStatus('#investigadoresMensaje', 'Cargando investigadores...', 'info');
 
     var consulta = modoSeguro() ? seguro.investigadores() :
-      firebaseService.listarDocumentos(config.collections.investigadores, { limit: 1000 });
+      firebaseService.listarDocumentosServidor(config.collections.investigadores, { limit: 1000 });
     return consulta.then(function (docs) {
         investigadores = (docs || []).map(normalizarInvestigador).sort(function (a, b) {
           return a.nombre.localeCompare(b.nombre);
@@ -167,38 +166,17 @@
     resolverDocumentoInvestigador(cedula)
       .then(function (resultado) {
         if (resultado.existente) throw new Error('Ya existe un investigador con esa cédula.');
+        if (resultado.docId !== cedula) throw new Error('La cédula corresponde a otro documento.');
         return hashPin(cedula, pin);
       })
       .then(function (hash) {
-        var ahora = new Date().toISOString();
-
-        return firebaseService.guardarDocumento(config.collections.investigadores, cedula, {
-          cedula: cedula,
-          nombres: nombre,
-          email: email,
-          rol: 'investigador',
-          activo: true,
-          pinHash: hash,
-          pinCreado: true,
-          pinActivo: true,
-          pinCreadoEn: ahora,
-          pinActivadoEn: ahora,
-          pinActivadoPor: 'administrador_alta',
-          pinDesactivadoEn: null,
-          origen: 'administrador'
-        }, { merge: false })
-          .then(function () {
-            return verificarPinGuardado(cedula, hash);
-          })
-          .then(function () {
-            return firebaseService.guardarDocumento(config.collections.investigadores, cedula, {
-              pinVerificadoEn: new Date().toISOString(),
-              pinVerificadoPor: 'administrador_alta'
-            }, { merge: true });
-          });
+        return firebaseService.guardarPinInvestigador({
+          docId: cedula, cedula: cedula, nombre: nombre, email: email, hash: hash, crear: true
+        }).then(function (resultado) {
+          return verificarPinGuardado(cedula, hash, resultado.revision);
+        });
       })
       .then(function () {
-        pinesSesion[cedula] = pin;
         ui.setText('#crearInvestigadorPinVisible', pin);
 
         var recibo = ui.qs('#crearInvestigadorRecibo');
@@ -285,7 +263,7 @@
     ui.showStatus('#modalPinInvestigadorMensaje','Comprobando el PIN guardado sin modificarlo...','info');
     return Promise.all([
       hashPin(actual.cedula,pin),
-      firebaseService.leerDocumento(config.collections.investigadores,actual.id)
+      firebaseService.leerDocumentoServidor(config.collections.investigadores,actual.id)
     ]).then(function(resultados){
       var esperado=resultados[0],doc=resultados[1];
       if(!doc)throw new Error('El documento de este investigador no existe en Firebase.');
@@ -339,42 +317,23 @@
     ui.setLoading(button, true, 'Guardando...');
     ui.showStatus('#modalPinInvestigadorMensaje', 'Guardando y verificando el PIN...', 'info');
 
-    // Verificar que el documento a modificar pertenece a la cédula mostrada.
-    firebaseService.leerDocumento(config.collections.investigadores, investigador.id)
-      .then(function(doc){
-        if(!doc)throw new Error('No existe este investigador. Actualiza la lista antes de asignar un PIN.');
-        var cedulaGuardada=soloNumeros(doc.cedula||doc.identificacion||doc.numeroIdentificacion||doc.id);
-        if(cedulaGuardada!==investigador.cedula)
-          throw new Error('La cédula y el registro de Firebase no coinciden. No se modificó el PIN.');
-        return hashPin(investigador.cedula,pin);
+    // Volver a comprobar en el servidor que no exista un registro duplicado
+    // antes de reemplazar la credencial del documento seleccionado.
+    resolverDocumentoInvestigador(investigador.cedula)
+      .then(function(resultado) {
+        if (!resultado.existente || resultado.docId !== investigador.id) {
+          throw new Error('El registro de esta cédula cambió. Actualiza la lista antes de modificar el PIN.');
+        }
+        return hashPin(investigador.cedula, pin);
       })
-      .then(function (hash) {
-        var ahora = new Date().toISOString();
-
-        return firebaseService.guardarDocumento(config.collections.investigadores, investigador.id, {
-          cedula: investigador.cedula,
-          nombres: investigador.nombre,
-          activo: true,
-          pinHash: hash,
-          pinCreado: true,
-          pinActivo: true,
-          pinCreadoEn: investigador.raw && investigador.raw.pinCreadoEn || ahora,
-          pinActivadoEn: ahora,
-          pinActivadoPor: 'administrador_pin',
-          pinDesactivadoEn: null
-        }, { merge: true })
-          .then(function () {
-            return verificarPinGuardado(investigador.id, hash);
-          })
-          .then(function () {
-            return firebaseService.guardarDocumento(config.collections.investigadores, investigador.id, {
-              pinVerificadoEn: new Date().toISOString(),
-              pinVerificadoPor: 'administrador_pin'
-            }, { merge: true });
-          });
+      .then(function(hash) {
+        return firebaseService.guardarPinInvestigador({
+          docId:investigador.id,cedula:investigador.cedula,hash:hash,crear:false
+        }).then(function(resultado) {
+          return verificarPinGuardado(investigador.id, hash, resultado.revision);
+        });
       })
       .then(function () {
-        pinesSesion[investigador.cedula] = pin;
         ui.setText('#cambiarPinVisible', pin);
 
         var recibo = ui.qs('#cambiarPinRecibo');
@@ -458,7 +417,6 @@
       var acciones = document.createElement('div');
       var pinButton = document.createElement('button');
       var accesoButton = document.createElement('button');
-      var pinSesion = pinesSesion[investigador.cedula] || '';
 
       tr.innerHTML =
         '<td><strong>' + ui.escapeHtml(investigador.cedula) + '</strong></td>' +
@@ -466,22 +424,11 @@
         '<td>' + ui.escapeHtml(investigador.email || '—') + '</td>' +
         '<td></td><td></td><td class="text-right"></td>';
 
-      if (pinSesion) {
-        var pinVisible = document.createElement('button');
-        pinVisible.type = 'button';
-        pinVisible.className = 'pin-visible-chip';
-        pinVisible.textContent = pinSesion;
-        pinVisible.title = 'Copiar PIN';
-        pinVisible.addEventListener('click', function () {
-          copiarTexto(pinSesion, '#investigadoresMensaje');
-        });
-        tr.children[3].appendChild(pinVisible);
-      } else {
-        tr.children[3].appendChild(ui.crearBadge(
-          investigador.pinCreado ? '••••' : 'Sin PIN',
-          investigador.pinCreado ? 'primary' : 'muted'
-        ));
-      }
+      // Nunca conservar ni mostrar el PIN en la tabla: solo su estado.
+      tr.children[3].appendChild(ui.crearBadge(
+        investigador.pinCreado ? '••••' : 'Sin PIN',
+        investigador.pinCreado ? 'primary' : 'muted'
+      ));
 
       tr.children[4].appendChild(ui.crearBadge(
         investigador.activo && investigador.pinCreado && investigador.pinActivo ? 'Activo' : 'Sin acceso',
@@ -515,43 +462,38 @@
   }
 
   function resolverDocumentoInvestigador(cedula) {
-    return firebaseService.leerDocumento(config.collections.investigadores, cedula)
-      .then(function (existente) {
-        if (existente) return { docId: cedula, existente: existente };
-
-        return firebaseService.listarDocumentos(config.collections.investigadores, { limit: 1000 })
-          .then(function (docs) {
-            var encontrado = (docs || []).filter(function (item) {
-              return soloNumeros(
-                item.cedula ||
-                item.identificacion ||
-                item.numeroIdentificacion ||
-                item.id ||
-                item._docId
-              ) === cedula;
-            })[0] || null;
-
-            return {
-              docId: encontrado ? (encontrado.id || encontrado._docId || cedula) : cedula,
-              existente: encontrado
-            };
-          });
+    // La lectura viene del servidor. Un listado truncado no sirve para decidir
+    // si existe un investigador: se rechaza la operación en vez de duplicarlo.
+    return Promise.all([
+      firebaseService.leerDocumentoServidor(config.collections.investigadores, cedula),
+      firebaseService.listarDocumentosServidor(config.collections.investigadores, {limit:1001})
+    ]).then(function(results) {
+      var directo=results[0],documentos=results[1]||[];
+      if(documentos.length>1000)throw new Error('Hay más de 1000 investigadores. Debe habilitarse paginación antes de crear o cambiar PINs.');
+      var mapa={};
+      if(directo)mapa[String(directo.id||directo._docId||cedula)]=directo;
+      documentos.forEach(function(item){
+        var identidad=soloNumeros(item.cedula||item.identificacion||item.numeroIdentificacion||item.id||item._docId);
+        if(identidad===cedula)mapa[String(item.id||item._docId)]=item;
       });
+      var coincidencias=Object.keys(mapa);
+      if(coincidencias.length>1)
+        throw new Error('Existen varios documentos de Firebase para esta cédula. No se modificará el PIN hasta resolver los duplicados.');
+      return {docId:coincidencias[0]||cedula,existente:coincidencias.length?mapa[coincidencias[0]]:null};
+    });
   }
 
-  function verificarPinGuardado(docId, hashEsperado) {
-    return firebaseService.leerDocumento(config.collections.investigadores, docId)
-      .then(function (doc) {
-        if (!doc) throw new Error('Firebase no devolvió el registro después de guardarlo.');
-
-        if (String(doc.pinHash || '') !== String(hashEsperado || '')) {
-          throw new Error('El PIN guardado no coincide con el PIN solicitado.');
-        }
-
-        if (doc.pinActivo !== true || doc.activo === false) {
-          throw new Error('El PIN fue guardado, pero el acceso no quedó activo.');
-        }
-
+  function verificarPinGuardado(docId, hashEsperado, revisionEsperada) {
+    // get({source:'server'}) evita mostrar un éxito basado solo en caché local.
+    return firebaseService.leerDocumentoServidor(config.collections.investigadores, docId)
+      .then(function(doc){
+        if(!doc)throw new Error('Firebase no devolvió el PIN después del guardado.');
+        if(String(doc.pinHash||'').toLowerCase()!==String(hashEsperado||'').toLowerCase())
+          throw new Error('El hash del PIN cambió en Firebase. No se confirmó el acceso.');
+        if(Number(doc.pinRevision)!==Number(revisionEsperada))
+          throw new Error('Otra operación modificó el PIN después de guardarlo. Actualiza el registro.');
+        if(doc.pinActivo!==true||doc.activo===false)
+          throw new Error('El PIN está registrado, pero el acceso permanece desactivado.');
         return doc;
       });
   }

@@ -1,25 +1,33 @@
-# Diagnóstico de acceso por PIN — Investigadores
+# ITSQMET · Persistencia y verificación de PIN de Investigadores
 
-## Problema reportado
+**Implementación en código; no se han cambiado los PIN de usuarios reales.**
 
-El formulario devuelve `PIN incorrecto` cuando el hash SHA-256 del PIN introducido no coincide con `investigadores/<id>.pinHash`. Las dos pantallas usan el mismo cálculo: SHA-256 de la cadena `titulos-investigador-v1|<cedula>|<pin>`. **No se han cargado PINs reales en el código, las pruebas ni en GitHub**.
+## Diagnóstico
 
-Se corrigió un error de ejecución del módulo de Investigadores de Administración: invocaba `modoSeguro()` sin definirlo, de modo que sus botones podían quedar sin inicializar.
+- La aplicación heredada guardaba pinHash en Firestore, no el PIN en texto plano.
+- La comprobación anterior utilizaba lecturas Firestore normales que podían depender del estado local, sin verificar la revisión de la credencial.
+- El acceso podía ser ambiguo si había varios documentos asociados a una misma cédula.
+- No había historial dedicado a cambios de PIN que permitiera determinar cuándo fue reemplazado.
+- Estas condiciones pueden explicar confirmaciones temporales incorrectas, pero **no demuestran que Firebase borrara un PIN**. La causa exacta de los problemas anteriores requiere inspeccionar los documentos y reglas vigentes.
 
-## Comprobar un acceso SIN modificarlo
+## Correcciones
 
-1. Abre `https://jeffer91.github.io/titulos/administradores/administrador.html`.
-2. Entra en **Investigadores**, localiza a la persona por su cédula y pulsa **Cambiar PIN**.
-3. Escribe temporalmente el PIN que se desea comprobar y pulsa **Comprobar PIN registrado**. Esta acción vuelve a consultar el documento en Firebase; no guarda el PIN y no modifica ningún registro.
-4. Si responde **NO coincide**, el hash guardado no corresponde al PIN probado. Pulsa **Guardar y verificar** para reemplazar el PIN de esa persona, si tienes autorización administrativa.
-5. Si responde que **coincide, pero el acceso está desactivado**, hay que activar el acceso en la tabla de Investigadores, no cambiar el PIN.
-6. Si indica que **la cédula no corresponde al registro**, revisa el documento y los duplicados antes de modificar nada.
-7. Vuelve a la pantalla `https://jeffer91.github.io/titulos/investigadores/investigador.html`, actualiza la página y prueba de nuevo con los datos autorizados.
+1. Administración guarda pinHash, pinActivo, pinCreado, pinRevision, pinHashActualizadoEn y metadatos en UNA transacción Firestore, preservando los demás campos del investigador.
+2. La misma transacción escribe un evento de auditoría en workflow_events con identificador, fecha y revisión; NUNCA con PIN ni hash.
+3. Tras el guardado, Administración relee el documento directamente del servidor (source:server) y confirma el hash y número de revisión. Si falla la red o las reglas, no anuncia éxito.
+4. Investigadores consulta el servidor durante cada nuevo acceso, no utiliza una sesión local desactualizada para validar el PIN.
+5. Administración e Investigadores detectan y rechazan duplicados por cédula. Máximo transitorio: 1000 perfiles; después se necesita paginación.
+6. Las escrituras genéricas de Administración no pueden sustituir documentos de investigadores ni alterar pinHash/pinRevision; la página de Investigadores no puede escribir en investigadores.
+7. El PIN visible deja de mantenerse en una tabla de sesión, pero aparece en el recibo al asignar o restablecerlo.
 
-**Importante:** ninguna de estas acciones se ejecuta al actualizar el código GitHub. La versión guardada de los PINs permanece en Firestore hasta que una persona autorizada los compruebe y, si procede, restablezca. El código no conoce los PINs compartidos en esta conversación.
+## Comprobación funcional después de publicar
 
-## Seguridad y límites
+- En https://jeffer91.github.io/titulos/administradores/administrador.html entrar en Investigadores y elegir el perfil.
+- Pulsar Cambiar PIN, Comprobar PIN registrado y, solo si procede, Guardar y verificar.
+- Esperar la confirmación del servidor. No cerrar la pantalla antes del resultado.
+- En https://jeffer91.github.io/titulos/investigadores/investigador.html ingresar con la cédula vinculada.
+- Cerrar y volver a abrir el navegador para verificar la persistencia. Inspeccionar workflow_events y reglas en la consola titulos-ec2fa si hay problemas.
 
-El flujo heredado con PIN de 4 dígitos y SHA-256 client-side es débil frente a ataques por fuerza bruta, y el frontend legacy depende de reglas Firestore todavía no verificadas. La solución de producción es migrar a Firebase Authentication, claims de investigador y backend seguro, y restringir lecturas/escrituras directas del SDK. No usar PINs como alternativa permanente.
+## Limitaciones de seguridad
 
-Las pruebas añadidas usan **identidades y PINs ficticios**, sin consultar Firestore real. No sustituir el dato de producción sin validar la identidad de cada investigador.
+El modo PIN heredado sigue siendo vulnerable a fuerza bruta porque utiliza un PIN de cuatro cifras y SHA-256 en el navegador. La solución definitiva es activar Firebase Authentication con claims y reglas Firestore. No se publicaron las diez credenciales ni se modificaron los usuarios reales. La auditoría creada ahora no reconstruye modificaciones pasadas y las escrituras de otras aplicaciones siguen necesitando reglas del servidor.

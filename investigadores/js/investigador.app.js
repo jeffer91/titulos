@@ -197,12 +197,10 @@
 
     setLoading(button, true, 'Ingresando...');
 
-    repository.buscarInvestigador(investigador.cedula)
+    repository.validarAcceso(investigador, pin)
       .then(function (actualizado) {
         investigador = actualizado;
-        return repository.validarAcceso(investigador, pin);
-      })
-      .then(function () {
+
         valueSet('pinInput', '');
         abrirPanel();
         return cargarTitulos(false);

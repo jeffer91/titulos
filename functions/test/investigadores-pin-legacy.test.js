@@ -38,8 +38,30 @@ function mock(){
   escapeHtml(value){return String(value);}
  };
  let updates=0;
+ const audits=[];
+ let otherRecords=[];
+ let connected=true;
  const firebase={
   async leerDocumento(){return {...db};},
+  async leerDocumentoServidor(){
+   if(!connected)throw new Error('Firestore sin conexión: acceso no verificado');
+   return {...db};
+  },
+  async listarDocumentosServidor(){
+   if(!connected)throw new Error('Firestore sin conexión');
+   return [{...db},...otherRecords];
+  },
+  async guardarPinInvestigador(payload){
+   if(!connected)throw new Error('Firestore sin conexión');
+   assert.equal(payload.docId,CEDULA);assert.equal(payload.cedula,CEDULA);
+   assert.equal(payload.crear,false);
+   assert.match(payload.hash,/^[a-f0-9]{64}$/);
+   updates++;
+   db={...db,pinHash:payload.hash,pinRevision:(db.pinRevision||0)+1,
+    pinCreado:true,pinActivo:true,activo:true,pinVerificadoPor:'administrador_pin'};
+   audits.push({tipo:'ADMIN_PIN_INVESTIGADOR_CAMBIO',entidadId:CEDULA,pinRevision:db.pinRevision});
+   return {docId:CEDULA,revision:db.pinRevision};
+  },
   async guardarDocumento(collection,id,patch){
    assert.equal(collection,'investigadores');assert.equal(id,CEDULA);
    updates++; db={...db,...patch};
@@ -56,10 +78,16 @@ function mock(){
  }};
  const scope={window,document,TextEncoder,Uint8Array,Promise,Set,Date,console};
  vm.runInNewContext(leer('administradores/js/investigadores.admin.js'),scope);
- return {window,elements,reports,latest:()=>db,updates:()=>updates};
+ return {window,elements,reports,latest:()=>db,updates:()=>updates,audits,
+  disconnect(){connected=false;},setOthers(rows){otherRecords=rows;}};
 }
 function repo(firestoreData){
- const firebase={async leerDocumento(){return firestoreData;},async listarDocumentos(){return firestoreData?[firestoreData]:[];}};
+ const firebase={
+  async leerDocumentoServidor(){return firestoreData;},
+  async listarDocumentosServidor(){return firestoreData?[firestoreData]:[];},
+  async leerDocumento(){return firestoreData;},
+  async listarDocumentos(){return firestoreData?[firestoreData]:[];}
+ };
  const window={
   TA_INVESTIGADORES_CONFIG:{collections:{investigadores:'investigadores'},pin:{min:4,max:8}},
   TAInvestigadorFirebaseService:firebase,TAInvestigadorSeguro:{activo(){return false;}},
@@ -100,12 +128,15 @@ test('Administración puede restablecer PIN y Investigadores lo valida con mismo
  input.value=CORRECTO;
  const form=env.elements['#formCambiarPinInvestigador'];
  form.handlers.submit({preventDefault(){}});
- // El formulario antiguo no devuelve su promesa; aguardar el resultado de dos escrituras.
- for(let i=0;i<40&&env.updates()<2;i++)await new Promise(resolve=>setTimeout(resolve,5));
- assert.ok(env.updates()>=2,'el PIN y su verificación deben quedar guardados');
+ // La escritura es una sola transacción; confirmar que finalizó y quedó en servidor.
+ for(let i=0;i<40&&env.updates()<1;i++)await new Promise(resolve=>setTimeout(resolve,5));
+ assert.equal(env.updates(),1,'el PIN debe guardarse en una sola transacción');
  assert.equal(env.latest().pinHash,HASH(CEDULA,CORRECTO));
  assert.equal(env.latest().pinActivo,true);
  assert.equal(env.latest().pinVerificadoPor,'administrador_pin');
+ assert.equal(env.latest().pinRevision,1);
+ assert.equal(env.audits.length,1);
+ assert.equal(env.audits[0].pinHash,undefined);
  const login=repo(env.latest());
  const profile=await login.buscarInvestigador(CEDULA);
  const acceso=await login.validarAcceso(profile,CORRECTO);
@@ -124,4 +155,44 @@ test('los PINs reales no quedan dentro del repositorio ni sus pruebas',()=>{
  assert.ok(source.includes('verificarPinIngresado'));
  assert.ok(!source.includes('console.log(pin)'));
  assert.ok(!source.includes('PIN_PREDEFINIDO'));
+});
+
+test('una nueva sesión lee el PIN persistido en el servidor, nunca de memoria del Administrador',async()=>{
+ const env=mock();env.window.TAAdminInvestigadores.iniciar();
+ await env.window.TAAdminInvestigadores.cargar();
+ const actions=env.elements['#investigadoresTableBody'].children[0].children[5].children[0].children;
+ actions.find(el=>el.textContent==='Cambiar PIN').handlers.click();
+ env.elements['#investigadorNuevoPin'].value=CORRECTO;
+ env.elements['#formCambiarPinInvestigador'].handlers.submit({preventDefault(){}});
+ for(let i=0;i<50&&env.updates()<1;i++)await new Promise(resolve=>setTimeout(resolve,5));
+ assert.equal(env.latest().pinHash,HASH(CEDULA,CORRECTO));
+ const nuevaSesion=repo({...env.latest()});
+ const datos=await nuevaSesion.buscarInvestigador(CEDULA);
+ const usuario=await nuevaSesion.validarAcceso(datos,CORRECTO);
+ assert.equal(usuario.cedula,CEDULA);
+});
+test('si la cédula está duplicada se impide restablecer el PIN',async()=>{
+ const env=mock();env.setOthers([{
+  id:'id-duplicado',cedula:CEDULA,nombres:'Otra persona',pinHash:'f'.repeat(64)
+ }]);
+ env.window.TAAdminInvestigadores.iniciar();
+ await env.window.TAAdminInvestigadores.cargar();
+ const actions=env.elements['#investigadoresTableBody'].children[0].children[5].children[0].children;
+ actions.find(el=>el.textContent==='Cambiar PIN').handlers.click();
+ env.elements['#investigadorNuevoPin'].value=CORRECTO;
+ env.elements['#formCambiarPinInvestigador'].handlers.submit({preventDefault(){}});
+ for(let i=0;i<10;i++)await new Promise(resolve=>setTimeout(resolve,1));
+ assert.equal(env.updates(),0);
+ assert.ok(env.reports.some(x=>/varios documentos/i.test(x.message)));
+});
+test('si Firestore no está disponible la verificación del PIN no simula éxito',async()=>{
+ const env=mock();env.window.TAAdminInvestigadores.iniciar();
+ await env.window.TAAdminInvestigadores.cargar();
+ const actions=env.elements['#investigadoresTableBody'].children[0].children[5].children[0].children;
+ actions.find(el=>el.textContent==='Cambiar PIN').handlers.click();
+ env.elements['#investigadorNuevoPin'].value=CORRECTO;
+ env.disconnect();
+ const out=await env.elements['#btnComprobarPinInvestigador'].handlers.click();
+ assert.equal(out,false);
+ assert.equal(env.updates(),0);
 });

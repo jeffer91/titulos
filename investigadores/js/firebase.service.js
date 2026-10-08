@@ -174,6 +174,11 @@
 
   function asegurarEscritura(collectionName) {
     var nombre = String(collectionName || '');
+    if(nombre==='investigadores'){
+      var errorPin=new Error('Solo Administración puede modificar el registro y el PIN de un investigador.');
+      errorPin.codigo='PIN_SOLO_ADMINISTRACION';
+      throw errorPin;
+    }
 
     if (!COLECCIONES_ESCRITURA[nombre]) {
       var error = new Error('Backend de Investigadores: la colección ' + nombre + ' no está autorizada para escritura.');
@@ -193,6 +198,32 @@
       .catch(function (error) {
         throw crearErrorOperacion('LEER_DOCUMENTO', collectionName, error);
       });
+  }
+
+
+  // Los accesos se verifican SIEMPRE con documentos confirmados por el servidor.
+  // Si no hay red, no se toma una copia local como prueba de identidad.
+  function leerDocumentoServidor(collectionName, documentId) {
+    asegurarLectura(collectionName);
+    return getDb().collection(collectionName).doc(String(documentId)).get({source:'server'})
+      .then(function(snapshot){
+        return snapshot.exists ? normalizarDocumento(snapshot) : null;
+      }).catch(function(error){
+        throw crearErrorOperacion('LEER_DOCUMENTO_SERVIDOR',collectionName,error);
+      });
+  }
+
+  function listarDocumentosServidor(collectionName,options) {
+    asegurarLectura(collectionName);
+    var opts=options||{},query=getDb().collection(collectionName);
+    if(opts.where&&opts.where.length===3)query=query.where(opts.where[0],opts.where[1],opts.where[2]);
+    if(opts.limit)query=query.limit(Number(opts.limit));
+    return query.get({source:'server'}).then(function(snapshot){
+      var result=[];snapshot.forEach(function(doc){result.push(normalizarDocumento(doc));});
+      return result;
+    }).catch(function(error){
+      throw crearErrorOperacion('LISTAR_DOCUMENTOS_SERVIDOR',collectionName,error);
+    });
   }
 
   function listarDocumentos(collectionName, options) {
@@ -300,7 +331,9 @@
     estaListo: estaListo,
     getDb: getDb,
     leerDocumento: leerDocumento,
+    leerDocumentoServidor: leerDocumentoServidor,
     listarDocumentos: listarDocumentos,
+    listarDocumentosServidor: listarDocumentosServidor,
     guardarDocumento: guardarDocumento,
     agregarDocumento: agregarDocumento,
     serverTimestamp: serverTimestamp

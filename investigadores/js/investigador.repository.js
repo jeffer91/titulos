@@ -9,66 +9,62 @@
 
   function buscarInvestigador(cedula) {
     if(modoSeguro())return seguro.perfil().then(normalizarInvestigador);
-    var id = soloNumeros(cedula);
-    if (id.length !== 10) return Promise.reject(new Error('Ingresa una cédula válida de 10 dígitos.'));
-
-    return firebaseService.leerDocumento(config.collections.investigadores, id)
-      .then(function (doc) {
-        if (doc) {
-          var encontradoDirecto = normalizarInvestigador(doc);
-          if (encontradoDirecto.cedula !== id)
-            throw new Error('La cédula del registro de Firebase no coincide. Solicita revisión a Administración.');
-          return encontradoDirecto;
-        }
-        return firebaseService.listarDocumentos(config.collections.investigadores, { limit: 1000 }).then(function (docs) {
-          var candidatos = (docs || []).map(normalizarInvestigador).filter(function (item) { return item.cedula === id; });
-          if (!candidatos.length) throw new Error('Tu cédula no consta en el registro de investigadores. Comunícate con Administración.');
-          if (candidatos.length > 1) throw new Error('Hay varios registros para esta cédula. Administración debe resolverlos antes del acceso.');
-          return candidatos[0];
-        });
-      })
-      .then(function (investigador) {
-        if (!investigador) throw new Error('Tu cédula no consta en el registro de investigadores.');
-        if (!investigador.activo) throw new Error('Tu registro de investigador está inactivo.');
-        return investigador;
+    var id=soloNumeros(cedula);
+    if(id.length!==10)return Promise.reject(new Error('Ingresa una cédula válida de 10 dígitos.'));
+    // Un documento antiguo puede estar bajo un ID diferente de la cédula. Antes
+    // de autenticar hay que asegurarse de que NO existen identidades duplicadas.
+    // No se usa caché local para autorizar un acceso.
+    return Promise.all([
+      firebaseService.leerDocumentoServidor(config.collections.investigadores,id),
+      firebaseService.listarDocumentosServidor(config.collections.investigadores,{limit:1001})
+    ]).then(function(results) {
+      var directo=results[0],listado=results[1]||[];
+      if(listado.length>1000)
+        throw new Error('El registro de investigadores necesita paginación. Consulta a Administración.');
+      var mapa={};
+      if(directo){
+        var actual=normalizarInvestigador(directo);
+        if(actual.cedula!==id)
+          throw new Error('La cédula del registro de Firebase no coincide. Solicita revisión a Administración.');
+        mapa[String(actual.id)]=actual;
+      }
+      listado.forEach(function(doc) {
+        var perfil=normalizarInvestigador(doc);
+        if(perfil.cedula===id)mapa[String(perfil.id)]=perfil;
       });
-  }
-
-  function crearPin(investigador, pin) {
-    if(modoSeguro())return Promise.reject(new Error('El PIN heredado no se utiliza en acceso seguro.'));
-    validarPin(pin);
-    if (!investigador || !investigador.id) return Promise.reject(new Error('No se identificó al investigador.'));
-    if (investigador.pinCreado) return Promise.reject(new Error('Ya existe un PIN para este investigador.'));
-
-    return hashPin(investigador.cedula || investigador.id, pin).then(function (hash) {
-      return firebaseService.guardarDocumento(config.collections.investigadores, investigador.id, {
-        pinHash: hash,
-        pinCreado: true,
-        pinActivo: false,
-        pinCreadoEn: new Date().toISOString(),
-        pinActivadoEn: null,
-        pinActivadoPor: ''
-      }, { merge: true });
+      var keys=Object.keys(mapa);
+      if(keys.length>1)
+        throw new Error('Hay varios registros con tu cédula en Firebase. Administración debe resolver los duplicados.');
+      if(!keys.length)
+        throw new Error('Tu cédula no consta en el registro de investigadores. Comunícate con Administración.');
+      var investigador=mapa[keys[0]];
+      if(!investigador.activo)throw new Error('Tu registro de investigador está inactivo.');
+      return investigador;
     });
   }
 
-  function validarAcceso(investigador, pin) {
+  function crearPin() {
+    // Desactivar la asignación de PIN desde la página pública. Solo Administración
+    // debe administrar esta credencial durante la migración a Firebase Auth.
+    return Promise.reject(new Error('Por seguridad, el PIN únicamente puede asignarse desde Administración.'));
+  }
+
+  function validarAcceso(investigador,pin) {
     if(modoSeguro())return Promise.reject(new Error('La autorización se comprueba mediante Firebase Authentication.'));
-    if (!investigador || !investigador.pinCreado || !investigador.pinHash) {
-      return Promise.reject(new Error('Tu acceso todavía no tiene un PIN asignado.'));
-    }
-
-    return hashPin(investigador.cedula || investigador.id, pin)
-      .then(function (hash) {
-        if (!compararSeguro(hash, investigador.pinHash)) {
-          throw new Error('PIN incorrecto para el registro guardado en Firebase. Solicita a Administración comprobar o restablecer tu PIN.');
-        }
-
-        if (!investigador.pinActivo) {
+    if(!investigador||!investigador.cedula)
+      return Promise.reject(new Error('Vuelve a identificarte.'));
+    // Evitar login con el snapshot utilizado durante la identificación.
+    return buscarInvestigador(investigador.cedula).then(function(actual){
+      if(!actual.pinCreado||!actual.pinHash)
+        throw new Error('Tu acceso todavía no tiene un PIN asignado.');
+      return hashPin(actual.cedula,pin).then(function(hash){
+        if(!compararSeguro(hash,actual.pinHash))
+          throw new Error('PIN incorrecto para el registro guardado en Firebase. Solicita comprobarlo en Administración.');
+        if(!actual.pinActivo)
           throw new Error('Tu acceso está desactivado. Solicita activación a Administración.');
-        }
-        return investigador;
+        return actual;
       });
+    });
   }
 
   function listarTitulosHabilitados(investigador) {
