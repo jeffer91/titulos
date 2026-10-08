@@ -31,6 +31,14 @@ const runtimeDiag = read('estudiantes/js/diagnostico.runtime.js');
 const estudianteCss = read('estudiantes/css/estudiante.css');
 const workflow = read('.github/workflows/pages.yml');
 
+const estudiantesJsDir = path.join(ROOT, 'estudiantes', 'js');
+const estudiantesJsFiles = fs.readdirSync(estudiantesJsDir)
+  .filter((name) => name.endsWith('.js'));
+const estudiantesJsCode = estudiantesJsFiles
+  .map((name) => fs.readFileSync(path.join(estudiantesJsDir, name), 'utf8'))
+  .join('\n');
+const firebaseConfigEstudiantes = read('estudiantes/js/firebase.config.js');
+
 const eliminados = [
   'estudiantes/js/consulta-estado.bridge.js',
   'estudiantes/js/seguimiento.lookup.js',
@@ -89,6 +97,54 @@ assert.strictEqual(
   html.includes('../consulta-estado/consulta.config.js') || html.includes('../consulta-estado/consulta.service.js'),
   false,
   'Estudiantes no debe cargar el motor REST independiente para consultar envios.'
+);
+
+[
+  '../administradores/',
+  '../investigadores/',
+  '../coordinadores/',
+  '../shared/'
+].forEach((ruta) => {
+  assert.strictEqual(
+    html.includes(ruta) || estudiantesJsCode.includes(ruta),
+    false,
+    'Estudiantes no debe importar recursos de otra app: ' + ruta
+  );
+});
+
+[
+  'TAFirebaseService',
+  'TAAdminFirebaseService',
+  'TAInvestigadorFirebaseService',
+  'TACoordinadorFirebaseService'
+].forEach((globalName) => {
+  assert.strictEqual(
+    estudiantesJsCode.includes(globalName),
+    false,
+    'Estudiantes no debe depender del backend global/ajeno: ' + globalName
+  );
+});
+
+assert(
+  firebaseService.includes('window.TAEstudianteFirebaseService = Object.freeze'),
+  'Estudiantes debe exponer su propio servicio Firebase.'
+);
+assert(
+  firebaseService.includes('COLECCIONES_TITULOS_LECTURA') &&
+  firebaseService.includes('COLECCIONES_TITULOS_ESCRITURA') &&
+  firebaseService.includes('COLECCION_NO_AUTORIZADA_ESTUDIANTES'),
+  'El backend de Estudiantes debe limitar explícitamente las colecciones permitidas.'
+);
+assert.strictEqual(
+  firebaseConfigEstudiantes.includes('TA_ESTUDIANTES_FIREBASE_CONFIG'),
+  false,
+  'No debe conservarse el alias Firebase legacy de Estudiantes.'
+);
+assert(
+  app.includes('function mostrarErrorBackend') &&
+  app.includes('ERROR_BACKEND_ESTUDIANTES') &&
+  app.includes('#consultaMensaje'),
+  'Los errores del backend de Estudiantes deben mostrarse al usuario.'
 );
 assert.strictEqual(
   app.includes('TAConsultaEstadoService'),
