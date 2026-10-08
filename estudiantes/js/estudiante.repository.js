@@ -8,7 +8,7 @@
   'use strict';
 
   var config = window.TA_ESTUDIANTES_CONFIG;
-  var firebaseService = window.TAFirebaseService;
+  var firebaseService = window.TAEstudianteFirebaseService;
   var appConfigCache = null;
   var appConfigCacheAt = 0;
   var ultimoDiagnosticoEnvio = null;
