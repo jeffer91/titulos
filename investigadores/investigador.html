@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Investigadores | Revisión de títulos</title>
-  <link rel="stylesheet" href="css/investigador.css?v=4.6.0" />
+  <link rel="stylesheet" href="css/investigador.css?v=4.7.0" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
@@ -74,7 +74,12 @@
         <button class="btn btn--ghost" type="button" id="btnSalir">Salir</button>
       </section>
 
-      <section class="summary-grid queue-summary">
+      <nav class="workspace-nav" aria-label="Secciones de Investigación">
+        <button class="workspace-nav__btn is-active" type="button" id="btnVistaPendientes">Cola de revisión</button>
+        <button class="workspace-nav__btn" type="button" id="btnVistaRevisados">Mis revisiones</button>
+      </nav>
+
+      <section class="summary-grid queue-summary" id="resumenPendientes">
         <article class="summary summary--warning"><span>Pendientes totales</span><strong id="totalPendientes">0</strong></article>
         <article class="summary"><span>Carreras con pendientes</span><strong id="totalCarrerasPendientes">0</strong></article>
         <article class="summary summary--success"><span>Revisados por mí</span><strong id="totalRevisados">0</strong></article>
@@ -129,13 +134,74 @@
 
         <section id="tituloActual"></section>
       </section>
+
+      <section class="card reviews-panel is-hidden" id="panelRevisados">
+        <div class="reviews-head">
+          <div>
+            <span class="step">Historial personal</span>
+            <h3>Mis revisiones</h3>
+            <p>Consulta únicamente los expedientes revisados por tu usuario y descarga el reporte en PDF.</p>
+          </div>
+          <div class="reviews-head__actions">
+            <button class="btn btn--secondary" type="button" id="btnActualizarRevisados">Actualizar</button>
+            <button class="btn btn--primary" type="button" id="btnDescargarRevisadosPdf">Descargar PDF</button>
+          </div>
+        </div>
+
+        <div class="review-filters">
+          <label>Período
+            <select id="filtroRevisionPeriodo"><option value="">Todos</option></select>
+          </label>
+          <label>Carrera
+            <select id="filtroRevisionCarrera"><option value="">Todas</option></select>
+          </label>
+          <label>Resultado
+            <select id="filtroRevisionResultado">
+              <option value="">Todos</option>
+              <option value="APROBADO">Aprobado</option>
+              <option value="APROBADO_CON_OBSERVACION">Aprobado con observación</option>
+              <option value="DEVUELTO">Devuelto</option>
+            </select>
+          </label>
+        </div>
+
+        <section class="summary-grid reviews-summary">
+          <article class="summary"><span>Revisados</span><strong id="reporteTotalRevisados">0</strong></article>
+          <article class="summary summary--success"><span>Aprobados</span><strong id="reporteTotalAprobados">0</strong></article>
+          <article class="summary summary--warning"><span>Devueltos</span><strong id="reporteTotalDevueltos">0</strong></article>
+        </section>
+
+        <div class="table-wrap">
+          <table class="career-table reviews-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Estudiante</th>
+                <th>Cédula</th>
+                <th>Carrera</th>
+                <th>Resultado</th>
+                <th>Título final</th>
+              </tr>
+            </thead>
+            <tbody id="revisadosBody">
+              <tr><td colspan="6" class="queue-empty">Abre esta sección para cargar tus revisiones.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="message" id="reporteRevisionMensaje" role="status" aria-live="polite"></div>
+      </section>
     </section>
   </main>
 
   <script src="../administradores/js/firebase.config.js"></script>
   <script src="js/app.config.js?v=4.6.0"></script>
   <script src="../administradores/js/firebase.service.js"></script>
-  <script src="js/investigador.repository.js?v=4.6.0"></script>
-  <script src="js/investigador.app.js?v=4.6.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="../shared/js/reporte-revisiones.service.js?v=20261008-1"></script>
+  <script src="../shared/js/pdf-revisiones.service.js?v=20261008-1"></script>
+  <script src="js/investigador.repository.js?v=4.7.0"></script>
+  <script src="js/investigador.app.js?v=4.7.0"></script>
 </body>
 </html>
