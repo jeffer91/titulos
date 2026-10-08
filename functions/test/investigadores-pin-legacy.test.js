@@ -80,7 +80,7 @@ test('comprobar PIN distingue discrepancia sin cambiar Firestore',async()=>{
  await env.window.TAAdminInvestigadores.cargar();
  const body=env.elements['#investigadoresTableBody'];
  assert.equal(body.children.length,1);
- const actions=body.children[0].children[5].children;
+ const actions=body.children[0].children[5].children[0].children;
  const cambiar=actions.find(el=>el.textContent==='Cambiar PIN');
  assert.ok(cambiar);
  cambiar.handlers.click();
@@ -94,7 +94,7 @@ test('comprobar PIN distingue discrepancia sin cambiar Firestore',async()=>{
 test('Administración puede restablecer PIN y Investigadores lo valida con mismo algoritmo',async()=>{
  const env=mock();env.window.TAAdminInvestigadores.iniciar();
  await env.window.TAAdminInvestigadores.cargar();
- const actions=env.elements['#investigadoresTableBody'].children[0].children[5].children;
+ const actions=env.elements['#investigadoresTableBody'].children[0].children[5].children[0].children;
  actions.find(el=>el.textContent==='Cambiar PIN').handlers.click();
  const input=env.elements['#investigadorNuevoPin'];
  input.value=CORRECTO;
