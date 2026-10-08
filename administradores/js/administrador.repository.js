@@ -57,6 +57,17 @@
     });
   }
 
+  function listarRevisionesInvestigacion() {
+    var reportService = window.TARevisionReportService;
+    if (!reportService || typeof reportService.normalizarLista !== 'function') {
+      return Promise.reject(new Error('No se cargó el motor de reportes de revisiones.'));
+    }
+
+    return listarColeccion(config.collections.titulos).then(function (docs) {
+      return reportService.normalizarLista(docs || []);
+    });
+  }
+
   function listarCoordinadores() {
     return listarColeccion(config.collections.coordinadores).then(function (docs) {
       return docs.map(normalizarCoordinador).sort(function (a, b) {
@@ -1312,6 +1323,7 @@
     guardarAppConfig: guardarAppConfig,
     listarEstudiantes: listarEstudiantes,
     listarTitulos: listarTitulos,
+    listarRevisionesInvestigacion: listarRevisionesInvestigacion,
     listarCoordinadores: listarCoordinadores,
     listarPeriodos: listarPeriodos,
     actualizarPeriodosActivos: actualizarPeriodosActivos,
