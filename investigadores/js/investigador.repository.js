@@ -3,7 +3,7 @@
   'use strict';
 
   var config = window.TA_INVESTIGADORES_CONFIG;
-  var firebaseService = window.TAAdminFirebaseService;
+  var firebaseService = window.TAInvestigadorFirebaseService;
 
   function buscarInvestigador(cedula) {
     var id = soloNumeros(cedula);
