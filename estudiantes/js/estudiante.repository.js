@@ -61,17 +61,28 @@
     var variantes = construirVariantesCedula(cedulaIngresada);
     if (!variantes.length) return Promise.resolve(null);
 
-    return buscarDocumentoAcademicoPorIds(variantes)
+    /*
+      Las dos lecturas académicas son independientes, por eso arrancan juntas:
+      A) ficha del estudiante
+      B) matrículas por cédula
+    */
+    var estudiantePromise = buscarDocumentoAcademicoPorIds(variantes)
       .then(function (estudiante) {
         if (estudiante) return estudiante;
         return buscarDocumentoAcademicoPorCampo('cedula', variantes);
-      })
-      .then(function (estudiante) {
+      });
+
+    var matriculasPromise = buscarMatriculas(variantes);
+
+    return Promise.all([estudiantePromise, matriculasPromise])
+      .then(function (resultados) {
+        var estudiante = resultados[0];
+        var matriculas = resultados[1] || [];
+
         if (!estudiante || estudiante.eliminado === true) return null;
-        return buscarMatriculas(variantes).then(function (matriculas) {
-          var matricula = seleccionarMatricula(matriculas, appConfig);
-          return normalizarEstudiante(estudiante, cedulaIngresada, matricula, matriculas);
-        });
+
+        var matricula = seleccionarMatricula(matriculas, appConfig);
+        return normalizarEstudiante(estudiante, cedulaIngresada, matricula, matriculas);
       });
   }
 
@@ -141,557 +152,154 @@
   }
 
   function consultarEnvio(periodoId, cedulaIngresada, contextoEstudiante) {
-    var service = window.TAConsultaEstadoService;
     var inicio = Date.now();
-    var contexto = construirContextoResolucion(periodoId, cedulaIngresada, contextoEstudiante);
-    var documentoId = contexto.periodoPrincipal + '__' + contexto.cedula;
+    var cedula = normalizarCedulaParaMostrar(
+      cedulaIngresada ||
+      (contextoEstudiante && (contextoEstudiante.cedula || contextoEstudiante.numeroIdentificacion))
+    );
+    var periodo = obtenerPeriodoIdDesdeValor(
+      periodoId ||
+      (contextoEstudiante && contextoEstudiante.periodoId)
+    );
 
     ultimoDiagnosticoEnvio = null;
     trazaEnvioActual = [];
-    emitirDiagnosticoRuta({
-      ruta: 'RESOLVER',
-      estado: 'INICIANDO',
-      documentoId: documentoId,
-      periodo: contexto.periodoPrincipal,
-      cedula: contexto.cedula,
-      build: (window.TAEstudianteApp && window.TAEstudianteApp.build) || '20261008-48'
-    });
 
-    if (!service || typeof service.leerDocumento !== 'function') {
-      var errorServicio = new Error('No se pudo iniciar el motor de consulta de Títulos.');
-      errorServicio.codigo = 'SERVICIO_TITULOS_NO_DISPONIBLE';
-      return Promise.reject(errorServicio);
+    if (!cedula) {
+      var errorCedula = new Error('No se pudo consultar Títulos porque la cédula está vacía.');
+      errorCedula.codigo = 'CEDULA_TITULOS_INVALIDA';
+      return Promise.reject(errorCedula);
     }
 
+    if (!periodo) {
+      var errorPeriodo = new Error('No se pudo consultar Títulos porque falta el período académico.');
+      errorPeriodo.codigo = 'PERIODO_TITULOS_INVALIDO';
+      return Promise.reject(errorPeriodo);
+    }
+
+    registrarRutaSimple('TITULOS_CEDULA', 'CONSULTANDO', {
+      campo: 'cedula',
+      valor: cedula,
+      periodo: periodo
+    });
+
     /*
-      Resolver flexible:
-      - SDK de Firestore y REST consultan el ID exacto en paralelo.
-      - En segundo plano se habilitan búsquedas por identidad para documentos legacy.
-      - El primer resultado seguro gana; no se espera a rutas lentas innecesarias.
+      Consulta única en Firebase de Títulos:
+      envios where cedula == "<cédula>"
+      El período NO forma parte de la consulta remota; ya viene de la matrícula.
+      Luego se filtra localmente por periodoId / periodoCanonicoId.
     */
-    var rutas = [
-      {
-        nombre: 'SDK_ID_EXACTO',
-        retraso: 0,
-        timeout: 2600,
-        ejecutar: function () { return leerEnvioExactoSdk(documentoId, contexto); }
-      },
-      {
-        nombre: 'REST_ID_EXACTO',
-        retraso: 0,
-        timeout: 3200,
-        ejecutar: function () { return leerEnvioExactoRest(documentoId, contexto, service); }
-      },
-      {
-        nombre: 'SDK_IDENTIDAD',
-        retraso: 140,
-        timeout: 3800,
-        ejecutar: function () { return buscarEnvioFlexibleSdk(contexto); }
-      },
-      {
-        nombre: 'REST_IDENTIDAD',
-        retraso: 260,
-        timeout: 5000,
-        ejecutar: function () { return buscarEnvioFlexibleRest(contexto, service); }
-      }
-    ];
+    return conTimeoutRepo(
+      firebaseService.consultarColeccion(
+        config.collections.titulos,
+        'cedula',
+        '==',
+        cedula,
+        100
+      ),
+      5000,
+      'TITULOS_CEDULA'
+    )
+      .then(function (docs) {
+        docs = Array.isArray(docs) ? docs : [];
 
-    return primerResultadoSeguro(rutas)
-      .then(function (resultado) {
-        if (!resultado || !resultado.envio) {
-          ultimoDiagnosticoEnvio = {
-            motor: 'RESOLVER_FLEXIBLE',
-            estrategia: 'SIN_COINCIDENCIA_SEGURA',
-            base: 'titulos-ec2fa',
-            coleccion: config.collections.titulos,
-            documentoId: documentoId,
-            ruta: 'NO_ENCONTRADO',
-            rutasProbadas: rutas.map(function (ruta) { return ruta.nombre; }),
-            rutasDetalle: trazaEnvioActual.slice(),
-            periodoCanonico: contexto.periodoPrincipal,
-            periodosCandidatos: contexto.periodosCandidatos.slice(),
-            status: 404,
-            duracionMs: Date.now() - inicio
-          };
-          return null;
-        }
+        var compatibles = docs.filter(function (doc) {
+          return periodoCoincide(doc, periodo);
+        });
 
-        ultimoDiagnosticoEnvio = Object.assign({
-          motor: 'RESOLVER_FLEXIBLE',
-          estrategia: resultado.estrategia || 'PRIMER_RESULTADO_SEGURO',
+        compatibles.sort(function (a, b) {
+          return fechaPrioridadEnvio(b) - fechaPrioridadEnvio(a);
+        });
+
+        var elegido = compatibles[0] || null;
+
+        registrarRutaSimple('TITULOS_CEDULA', elegido ? 'ENCONTRADO' : 'NO_ENCONTRADO', {
+          encontradosCedula: docs.length,
+          encontradosPeriodo: compatibles.length,
+          documentoId: elegido && (elegido.id || elegido._docId) || '',
+          ms: Date.now() - inicio
+        });
+
+        ultimoDiagnosticoEnvio = {
+          motor: 'CONSULTA_CEDULA',
+          estrategia: 'CEDULA_MAS_PERIODO',
           base: 'titulos-ec2fa',
           coleccion: config.collections.titulos,
-          documentoId: resultado.documentoId || documentoId,
-          ruta: resultado.ruta || 'DESCONOCIDA',
-          rutasProbadas: resultado.rutasProbadas || [resultado.ruta || 'DESCONOCIDA'],
+          cedula: cedula,
+          periodoCanonico: periodo,
+          ruta: 'TITULOS_CEDULA',
+          documentoId: elegido && (elegido.id || elegido._docId) || '',
+          encontradosCedula: docs.length,
+          encontradosPeriodo: compatibles.length,
+          rutasProbadas: ['TITULOS_CEDULA'],
           rutasDetalle: trazaEnvioActual.slice(),
-          periodoCanonico: contexto.periodoPrincipal,
-          periodosCandidatos: contexto.periodosCandidatos.slice(),
-          status: 200,
-          duracionMs: Date.now() - inicio,
-          score: Number(resultado.score || 0)
-        }, resultado.diagnostico || {});
+          status: elegido ? 200 : 404,
+          duracionMs: Date.now() - inicio
+        };
 
-        var envio = normalizarEnvioExistente(resultado.envio);
+        if (!elegido) return null;
+
+        var envio = normalizarEnvioExistente(elegido);
         envio._consultaDiagnostico = Object.assign({}, ultimoDiagnosticoEnvio);
         return envio;
       })
       .catch(function (error) {
-        error = error || new Error('No se pudo consultar el estado del título.');
-        if (!error.codigo) error.codigo = 'CONSULTA_TITULOS_ERROR';
-        if (!error.diagnostico) {
-          error.diagnostico = {
-            motor: 'RESOLVER_FLEXIBLE',
-            estrategia: 'RUTAS_PARALELAS',
-            base: 'titulos-ec2fa',
-            coleccion: config.collections.titulos,
-            documentoId: documentoId,
-            rutasDetalle: trazaEnvioActual.slice(),
-            periodoCanonico: contexto.periodoPrincipal,
-            periodosCandidatos: contexto.periodosCandidatos.slice(),
-            duracionMs: Date.now() - inicio
-          };
-        }
+        error = error || new Error('No se pudo consultar Títulos por cédula.');
+        if (!error.codigo) error.codigo = error.code || 'CONSULTA_TITULOS_CEDULA_ERROR';
+
+        registrarRutaSimple('TITULOS_CEDULA', error.codigo === 'TIMEOUT' ? 'TIMEOUT' : 'ERROR', {
+          codigo: error.codigo || error.code || error.name || 'ERROR',
+          mensaje: error.message || 'Error desconocido.',
+          ms: Date.now() - inicio
+        });
+
+        error.diagnostico = Object.assign({}, error.diagnostico || {}, {
+          motor: 'CONSULTA_CEDULA',
+          estrategia: 'CEDULA_MAS_PERIODO',
+          base: 'titulos-ec2fa',
+          coleccion: config.collections.titulos,
+          cedula: cedula,
+          periodoCanonico: periodo,
+          ruta: 'TITULOS_CEDULA',
+          rutasProbadas: ['TITULOS_CEDULA'],
+          rutasDetalle: trazaEnvioActual.slice(),
+          duracionMs: Date.now() - inicio
+        });
+
         throw error;
       });
   }
 
-  function leerEnvioExactoSdk(documentoId, contexto) {
-    if (!firebaseService || typeof firebaseService.leerDocumentoServidor !== 'function') {
-      return Promise.resolve(null);
-    }
+  function periodoCoincide(doc, periodoEsperado) {
+    var esperado = normalizarPeriodoSimple(periodoEsperado);
+    var periodoDoc = normalizarPeriodoSimple(
+      doc && (doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || doc.periodoLabel)
+    );
 
-    return firebaseService.leerDocumentoServidor(config.collections.titulos, documentoId)
-      .then(function (doc) {
-        if (!doc) return null;
-        return {
-          envio: doc,
-          documentoId: doc.id || doc._docId || documentoId,
-          ruta: 'SDK_ID_EXACTO',
-          estrategia: 'ID_EXACTO_PARALELO',
-          score: puntuarCandidato(doc, contexto)
-        };
-      });
+    return Boolean(esperado && periodoDoc && esperado === periodoDoc);
   }
 
-  function leerEnvioExactoRest(documentoId, contexto, service) {
-    return service.leerDocumento(documentoId)
-      .then(function (resultado) {
-        if (!resultado || !resultado.encontrado || !resultado.envio) return null;
-        return {
-          envio: resultado.envio,
-          documentoId: resultado.envio.id || resultado.envio._docId || documentoId,
-          ruta: 'REST_ID_EXACTO',
-          estrategia: 'ID_EXACTO_PARALELO',
-          score: puntuarCandidato(resultado.envio, contexto)
-        };
-      });
-  }
-
-  function buscarEnvioFlexibleRest(contexto, service) {
-    if (!service || typeof service.consultarLegacy !== 'function') return Promise.resolve(null);
-
-    return service.consultarLegacy(contexto.periodoPrincipal, contexto.cedula)
-      .then(function (resultado) {
-        if (!resultado || !resultado.encontrado || !resultado.envio) return null;
-        if (!candidatoSeguro(resultado.envio, contexto)) return null;
-
-        return {
-          envio: resultado.envio,
-          documentoId: resultado.documentoId || resultado.envio.id || resultado.envio._docId || '',
-          ruta: 'REST_IDENTIDAD',
-          estrategia: resultado.estrategia || 'FALLBACK_IDENTIDAD',
-          score: puntuarCandidato(resultado.envio, contexto),
-          diagnostico: {
-            rutasProbadas: resultado.rutasProbadas || [],
-            status: resultado.status || 200
-          }
-        };
-      });
-  }
-
-  function buscarEnvioFlexibleSdk(contexto) {
-    if (!firebaseService || typeof firebaseService.consultarColeccion !== 'function') {
-      return Promise.resolve(null);
-    }
-
-    var consultasTexto = [
-      function () {
-        return firebaseService.consultarColeccion(config.collections.titulos, 'cedula', '==', contexto.cedula, 40);
-      },
-      function () {
-        return firebaseService.consultarColeccion(config.collections.titulos, 'numeroIdentificacion', '==', contexto.cedula, 40);
-      }
-    ];
-
-    return primerCandidatoDesdeConsultas(consultasTexto, contexto)
-      .then(function (resultado) {
-        if (resultado) return resultado;
-
-        var numero = Number(contexto.cedula);
-        if (!Number.isSafeInteger(numero)) return null;
-
-        /*
-          Compatibilidad muy antigua: el cero inicial se conserva en toda la
-          lógica de identidad y solo se prueba como número al final.
-        */
-        return primerCandidatoDesdeConsultas([
-          function () {
-            return firebaseService.consultarColeccion(config.collections.titulos, 'cedula', '==', numero, 40);
-          },
-          function () {
-            return firebaseService.consultarColeccion(config.collections.titulos, 'numeroIdentificacion', '==', numero, 40);
-          }
-        ], contexto);
-      });
-  }
-
-  function primerCandidatoDesdeConsultas(consultas, contexto) {
-    return new Promise(function (resolve) {
-      var pendientes = consultas.length;
-      var acumulados = [];
-      var terminado = false;
-
-      if (!pendientes) {
-        resolve(null);
-        return;
-      }
-
-      consultas.forEach(function (ejecutar) {
-        Promise.resolve()
-          .then(ejecutar)
-          .then(function (docs) {
-            if (terminado) return;
-
-            (docs || []).forEach(function (doc) {
-              acumulados.push(doc);
-            });
-
-            var seguro = elegirCandidatoSeguro(docs || [], contexto);
-            if (seguro && coincidePeriodoCandidato(seguro, contexto)) {
-              terminado = true;
-              resolve({
-                envio: seguro,
-                documentoId: seguro.id || seguro._docId || '',
-                ruta: 'SDK_IDENTIDAD',
-                estrategia: 'IDENTIDAD_FLEXIBLE',
-                score: puntuarCandidato(seguro, contexto)
-              });
-              return;
-            }
-
-            pendientes -= 1;
-            if (pendientes > 0) return;
-
-            terminado = true;
-            var elegido = elegirCandidatoSeguro(acumulados, contexto);
-            resolve(elegido ? {
-              envio: elegido,
-              documentoId: elegido.id || elegido._docId || '',
-              ruta: 'SDK_IDENTIDAD',
-              estrategia: 'IDENTIDAD_FLEXIBLE',
-              score: puntuarCandidato(elegido, contexto)
-            } : null);
-          })
-          .catch(function () {
-            if (terminado) return;
-            pendientes -= 1;
-            if (pendientes > 0) return;
-
-            terminado = true;
-            var elegido = elegirCandidatoSeguro(acumulados, contexto);
-            resolve(elegido ? {
-              envio: elegido,
-              documentoId: elegido.id || elegido._docId || '',
-              ruta: 'SDK_IDENTIDAD',
-              estrategia: 'IDENTIDAD_FLEXIBLE',
-              score: puntuarCandidato(elegido, contexto)
-            } : null);
-          });
-      });
-    });
-  }
-
-  function primerResultadoSeguro(rutas) {
-    return new Promise(function (resolve, reject) {
-      var pendientes = rutas.length;
-      var terminado = false;
-      var errores = [];
-      var huboRespuesta = false;
-
-      if (!pendientes) {
-        resolve(null);
-        return;
-      }
-
-      rutas.forEach(function (ruta) {
-        esperarRepo(ruta.retraso || 0)
-          .then(function () {
-            var inicioRuta = Date.now();
-            registrarRuta(ruta.nombre, 'CONSULTANDO', {
-              timeoutMs: Number(ruta.timeout || 3500)
-            });
-
-            return conTimeoutRepo(
-              Promise.resolve().then(ruta.ejecutar),
-              ruta.timeout || 3500,
-              ruta.nombre
-            ).then(function (resultado) {
-              return {
-                resultado: resultado,
-                inicioRuta: inicioRuta
-              };
-            }).catch(function (error) {
-              error._taInicioRuta = inicioRuta;
-              throw error;
-            });
-          })
-          .then(function (paquete) {
-            if (terminado) return;
-            huboRespuesta = true;
-
-            var resultado = paquete && paquete.resultado;
-            var inicioRuta = paquete && paquete.inicioRuta || Date.now();
-
-            if (resultado && resultado.envio) {
-              registrarRuta(ruta.nombre, 'ENCONTRADO', {
-                ms: Date.now() - inicioRuta,
-                documentoId: resultado.documentoId || resultado.envio.id || resultado.envio._docId || '',
-                score: Number(resultado.score || 0)
-              });
-              terminado = true;
-              resolve(resultado);
-              return;
-            }
-
-            registrarRuta(ruta.nombre, 'NO_ENCONTRADO', {
-              ms: Date.now() - inicioRuta
-            });
-
-            pendientes -= 1;
-            if (pendientes <= 0) {
-              terminado = true;
-              if (!huboRespuesta && errores.length) reject(errores[0]);
-              else resolve(null);
-            }
-          })
-          .catch(function (error) {
-            if (terminado) return;
-
-            errores.push(error);
-            registrarRuta(ruta.nombre, error && error.codigo === 'TIMEOUT' ? 'TIMEOUT' : 'ERROR', {
-              ms: Date.now() - Number(error && error._taInicioRuta || Date.now()),
-              codigo: error && (error.codigo || error.code || error.name) || 'ERROR',
-              mensaje: error && error.message || 'Error desconocido.',
-              httpStatus: error && error.httpStatus || '',
-              firebaseStatus: error && error.firebaseStatus || '',
-              firebaseMessage: error && error.firebaseMessage || ''
-            });
-
-            pendientes -= 1;
-
-            if (pendientes <= 0) {
-              terminado = true;
-              if (!huboRespuesta && errores.length) reject(errores[0]);
-              else resolve(null);
-            }
-          });
-      });
-    });
-  }
-
-  function registrarRuta(nombre, estado, extra) {
-    var ruta = String(nombre || 'DESCONOCIDA');
-    var existente = null;
-
-    for (var i = trazaEnvioActual.length - 1; i >= 0; i -= 1) {
-      if (trazaEnvioActual[i].ruta === ruta) {
-        existente = trazaEnvioActual[i];
-        break;
-      }
-    }
-
-    if (!existente || estado === 'CONSULTANDO') {
-      existente = {
-        ruta: ruta,
-        estado: estado,
-        inicio: new Date().toISOString()
-      };
-      trazaEnvioActual.push(existente);
-    }
-
-    existente.estado = estado;
-    Object.keys(extra || {}).forEach(function (key) {
-      existente[key] = extra[key];
-    });
-
-    if (estado !== 'CONSULTANDO') existente.fin = new Date().toISOString();
-
-    emitirDiagnosticoRuta(Object.assign({}, existente));
-  }
-
-  function emitirDiagnosticoRuta(detalle) {
-    try {
-      if (window.TAEstudianteDiagnostico && typeof window.TAEstudianteDiagnostico.registrar === 'function') {
-        window.TAEstudianteDiagnostico.registrar('RUTA_TITULO', detalle);
-      }
-
-      if (typeof window.CustomEvent === 'function' && typeof window.dispatchEvent === 'function') {
-        window.dispatchEvent(new CustomEvent('ta:consulta-titulo-ruta', {
-          detail: detalle
-        }));
-      }
-    } catch (error) {
-      console.warn('[Estudiantes] No se pudo emitir diagnóstico de ruta:', error);
-    }
-  }
-
-  function construirContextoResolucion(periodoId, cedulaIngresada, estudiante) {
-    estudiante = estudiante || {};
-    var periodos = [];
-    var principal = obtenerPeriodoIdDesdeValor(periodoId || estudiante.periodoId);
-    var cedula = normalizarCedulaParaMostrar(cedulaIngresada || estudiante.cedula || estudiante.numeroIdentificacion);
-
-    agregarUnico(periodos, principal);
-    (Array.isArray(estudiante.periodosCandidatos) ? estudiante.periodosCandidatos : []).forEach(function (periodo) {
-      agregarUnico(periodos, obtenerPeriodoIdDesdeValor(periodo));
-    });
-
-    if (estudiante.matriculaRaw && estudiante.matriculaRaw.periodoId) {
-      agregarUnico(periodos, estudiante.matriculaRaw.periodoId);
-    }
-
-    return {
-      cedula: cedula,
-      periodoPrincipal: principal,
-      periodosCandidatos: periodos,
-      codigoCarrera: limpiarTexto(estudiante.codigoCarrera || estudiante.carreraCodigo || ''),
-      carrera: limpiarTexto(estudiante.carrera || estudiante.nombreCarrera || estudiante.carreraNombre || '')
-    };
-  }
-
-  function elegirCandidatoSeguro(lista, contexto) {
-    var mapa = {};
-    var candidatos = [];
-
-    (lista || []).forEach(function (doc) {
-      if (!doc) return;
-      if (normalizarCedulaParaMostrar(doc.cedula || doc.numeroIdentificacion) !== contexto.cedula) return;
-
-      var id = doc.id || doc._docId || [
-        doc.periodoId || doc.periodoCanonicoId || '',
-        doc.cedula || doc.numeroIdentificacion || '',
-        doc.actualizadoEn || doc.fechaEnvio || ''
-      ].join('|');
-
-      if (mapa[id]) return;
-      mapa[id] = true;
-      candidatos.push(doc);
-    });
-
-    if (!candidatos.length) return null;
-
-    var mismoPeriodo = candidatos.filter(function (doc) {
-      return coincidePeriodoCandidato(doc, contexto);
-    });
-
-    if (mismoPeriodo.length) {
-      return ordenarCandidatos(mismoPeriodo, contexto)[0] || null;
-    }
-
-    /*
-      Si no existe coincidencia de período, solo se acepta un expediente único
-      y coherente con la carrera. Con varios períodos no se adivina.
-    */
-    if (candidatos.length === 1) {
-      var unico = candidatos[0];
-      var periodoDoc = obtenerPeriodoDocumento(unico);
-      var carreraCompatible = coincideCodigoCarrera(unico, contexto) || coincideCarrera(unico, contexto);
-      if (!periodoDoc || carreraCompatible) return unico;
-    }
-
-    return null;
-  }
-
-  function candidatoSeguro(doc, contexto) {
-    if (!doc) return false;
-    if (normalizarCedulaParaMostrar(doc.cedula || doc.numeroIdentificacion) !== contexto.cedula) return false;
-    if (coincidePeriodoCandidato(doc, contexto)) return true;
-
-    var periodoDoc = obtenerPeriodoDocumento(doc);
-    return !periodoDoc && (coincideCodigoCarrera(doc, contexto) || coincideCarrera(doc, contexto));
-  }
-
-  function ordenarCandidatos(lista, contexto) {
-    return (lista || []).slice().sort(function (a, b) {
-      var score = puntuarCandidato(b, contexto) - puntuarCandidato(a, contexto);
-      if (score !== 0) return score;
-      return fechaNumero(
-        b.actualizadoEn || b.fechaResolucionInvestigacion || b.fechaValidacionCoordinador || b.fechaEnvio
-      ) - fechaNumero(
-        a.actualizadoEn || a.fechaResolucionInvestigacion || a.fechaValidacionCoordinador || a.fechaEnvio
-      );
-    });
-  }
-
-  function puntuarCandidato(doc, contexto) {
-    if (!doc) return -1;
-    var score = 0;
-
-    if (normalizarCedulaParaMostrar(doc.cedula || doc.numeroIdentificacion) === contexto.cedula) score += 100;
-    if (coincidePeriodoCandidato(doc, contexto)) score += 100;
-    if (coincideCodigoCarrera(doc, contexto)) score += 50;
-    if (coincideCarrera(doc, contexto)) score += 25;
-
-    var estado = normalizarTexto(doc.estadoProceso || doc.estado || '');
-    if (estado === 'APROBADO_FINAL') score += 10;
-    else if (estado === 'PENDIENTE_INVESTIGADOR') score += 8;
-    else if (estado === 'PENDIENTE_COORDINADOR' || estado === 'PENDIENTE_REVISION') score += 5;
-
-    return score;
-  }
-
-  function coincidePeriodoCandidato(doc, contexto) {
-    var periodoDoc = normalizarPeriodoComparacion(obtenerPeriodoDocumento(doc));
-    if (!periodoDoc) return false;
-
-    return contexto.periodosCandidatos.some(function (periodo) {
-      return normalizarPeriodoComparacion(periodo) === periodoDoc;
-    });
-  }
-
-  function obtenerPeriodoDocumento(doc) {
-    doc = doc || {};
-    return doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || doc.periodoLabel || '';
-  }
-
-  function coincideCodigoCarrera(doc, contexto) {
-    if (!contexto.codigoCarrera) return false;
-    return normalizarTexto(doc.carreraCodigo || doc.codigoCarrera || '') === normalizarTexto(contexto.codigoCarrera);
-  }
-
-  function coincideCarrera(doc, contexto) {
-    if (!contexto.carrera) return false;
-    return normalizarTexto(doc.carreraNombre || doc.nombreCarrera || doc.carrera || '') === normalizarTexto(contexto.carrera);
-  }
-
-  function normalizarPeriodoComparacion(value) {
+  function normalizarPeriodoSimple(value) {
     var texto = limpiarTexto(value);
-    var fechas = texto.match(/\d{4}-\d{2}/g) || [];
-    if (fechas.length >= 2) return fechas[0] + '__' + fechas[1];
+    var matchId = texto.match(/(\d{4})-(\d{2})__(\d{4})-(\d{2})/);
+    if (matchId) return matchId[1] + '-' + matchId[2] + '__' + matchId[3] + '-' + matchId[4];
 
-    var normal = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+    var normal = texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase();
+
     var meses = {
       ENERO: '01', FEBRERO: '02', MARZO: '03', ABRIL: '04',
       MAYO: '05', JUNIO: '06', JULIO: '07', AGOSTO: '08',
       SEPTIEMBRE: '09', SETIEMBRE: '09', OCTUBRE: '10',
       NOVIEMBRE: '11', DICIEMBRE: '12'
     };
-    var patron = /(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(\d{4})/g;
+    var regex = /(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(\d{4})/g;
     var partes = [];
     var match;
 
-    while ((match = patron.exec(normal)) !== null) {
+    while ((match = regex.exec(normal)) !== null) {
       partes.push(match[2] + '-' + meses[match[1]]);
       if (partes.length === 2) break;
     }
@@ -699,10 +307,46 @@
     return partes.length === 2 ? partes[0] + '__' + partes[1] : texto;
   }
 
-  function esperarRepo(ms) {
-    return new Promise(function (resolve) {
-      window.setTimeout(resolve, Number(ms || 0));
+  function fechaPrioridadEnvio(doc) {
+    doc = doc || {};
+    return Math.max(
+      fechaNumero(doc.fechaResolucionInvestigacion),
+      fechaNumero(doc.investigacionRevisadaEn),
+      fechaNumero(doc.actualizadoEn),
+      fechaNumero(doc.actualizadoEnLocal),
+      fechaNumero(doc.fechaValidacionCoordinador),
+      fechaNumero(doc.fechaResolucion),
+      fechaNumero(doc.fechaEnvio),
+      fechaNumero(doc.creadoEn)
+    );
+  }
+
+  function registrarRutaSimple(nombre, estado, extra) {
+    var item = {
+      ruta: nombre,
+      estado: estado,
+      fecha: new Date().toISOString()
+    };
+
+    Object.keys(extra || {}).forEach(function (key) {
+      item[key] = extra[key];
     });
+
+    trazaEnvioActual = [item];
+
+    try {
+      if (window.TAEstudianteDiagnostico && typeof window.TAEstudianteDiagnostico.registrar === 'function') {
+        window.TAEstudianteDiagnostico.registrar('RUTA_TITULO', item);
+      }
+
+      if (typeof window.CustomEvent === 'function' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('ta:consulta-titulo-ruta', {
+          detail: item
+        }));
+      }
+    } catch (error) {
+      console.warn('[Estudiantes] No se pudo emitir diagnóstico de Títulos:', error);
+    }
   }
 
   function obtenerDiagnosticoEnvio() {
