@@ -96,7 +96,7 @@ async function run() {
           'PENDIENTE_INVESTIGADOR'
         ]
       },
-      TAAdminFirebaseService: firebaseService
+      TAInvestigadorFirebaseService: firebaseService
     }
   };
 
