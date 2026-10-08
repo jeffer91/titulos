@@ -3,7 +3,7 @@
   'use strict';
 
   var config = window.TA_ADMINISTRADORES_CONFIG;
-  var firebaseService = window.TAFirebaseService || window.TAAdminFirebaseService;
+  var firebaseService = window.TAAdminFirebaseService;
 
   var estado = {
     firebaseListo: false
