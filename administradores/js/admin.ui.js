@@ -209,8 +209,8 @@
 
     setText('#inicioTotalEstudiantes', formatNumber(stats.totalEstudiantes));
     setText('#inicioSinEnviar', formatNumber(stats.sinEnviar));
-    setText('#inicioEnviados', formatNumber(stats.enviados));
-    setText('#inicioPendientes', formatNumber(stats.pendientes));
+    setText('#inicioCoordinacionPendientes', formatNumber(stats.coordinacionPendientes));
+    setText('#inicioInvestigacionPendientes', formatNumber(stats.investigacionPendientes));
     setText('#inicioDevueltos', formatNumber(stats.devueltos));
     setText('#inicioAprobados', formatNumber(stats.aprobados));
   }
