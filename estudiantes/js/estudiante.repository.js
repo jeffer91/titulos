@@ -69,7 +69,7 @@
         if (!estudiante || estudiante.eliminado === true) return null;
         return buscarMatriculas(variantes).then(function (matriculas) {
           var matricula = seleccionarMatricula(matriculas, appConfig);
-          return normalizarEstudiante(estudiante, cedulaIngresada, matricula);
+          return normalizarEstudiante(estudiante, cedulaIngresada, matricula, matriculas);
         });
       });
   }
@@ -139,50 +139,86 @@
     return lista[0];
   }
 
-  function consultarEnvio(periodoId, cedulaIngresada) {
+  function consultarEnvio(periodoId, cedulaIngresada, contextoEstudiante) {
     var service = window.TAConsultaEstadoService;
     var inicio = Date.now();
+    var contexto = construirContextoResolucion(periodoId, cedulaIngresada, contextoEstudiante);
+    var documentoId = contexto.periodoPrincipal + '__' + contexto.cedula;
 
     ultimoDiagnosticoEnvio = null;
 
-    /*
-      Consulta pública de estado: UN SOLO TRANSPORTE.
-      No usa Firestore SDK para leer envios.
-      TAConsultaEstadoService realiza:
-      1) GET REST exacto a envios/{periodo__cedula}
-      2) fallback legacy únicamente ante 404
-      3) un reintento corto solo ante fallo transitorio de red
-    */
-    if (!service || typeof service.consultar !== 'function') {
-      var error = new Error('No se pudo iniciar el servicio REST de Títulos.');
-      error.codigo = 'SERVICIO_TITULOS_NO_DISPONIBLE';
-      return Promise.reject(error);
+    if (!service || typeof service.leerDocumento !== 'function') {
+      var errorServicio = new Error('No se pudo iniciar el motor de consulta de Títulos.');
+      errorServicio.codigo = 'SERVICIO_TITULOS_NO_DISPONIBLE';
+      return Promise.reject(errorServicio);
     }
 
-    return service.consultar(periodoId, cedulaIngresada)
-      .then(function (resultado) {
-        resultado = resultado || {};
+    /*
+      Resolver flexible:
+      - SDK de Firestore y REST consultan el ID exacto en paralelo.
+      - En segundo plano se habilitan búsquedas por identidad para documentos legacy.
+      - El primer resultado seguro gana; no se espera a rutas lentas innecesarias.
+    */
+    var rutas = [
+      {
+        nombre: 'SDK_ID_EXACTO',
+        retraso: 0,
+        timeout: 2600,
+        ejecutar: function () { return leerEnvioExactoSdk(documentoId, contexto); }
+      },
+      {
+        nombre: 'REST_ID_EXACTO',
+        retraso: 0,
+        timeout: 3200,
+        ejecutar: function () { return leerEnvioExactoRest(documentoId, contexto, service); }
+      },
+      {
+        nombre: 'SDK_IDENTIDAD',
+        retraso: 140,
+        timeout: 3800,
+        ejecutar: function () { return buscarEnvioFlexibleSdk(contexto); }
+      },
+      {
+        nombre: 'REST_IDENTIDAD',
+        retraso: 260,
+        timeout: 5000,
+        ejecutar: function () { return buscarEnvioFlexibleRest(contexto, service); }
+      }
+    ];
 
-        if (resultado.ok === false) {
-          var error = new Error(resultado.mensaje || 'No se pudo consultar el estado del título.');
-          error.codigo = resultado.codigo || 'CONSULTA_TITULOS_ERROR';
-          throw error;
+    return primerResultadoSeguro(rutas)
+      .then(function (resultado) {
+        if (!resultado || !resultado.envio) {
+          ultimoDiagnosticoEnvio = {
+            motor: 'RESOLVER_FLEXIBLE',
+            estrategia: 'SIN_COINCIDENCIA_SEGURA',
+            base: 'titulos-ec2fa',
+            coleccion: config.collections.titulos,
+            documentoId: documentoId,
+            ruta: 'NO_ENCONTRADO',
+            rutasProbadas: rutas.map(function (ruta) { return ruta.nombre; }),
+            periodoCanonico: contexto.periodoPrincipal,
+            periodosCandidatos: contexto.periodosCandidatos.slice(),
+            status: 404,
+            duracionMs: Date.now() - inicio
+          };
+          return null;
         }
 
-        ultimoDiagnosticoEnvio = {
-          motor: 'REST_DIRECTO',
-          estrategia: resultado.estrategia || 'ID_EXACTO_PRIMERO',
-          base: resultado.base || 'titulos-ec2fa',
-          coleccion: resultado.coleccion || config.collections.titulos,
-          documentoId: resultado.documentoId || construirTituloId(periodoId, cedulaIngresada),
-          ruta: resultado.ruta || (resultado.encontrado ? 'ID_EXACTO' : 'NO_ENCONTRADO'),
-          rutasProbadas: resultado.rutasProbadas || [],
-          periodoCanonico: resultado.periodoCanonico || obtenerPeriodoIdDesdeValor(periodoId),
-          status: resultado.status || (resultado.encontrado ? 200 : 404),
-          duracionMs: Number(resultado.duracionMs || (Date.now() - inicio))
-        };
-
-        if (!resultado.encontrado || !resultado.envio) return null;
+        ultimoDiagnosticoEnvio = Object.assign({
+          motor: 'RESOLVER_FLEXIBLE',
+          estrategia: resultado.estrategia || 'PRIMER_RESULTADO_SEGURO',
+          base: 'titulos-ec2fa',
+          coleccion: config.collections.titulos,
+          documentoId: resultado.documentoId || documentoId,
+          ruta: resultado.ruta || 'DESCONOCIDA',
+          rutasProbadas: resultado.rutasProbadas || [resultado.ruta || 'DESCONOCIDA'],
+          periodoCanonico: contexto.periodoPrincipal,
+          periodosCandidatos: contexto.periodosCandidatos.slice(),
+          status: 200,
+          duracionMs: Date.now() - inicio,
+          score: Number(resultado.score || 0)
+        }, resultado.diagnostico || {});
 
         var envio = normalizarEnvioExistente(resultado.envio);
         envio._consultaDiagnostico = Object.assign({}, ultimoDiagnosticoEnvio);
@@ -193,17 +229,386 @@
         if (!error.codigo) error.codigo = 'CONSULTA_TITULOS_ERROR';
         if (!error.diagnostico) {
           error.diagnostico = {
-            motor: 'REST_DIRECTO',
-            estrategia: 'ID_EXACTO_PRIMERO',
+            motor: 'RESOLVER_FLEXIBLE',
+            estrategia: 'RUTAS_PARALELAS',
             base: 'titulos-ec2fa',
             coleccion: config.collections.titulos,
-            documentoId: construirTituloId(periodoId, cedulaIngresada),
-            periodoCanonico: obtenerPeriodoIdDesdeValor(periodoId),
+            documentoId: documentoId,
+            periodoCanonico: contexto.periodoPrincipal,
+            periodosCandidatos: contexto.periodosCandidatos.slice(),
             duracionMs: Date.now() - inicio
           };
         }
         throw error;
       });
+  }
+
+  function leerEnvioExactoSdk(documentoId, contexto) {
+    if (!firebaseService || typeof firebaseService.leerDocumentoServidor !== 'function') {
+      return Promise.resolve(null);
+    }
+
+    return firebaseService.leerDocumentoServidor(config.collections.titulos, documentoId)
+      .then(function (doc) {
+        if (!doc) return null;
+        return {
+          envio: doc,
+          documentoId: doc.id || doc._docId || documentoId,
+          ruta: 'SDK_ID_EXACTO',
+          estrategia: 'ID_EXACTO_PARALELO',
+          score: puntuarCandidato(doc, contexto)
+        };
+      });
+  }
+
+  function leerEnvioExactoRest(documentoId, contexto, service) {
+    return service.leerDocumento(documentoId)
+      .then(function (resultado) {
+        if (!resultado || !resultado.encontrado || !resultado.envio) return null;
+        return {
+          envio: resultado.envio,
+          documentoId: resultado.envio.id || resultado.envio._docId || documentoId,
+          ruta: 'REST_ID_EXACTO',
+          estrategia: 'ID_EXACTO_PARALELO',
+          score: puntuarCandidato(resultado.envio, contexto)
+        };
+      });
+  }
+
+  function buscarEnvioFlexibleRest(contexto, service) {
+    if (!service || typeof service.consultarLegacy !== 'function') return Promise.resolve(null);
+
+    return service.consultarLegacy(contexto.periodoPrincipal, contexto.cedula)
+      .then(function (resultado) {
+        if (!resultado || !resultado.encontrado || !resultado.envio) return null;
+        if (!candidatoSeguro(resultado.envio, contexto)) return null;
+
+        return {
+          envio: resultado.envio,
+          documentoId: resultado.documentoId || resultado.envio.id || resultado.envio._docId || '',
+          ruta: 'REST_IDENTIDAD',
+          estrategia: resultado.estrategia || 'FALLBACK_IDENTIDAD',
+          score: puntuarCandidato(resultado.envio, contexto),
+          diagnostico: {
+            rutasProbadas: resultado.rutasProbadas || [],
+            status: resultado.status || 200
+          }
+        };
+      });
+  }
+
+  function buscarEnvioFlexibleSdk(contexto) {
+    if (!firebaseService || typeof firebaseService.consultarColeccion !== 'function') {
+      return Promise.resolve(null);
+    }
+
+    var consultasTexto = [
+      function () {
+        return firebaseService.consultarColeccion(config.collections.titulos, 'cedula', '==', contexto.cedula, 40);
+      },
+      function () {
+        return firebaseService.consultarColeccion(config.collections.titulos, 'numeroIdentificacion', '==', contexto.cedula, 40);
+      }
+    ];
+
+    return primerCandidatoDesdeConsultas(consultasTexto, contexto)
+      .then(function (resultado) {
+        if (resultado) return resultado;
+
+        var numero = Number(contexto.cedula);
+        if (!Number.isSafeInteger(numero)) return null;
+
+        /*
+          Compatibilidad muy antigua: el cero inicial se conserva en toda la
+          lógica de identidad y solo se prueba como número al final.
+        */
+        return primerCandidatoDesdeConsultas([
+          function () {
+            return firebaseService.consultarColeccion(config.collections.titulos, 'cedula', '==', numero, 40);
+          },
+          function () {
+            return firebaseService.consultarColeccion(config.collections.titulos, 'numeroIdentificacion', '==', numero, 40);
+          }
+        ], contexto);
+      });
+  }
+
+  function primerCandidatoDesdeConsultas(consultas, contexto) {
+    return new Promise(function (resolve) {
+      var pendientes = consultas.length;
+      var acumulados = [];
+      var terminado = false;
+
+      if (!pendientes) {
+        resolve(null);
+        return;
+      }
+
+      consultas.forEach(function (ejecutar) {
+        Promise.resolve()
+          .then(ejecutar)
+          .then(function (docs) {
+            if (terminado) return;
+
+            (docs || []).forEach(function (doc) {
+              acumulados.push(doc);
+            });
+
+            var seguro = elegirCandidatoSeguro(docs || [], contexto);
+            if (seguro && coincidePeriodoCandidato(seguro, contexto)) {
+              terminado = true;
+              resolve({
+                envio: seguro,
+                documentoId: seguro.id || seguro._docId || '',
+                ruta: 'SDK_IDENTIDAD',
+                estrategia: 'IDENTIDAD_FLEXIBLE',
+                score: puntuarCandidato(seguro, contexto)
+              });
+              return;
+            }
+
+            pendientes -= 1;
+            if (pendientes > 0) return;
+
+            terminado = true;
+            var elegido = elegirCandidatoSeguro(acumulados, contexto);
+            resolve(elegido ? {
+              envio: elegido,
+              documentoId: elegido.id || elegido._docId || '',
+              ruta: 'SDK_IDENTIDAD',
+              estrategia: 'IDENTIDAD_FLEXIBLE',
+              score: puntuarCandidato(elegido, contexto)
+            } : null);
+          })
+          .catch(function () {
+            if (terminado) return;
+            pendientes -= 1;
+            if (pendientes > 0) return;
+
+            terminado = true;
+            var elegido = elegirCandidatoSeguro(acumulados, contexto);
+            resolve(elegido ? {
+              envio: elegido,
+              documentoId: elegido.id || elegido._docId || '',
+              ruta: 'SDK_IDENTIDAD',
+              estrategia: 'IDENTIDAD_FLEXIBLE',
+              score: puntuarCandidato(elegido, contexto)
+            } : null);
+          });
+      });
+    });
+  }
+
+  function primerResultadoSeguro(rutas) {
+    return new Promise(function (resolve, reject) {
+      var pendientes = rutas.length;
+      var terminado = false;
+      var errores = [];
+      var huboRespuesta = false;
+
+      if (!pendientes) {
+        resolve(null);
+        return;
+      }
+
+      rutas.forEach(function (ruta) {
+        esperarRepo(ruta.retraso || 0)
+          .then(function () {
+            return conTimeoutRepo(
+              Promise.resolve().then(ruta.ejecutar),
+              ruta.timeout || 3500,
+              ruta.nombre
+            );
+          })
+          .then(function (resultado) {
+            if (terminado) return;
+            huboRespuesta = true;
+
+            if (resultado && resultado.envio) {
+              terminado = true;
+              resolve(resultado);
+              return;
+            }
+
+            pendientes -= 1;
+            if (pendientes <= 0) {
+              terminado = true;
+              if (!huboRespuesta && errores.length) reject(errores[0]);
+              else resolve(null);
+            }
+          })
+          .catch(function (error) {
+            if (terminado) return;
+            errores.push(error);
+            pendientes -= 1;
+
+            if (pendientes <= 0) {
+              terminado = true;
+              if (!huboRespuesta && errores.length) reject(errores[0]);
+              else resolve(null);
+            }
+          });
+      });
+    });
+  }
+
+  function construirContextoResolucion(periodoId, cedulaIngresada, estudiante) {
+    estudiante = estudiante || {};
+    var periodos = [];
+    var principal = obtenerPeriodoIdDesdeValor(periodoId || estudiante.periodoId);
+    var cedula = normalizarCedulaParaMostrar(cedulaIngresada || estudiante.cedula || estudiante.numeroIdentificacion);
+
+    agregarUnico(periodos, principal);
+    (Array.isArray(estudiante.periodosCandidatos) ? estudiante.periodosCandidatos : []).forEach(function (periodo) {
+      agregarUnico(periodos, obtenerPeriodoIdDesdeValor(periodo));
+    });
+
+    if (estudiante.matriculaRaw && estudiante.matriculaRaw.periodoId) {
+      agregarUnico(periodos, estudiante.matriculaRaw.periodoId);
+    }
+
+    return {
+      cedula: cedula,
+      periodoPrincipal: principal,
+      periodosCandidatos: periodos,
+      codigoCarrera: limpiarTexto(estudiante.codigoCarrera || estudiante.carreraCodigo || ''),
+      carrera: limpiarTexto(estudiante.carrera || estudiante.nombreCarrera || estudiante.carreraNombre || '')
+    };
+  }
+
+  function elegirCandidatoSeguro(lista, contexto) {
+    var mapa = {};
+    var candidatos = [];
+
+    (lista || []).forEach(function (doc) {
+      if (!doc) return;
+      if (normalizarCedulaParaMostrar(doc.cedula || doc.numeroIdentificacion) !== contexto.cedula) return;
+
+      var id = doc.id || doc._docId || [
+        doc.periodoId || doc.periodoCanonicoId || '',
+        doc.cedula || doc.numeroIdentificacion || '',
+        doc.actualizadoEn || doc.fechaEnvio || ''
+      ].join('|');
+
+      if (mapa[id]) return;
+      mapa[id] = true;
+      candidatos.push(doc);
+    });
+
+    if (!candidatos.length) return null;
+
+    var mismoPeriodo = candidatos.filter(function (doc) {
+      return coincidePeriodoCandidato(doc, contexto);
+    });
+
+    if (mismoPeriodo.length) {
+      return ordenarCandidatos(mismoPeriodo, contexto)[0] || null;
+    }
+
+    /*
+      Si no existe coincidencia de período, solo se acepta un expediente único
+      y coherente con la carrera. Con varios períodos no se adivina.
+    */
+    if (candidatos.length === 1) {
+      var unico = candidatos[0];
+      var periodoDoc = obtenerPeriodoDocumento(unico);
+      var carreraCompatible = coincideCodigoCarrera(unico, contexto) || coincideCarrera(unico, contexto);
+      if (!periodoDoc || carreraCompatible) return unico;
+    }
+
+    return null;
+  }
+
+  function candidatoSeguro(doc, contexto) {
+    if (!doc) return false;
+    if (normalizarCedulaParaMostrar(doc.cedula || doc.numeroIdentificacion) !== contexto.cedula) return false;
+    if (coincidePeriodoCandidato(doc, contexto)) return true;
+
+    var periodoDoc = obtenerPeriodoDocumento(doc);
+    return !periodoDoc && (coincideCodigoCarrera(doc, contexto) || coincideCarrera(doc, contexto));
+  }
+
+  function ordenarCandidatos(lista, contexto) {
+    return (lista || []).slice().sort(function (a, b) {
+      var score = puntuarCandidato(b, contexto) - puntuarCandidato(a, contexto);
+      if (score !== 0) return score;
+      return fechaNumero(
+        b.actualizadoEn || b.fechaResolucionInvestigacion || b.fechaValidacionCoordinador || b.fechaEnvio
+      ) - fechaNumero(
+        a.actualizadoEn || a.fechaResolucionInvestigacion || a.fechaValidacionCoordinador || a.fechaEnvio
+      );
+    });
+  }
+
+  function puntuarCandidato(doc, contexto) {
+    if (!doc) return -1;
+    var score = 0;
+
+    if (normalizarCedulaParaMostrar(doc.cedula || doc.numeroIdentificacion) === contexto.cedula) score += 100;
+    if (coincidePeriodoCandidato(doc, contexto)) score += 100;
+    if (coincideCodigoCarrera(doc, contexto)) score += 50;
+    if (coincideCarrera(doc, contexto)) score += 25;
+
+    var estado = normalizarTexto(doc.estadoProceso || doc.estado || '');
+    if (estado === 'APROBADO_FINAL') score += 10;
+    else if (estado === 'PENDIENTE_INVESTIGADOR') score += 8;
+    else if (estado === 'PENDIENTE_COORDINADOR' || estado === 'PENDIENTE_REVISION') score += 5;
+
+    return score;
+  }
+
+  function coincidePeriodoCandidato(doc, contexto) {
+    var periodoDoc = normalizarPeriodoComparacion(obtenerPeriodoDocumento(doc));
+    if (!periodoDoc) return false;
+
+    return contexto.periodosCandidatos.some(function (periodo) {
+      return normalizarPeriodoComparacion(periodo) === periodoDoc;
+    });
+  }
+
+  function obtenerPeriodoDocumento(doc) {
+    doc = doc || {};
+    return doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || doc.periodoLabel || '';
+  }
+
+  function coincideCodigoCarrera(doc, contexto) {
+    if (!contexto.codigoCarrera) return false;
+    return normalizarTexto(doc.carreraCodigo || doc.codigoCarrera || '') === normalizarTexto(contexto.codigoCarrera);
+  }
+
+  function coincideCarrera(doc, contexto) {
+    if (!contexto.carrera) return false;
+    return normalizarTexto(doc.carreraNombre || doc.nombreCarrera || doc.carrera || '') === normalizarTexto(contexto.carrera);
+  }
+
+  function normalizarPeriodoComparacion(value) {
+    var texto = limpiarTexto(value);
+    var fechas = texto.match(/\d{4}-\d{2}/g) || [];
+    if (fechas.length >= 2) return fechas[0] + '__' + fechas[1];
+
+    var normal = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+    var meses = {
+      ENERO: '01', FEBRERO: '02', MARZO: '03', ABRIL: '04',
+      MAYO: '05', JUNIO: '06', JULIO: '07', AGOSTO: '08',
+      SEPTIEMBRE: '09', SETIEMBRE: '09', OCTUBRE: '10',
+      NOVIEMBRE: '11', DICIEMBRE: '12'
+    };
+    var patron = /(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(\d{4})/g;
+    var partes = [];
+    var match;
+
+    while ((match = patron.exec(normal)) !== null) {
+      partes.push(match[2] + '-' + meses[match[1]]);
+      if (partes.length === 2) break;
+    }
+
+    return partes.length === 2 ? partes[0] + '__' + partes[1] : texto;
+  }
+
+  function esperarRepo(ms) {
+    return new Promise(function (resolve) {
+      window.setTimeout(resolve, Number(ms || 0));
+    });
   }
 
   function obtenerDiagnosticoEnvio() {
@@ -247,6 +652,17 @@
         tituloPreferidoNumero: data.tituloPreferidoNumero,
         titulosEnviados: propuestas
       })),
+      tituloVisible: limpiarTexto(
+        data.tituloFinal ||
+        data.tituloFinalInvestigacion ||
+        data.tituloCoordinador ||
+        data.tituloPreferidoTexto ||
+        data.tituloElegido ||
+        obtenerTituloPreferidoTexto({
+          tituloPreferidoNumero: data.tituloPreferidoNumero,
+          titulosEnviados: propuestas
+        })
+      ),
       intentosUsados: Number(data.intentosUsados || data.numeroEnvios || 1),
       puedeReenviar: data.puedeReenviar === true || data.permitirReenvio === true
     });
@@ -289,7 +705,7 @@
       .then(function (estudiante) {
         estudianteLocal = estudiante;
         if (!estudianteLocal) return null;
-        return consultarEnvio(estudianteLocal.periodoId, estudianteLocal.cedula || cedula);
+        return consultarEnvio(estudianteLocal.periodoId, estudianteLocal.cedula || cedula, estudianteLocal);
       })
       .then(function (envioExistente) {
         return validarAccesoEstudiante(estudianteLocal, appConfigLocal, envioExistente);
@@ -399,7 +815,7 @@
     return String(obtenerPeriodoIdDesdeValor(periodoId) || 'SIN_PERIODO') + '__' + String(normalizarCedulaParaMostrar(cedula) || 'SIN_CEDULA');
   }
 
-  function normalizarEstudiante(data, cedulaConsultada, matricula) {
+  function normalizarEstudiante(data, cedulaConsultada, matricula, matriculas) {
     var source = normalizarObjeto(data || {});
     var mat = normalizarObjeto(matricula || {});
     var cedulaOriginal = valor(source, ['cedula', 'numeroidentificacion', 'identificacion', 'documento', 'dni', 'id']) || data.id || data._docId || cedulaConsultada;
@@ -411,6 +827,15 @@
     var periodoId = valor(mat, ['periodoid']);
     var estadoMatricula = valor(mat, ['estadomatricula']) || (matricula ? '' : 'SIN_MATRICULA');
     var modalidad = valor(mat, ['modalidadtitulacion', 'modalidad', 'jornada']);
+    var periodosCandidatos = [];
+
+    agregarUnico(periodosCandidatos, periodoId);
+    (matriculas || []).filter(function (item) {
+      return item && item.eliminado !== true && item.retirado !== true &&
+        normalizarTexto(item.estadoMatricula || 'ACTIVO') === 'ACTIVO';
+    }).forEach(function (item) {
+      agregarUnico(periodosCandidatos, item.periodoId);
+    });
 
     return {
       id: data.id || data._docId || cedulaNormalizada,
@@ -426,6 +851,7 @@
       periodoId: limpiarTexto(periodoId),
       periodoLabel: periodoId ? formatearPeriodoId(periodoId) : '',
       periodo: periodoId ? formatearPeriodoId(periodoId) : '',
+      periodosCandidatos: periodosCandidatos,
       estadoMatricula: normalizarTexto(estadoMatricula),
       estado: normalizarTexto(estadoMatricula),
       correoInstitucional: limpiarTexto(data.correoInstitucional || ''),
