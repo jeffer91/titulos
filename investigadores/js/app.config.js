@@ -4,8 +4,8 @@
 
   window.TA_INVESTIGADORES_CONFIG = Object.freeze({
     modulo: 'investigadores',
-    version: '1.5.0-multiperiodo',
-    firebase: window.TA_ADMIN_FIREBASE_CONFIG || Object.freeze({
+    version: '1.6.0-backend-investigadores-aislado',
+    firebase: window.TA_INVESTIGADORES_FIREBASE_CONFIG || Object.freeze({
       apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: ''
     }),
     collections: Object.freeze({
