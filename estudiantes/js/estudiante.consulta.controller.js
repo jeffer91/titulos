@@ -566,7 +566,7 @@
       '<details class="consulta-bloque__diagnostico is-hidden" data-proceso-diagnostico>',
         '<summary>Diagnóstico técnico de la consulta</summary>',
         '<div class="consulta-bloque__diagnostico-toolbar">',
-          '<span data-diagnostico-build>Build: 20261008-50</span>',
+          '<span data-diagnostico-build>Build: 20261008-51</span>',
           '<button type="button" class="consulta-bloque__copy" data-diagnostico-copy>Copiar diagnóstico</button>',
         '</div>',
         '<pre data-diagnostico-texto></pre>',
@@ -965,7 +965,7 @@
   function obtenerBuildActual() {
     return (window.TAEstudianteApp && window.TAEstudianteApp.build) ||
       (window.TAEstudianteDiagnostico && window.TAEstudianteDiagnostico.build) ||
-      '20261008-50';
+      '20261008-51';
   }
 
   function limpiarDiagnosticoTitulos() {
