@@ -5,32 +5,84 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <title>Auditoría aislada Estudiantes | ITSQMET</title>
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Auditoría E2E de Titulación | ITSQMET</title>
   <style>
     :root{font-family:Arial,Helvetica,sans-serif;color:#0b1f36;background:#eef4fb}
     *{box-sizing:border-box}body{margin:0;padding:24px}
-    main{max-width:980px;margin:auto}.card{background:#fff;border:1px solid #d6e2ef;border-radius:18px;padding:20px;margin-bottom:16px;box-shadow:0 12px 32px rgba(7,27,52,.08)}
-    h1,h2{margin:.2rem 0 .6rem}p{color:#58708c;line-height:1.5}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:6px}.field input{padding:12px;border:1px solid #cbd9e8;border-radius:12px;font:inherit}
-    button{border:0;border-radius:12px;padding:12px 16px;font-weight:800;background:#0b57d0;color:#fff;cursor:pointer}.tests{display:grid;gap:10px}.test{border:1px solid #d8e4ef;border-radius:14px;padding:14px}.test strong{display:block}.meta{font-size:.86rem;color:#5f738a;margin-top:5px}.ok{background:#edf9f1;border-color:#bce4c9}.error{background:#fff0f0;border-color:#efb8b8}.running{background:#eef6ff;border-color:#acd0f3}.warn{background:#fff8e8;border-color:#ecd69a}pre{white-space:pre-wrap;word-break:break-word;background:#071b34;color:#eef6ff;border-radius:12px;padding:14px;max-height:360px;overflow:auto}
-    @media(max-width:650px){.grid{grid-template-columns:1fr}}
+    main{max-width:1120px;margin:auto}.card{background:#fff;border:1px solid #d6e2ef;border-radius:18px;padding:20px;margin-bottom:16px;box-shadow:0 12px 32px rgba(7,27,52,.08)}
+    h1,h2,h3{margin:.2rem 0 .65rem}.muted,p{color:#58708c;line-height:1.5}.eyebrow{font-size:.75rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#0b5da7}
+    .notice{padding:12px 14px;border-radius:12px;background:#fff8e8;border:1px solid #ecd69a;color:#6f5100}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .field{display:grid;gap:6px}.field label{font-weight:800;font-size:.88rem}.field input,.field textarea{width:100%;padding:11px 12px;border:1px solid #cbd9e8;border-radius:12px;font:inherit}
+    .field textarea{resize:vertical;min-height:76px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    button{border:0;border-radius:12px;padding:11px 15px;font-weight:800;background:#0b57d0;color:#fff;cursor:pointer}
+    button.secondary{background:#e9f1fb;color:#0b4f8d}button.ghost{background:#f3f5f8;color:#31445b}button.danger{background:#a52323}button:disabled{opacity:.55;cursor:not-allowed}
+    .flow{display:grid;gap:10px}.step{border:1px solid #d8e4ef;border-radius:14px;padding:14px;background:#fff}.step-head{display:flex;justify-content:space-between;gap:12px;align-items:center}.step-title{display:flex;gap:10px;align-items:center}.num{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:#eaf2fb;color:#0b5da7;font-weight:900}
+    .badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:.72rem;font-weight:900;background:#eef2f6;color:#5a6a7d}.step.ok{background:#edf9f1;border-color:#bce4c9}.step.ok .badge{background:#d7f1e1;color:#087443}.step.error{background:#fff0f0;border-color:#efb8b8}.step.error .badge{background:#ffdede;color:#a52323}.step.running{background:#eef6ff;border-color:#acd0f3}.step.warn{background:#fff8e8;border-color:#ecd69a}
+    .compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.compare div{border:1px solid #e2e9f1;border-radius:10px;padding:10px;background:#fff}.compare span{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;font-weight:900;color:#6f7d8f;margin-bottom:5px}.compare pre{margin:0;background:transparent;color:#0b1f36;padding:0;max-height:180px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#071b34;color:#eef6ff;border-radius:12px;padding:14px;max-height:420px;overflow:auto}.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.metric{border:1px solid #dce6f0;border-radius:12px;padding:12px}.metric span{display:block;color:#6a7c91;font-size:.72rem;text-transform:uppercase;font-weight:900}.metric strong{display:block;font-size:1.15rem;margin-top:5px}
+    .transport{display:grid;gap:10px}.transport .test{border:1px solid #d8e4ef;border-radius:12px;padding:12px}.transport .test.ok{background:#edf9f1}.transport .test.error{background:#fff0f0}.transport .test.warn{background:#fff8e8}
+    @media(max-width:760px){.grid,.grid-3,.summary,.compare{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
 <main>
   <section class="card">
-    <p><strong>AUDITORÍA AISLADA · NO MODIFICA DATOS</strong></p>
-    <h1>Diagnóstico del estado de Títulos</h1>
-    <p>Ejecuta cada capa por separado para localizar exactamente dónde se detiene la consulta.</p>
-    <div class="grid">
-      <label class="field">Cédula<input id="cedula" value="1754049383" inputmode="numeric" /></label>
-      <label class="field">Período ID<input id="periodo" value="2026-04__2026-09" /></label>
-    </div>
-    <p><button id="ejecutar">Ejecutar auditoría completa</button></p>
+    <div class="eyebrow">Auditoría E2E · datos simulados</div>
+    <h1>Laboratorio del flujo completo de Titulación</h1>
+    <p>Esta página crea un estudiante y tres títulos simulados, recorre Estudiante → Coordinación → Investigación → Estudiante y compara lo esperado con lo obtenido en cada paso.</p>
+    <div class="notice"><strong>Aislado:</strong> usa las colecciones <code>auditoria_envios</code> y <code>auditoria_eventos</code>. No escribe en <code>envios</code>, <code>Estudiante</code> ni <code>matriculas</code>.</div>
   </section>
 
   <section class="card">
-    <h2>Resultados por capa</h2>
-    <div class="tests" id="tests"></div>
+    <h2>Datos de la simulación</h2>
+    <div class="grid">
+      <div class="field"><label>Cédula simulada</label><input id="cedula" value="9999999999" inputmode="numeric" maxlength="10"></div>
+      <div class="field"><label>Período</label><input id="periodo" value="2026-04__2026-09"></div>
+      <div class="field"><label>Estudiante</label><input id="nombres" value="AUDITORÍA ESTUDIANTE PRUEBA"></div>
+      <div class="field"><label>Carrera</label><input id="carrera" value="EDUCACIÓN BÁSICA"></div>
+    </div>
+    <div class="grid grid-3" style="margin-top:12px">
+      <div class="field"><label>Título 1</label><textarea id="titulo1">AUDITORÍA - PROPUESTA 1</textarea></div>
+      <div class="field"><label>Título 2</label><textarea id="titulo2">AUDITORÍA - PROPUESTA 2</textarea></div>
+      <div class="field"><label>Título 3</label><textarea id="titulo3">AUDITORÍA - PROPUESTA 3</textarea></div>
+    </div>
+    <div class="actions">
+      <button id="runAll">Ejecutar flujo completo</button>
+      <button class="secondary" id="resetFlow">Reiniciar panel</button>
+      <button class="danger" id="cleanup">Limpiar datos simulados</button>
+    </div>
+    <p class="muted" id="runInfo">Sin ejecución activa.</p>
+  </section>
+
+  <section class="card">
+    <h2>Seguimiento del flujo</h2>
+    <div class="flow" id="flow">
+      <article class="step" data-step="1"><div class="step-head"><div class="step-title"><span class="num">1</span><strong>Crear envío simulado</strong></div><span class="badge" data-badge>Pendiente</span></div><div class="compare"><div><span>Esperado</span><pre data-expected>—</pre></div><div><span>Obtenido</span><pre data-actual>—</pre></div></div><div class="muted" data-time></div></article><article class="step" data-step="2"><div class="step-head"><div class="step-title"><span class="num">2</span><strong>Consultar como estudiante</strong></div><span class="badge" data-badge>Pendiente</span></div><div class="compare"><div><span>Esperado</span><pre data-expected>—</pre></div><div><span>Obtenido</span><pre data-actual>—</pre></div></div><div class="muted" data-time></div></article><article class="step" data-step="3"><div class="step-head"><div class="step-title"><span class="num">3</span><strong>Validar en Coordinación</strong></div><span class="badge" data-badge>Pendiente</span></div><div class="compare"><div><span>Esperado</span><pre data-expected>—</pre></div><div><span>Obtenido</span><pre data-actual>—</pre></div></div><div class="muted" data-time></div></article><article class="step" data-step="4"><div class="step-head"><div class="step-title"><span class="num">4</span><strong>Comprobar llegada a Investigación</strong></div><span class="badge" data-badge>Pendiente</span></div><div class="compare"><div><span>Esperado</span><pre data-expected>—</pre></div><div><span>Obtenido</span><pre data-actual>—</pre></div></div><div class="muted" data-time></div></article><article class="step" data-step="5"><div class="step-head"><div class="step-title"><span class="num">5</span><strong>Aprobar en Investigación</strong></div><span class="badge" data-badge>Pendiente</span></div><div class="compare"><div><span>Esperado</span><pre data-expected>—</pre></div><div><span>Obtenido</span><pre data-actual>—</pre></div></div><div class="muted" data-time></div></article><article class="step" data-step="6"><div class="step-head"><div class="step-title"><span class="num">6</span><strong>Consultar resultado final como estudiante</strong></div><span class="badge" data-badge>Pendiente</span></div><div class="compare"><div><span>Esperado</span><pre data-expected>—</pre></div><div><span>Obtenido</span><pre data-actual>—</pre></div></div><div class="muted" data-time></div></article><article class="step" data-step="7"><div class="step-head"><div class="step-title"><span class="num">7</span><strong>Limpiar prueba</strong></div><span class="badge" data-badge>Pendiente</span></div><div class="compare"><div><span>Esperado</span><pre data-expected>—</pre></div><div><span>Obtenido</span><pre data-actual>—</pre></div></div><div class="muted" data-time></div></article>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Resumen</h2>
+    <div class="summary">
+      <div class="metric"><span>Run ID</span><strong id="metricRun">—</strong></div>
+      <div class="metric"><span>Documento</span><strong id="metricDoc">—</strong></div>
+      <div class="metric"><span>Estado final</span><strong id="metricState">—</strong></div>
+      <div class="metric"><span>Tiempo total</span><strong id="metricTime">—</strong></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Diagnóstico de transporte real</h2>
+    <p class="muted">Se mantiene la prueba de lectura del documento real para aislar problemas REST/CORS sin modificarlo.</p>
+    <div class="grid">
+      <div class="field"><label>Cédula real de prueba</label><input id="realCedula" value="1754049383"></div>
+      <div class="field"><label>Período real</label><input id="realPeriodo" value="2026-04__2026-09"></div>
+    </div>
+    <div class="actions"><button class="secondary" id="runTransport">Probar transporte real</button></div>
+    <div class="transport" id="transport"></div>
   </section>
 
   <section class="card">
@@ -39,10 +91,11 @@
   </section>
 </main>
 
-<script src="../consulta-estado/consulta.config.js?v=20261007-audit1"></script>
-<script src="../consulta-estado/consulta.service.js?v=20261007-audit1"></script>
-<script src="../estudiantes/js/app.config.js?v=20261007-audit1"></script>
-<script src="../estudiantes/js/estudiante.repository.js?v=20261007-audit1"></script>
-<script src="auditoria.js?v=20261007-audit1"></script>
+<script src="../estudiantes/js/firebase.config.js?v=20261008-audit2"></script>
+<script src="../estudiantes/js/app.config.js?v=20261008-audit2"></script>
+<script src="../estudiantes/js/firebase.service.js?v=20261008-audit2"></script>
+<script src="../consulta-estado/consulta.config.js?v=20261008-audit2"></script>
+<script src="../consulta-estado/consulta.service.js?v=20261008-audit2"></script>
+<script src="auditoria.js?v=20261008-audit2"></script>
 </body>
 </html>
