@@ -3,7 +3,7 @@
   'use strict';
 
   var config = window.TA_COORDINADORES_CONFIG;
-  var firebaseService = window.TACoordFirebaseService;
+  var firebaseService = window.TACoordinadorFirebaseService;
 
   function listarCoordinadores() {
     return firebaseService.listarDocumentos(config.collections.coordinadores, { limit: 500 })
