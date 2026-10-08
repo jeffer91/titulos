@@ -17,6 +17,9 @@
   var TIMEOUT_HISTORIAL_MS = 4500;
   var TIMEOUT_TITULOS_MS = 8000;
   var consultaToken = 0;
+  var diagnosticoRutasLive = [];
+  var diagnosticoListenerConectado = false;
+  var diagnosticoLentoTimer = null;
 
   function manejarConsulta(event, opciones) {
     var ui = window.TAEstudianteUI;
@@ -50,6 +53,12 @@
     resultadoCedula = validaciones.validarCedulaBasica(cedulaOriginal);
     button = obtenerBotonConsulta(event);
     token = ++consultaToken;
+    diagnosticoRutasLive = [];
+    conectarDiagnosticoLive();
+
+    if (window.TAEstudianteDiagnostico && typeof window.TAEstudianteDiagnostico.limpiar === 'function') {
+      window.TAEstudianteDiagnostico.limpiar();
+    }
 
     ui.clearFieldErrors();
     limpiarErrorCedula();
@@ -94,6 +103,7 @@
         contexto.estudiante = estudiante;
         actualizarBloqueProceso(2, 'completado', 'Datos académicos encontrados', resumenEstudiante(estudiante));
         actualizarBloqueProceso(3, 'trabajando', 'Consultando estado del título', 'Consultando tu envío en la base de Títulos para el período ' + (estudiante.periodoLabel || estudiante.periodoId || '') + '.');
+        iniciarDiagnosticoPaso3(estudiante);
 
         /*
           Ruta normal: lectura exacta por periodo__cedula mediante Firestore SDK.
@@ -178,13 +188,15 @@
       .catch(function (error) {
         if (error && error.codigo === 'CONSULTA_CANCELADA') return null;
 
+        enriquecerErrorConDiagnostico(error, contexto, resultadoCedula.data);
         console.error('[Estudiantes] Error en consulta por bloques:', error);
         state.reiniciarConsulta({ conservarFirebase: true });
         restaurarCedula(resultadoCedula.data);
 
         mostrarErrorProceso(
           obtenerMensajeError(error) || 'No se pudo completar la consulta.',
-          determinarPasoError(contexto)
+          determinarPasoError(contexto),
+          error
         );
 
         if (determinarPasoError(contexto) === 3) {
@@ -484,25 +496,38 @@
     bloque.querySelector('[data-proceso-detalle]').textContent = detalle || '';
   }
 
-  function mostrarErrorProceso(mensaje, paso) {
+  function mostrarErrorProceso(mensaje, paso, errorOriginal) {
     var bloque = obtenerBloqueProceso();
     var error = bloque.querySelector('[data-proceso-error]');
     var retry = bloque.querySelector('[data-proceso-retry]');
     var item = bloque.querySelector('[data-proceso-paso="' + Number(paso || 1) + '"]');
+    var diagnostico = errorOriginal && errorOriginal.diagnostico || {};
 
     prepararBloqueProceso();
+    detenerDiagnosticoLento();
     bloque.querySelector('[data-proceso-titulo]').textContent = 'No se pudo completar este bloque';
     bloque.querySelector('[data-proceso-detalle]').textContent = mensaje;
 
     if (item) {
       item.className = 'consulta-bloque__paso is-error';
       var status = item.querySelector('[data-paso-status]');
-      if (status) status.textContent = 'Reintentar';
+      if (status) status.textContent = 'Error';
     }
 
-    error.textContent = mensaje;
+    error.textContent = construirErrorVisible(mensaje, errorOriginal, diagnostico);
     error.classList.remove('is-hidden');
     retry.classList.remove('is-hidden');
+
+    mostrarDiagnosticoTitulos(
+      diagnostico,
+      null,
+      '',
+      errorOriginal && (errorOriginal.codigo || errorOriginal.code) || 'ERROR',
+      errorOriginal
+    );
+
+    var details = bloque.querySelector('[data-proceso-diagnostico]');
+    if (details) details.open = true;
   }
 
   function ocultarBloqueProceso() {
@@ -540,7 +565,11 @@
         pasoHtml(4, 'Resultado'),
       '</div>',
       '<details class="consulta-bloque__diagnostico is-hidden" data-proceso-diagnostico>',
-        '<summary>Detalles de la consulta de títulos</summary>',
+        '<summary>Diagnóstico técnico de la consulta</summary>',
+        '<div class="consulta-bloque__diagnostico-toolbar">',
+          '<span data-diagnostico-build>Build: 20261008-48</span>',
+          '<button type="button" class="consulta-bloque__copy" data-diagnostico-copy>Copiar diagnóstico</button>',
+        '</div>',
         '<pre data-diagnostico-texto></pre>',
       '</details>',
       '<div class="consulta-bloque__error is-hidden" data-proceso-error></div>',
@@ -551,6 +580,8 @@
       var formConsulta = document.querySelector('#formConsulta');
       if (formConsulta && typeof formConsulta.requestSubmit === 'function') formConsulta.requestSubmit();
     });
+
+    bloque.querySelector('[data-diagnostico-copy]').addEventListener('click', copiarDiagnosticoVisible);
 
     if (form && form.parentNode) form.parentNode.insertBefore(bloque, form.nextSibling);
     else if (card) card.appendChild(bloque);
@@ -599,7 +630,10 @@
       '.consulta-bloque__diagnostico{margin-top:12px;border:1px solid #c9dff3;border-radius:12px;background:#fff;overflow:hidden}',
       '.consulta-bloque__diagnostico.is-hidden{display:none}',
       '.consulta-bloque__diagnostico summary{cursor:pointer;padding:10px 12px;font-size:.8rem;font-weight:850;color:#17324d;background:#f5f9fd}',
+      '.consulta-bloque__diagnostico-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid #e1eaf3;border-bottom:1px solid #e1eaf3;background:#fbfdff;color:#60758c;font-size:.7rem;font-weight:800}',
+      '.consulta-bloque__copy{border:1px solid #c9dff3;border-radius:8px;background:#fff;color:#0b5da7;padding:5px 8px;font-size:.7rem;font-weight:900;cursor:pointer}',
       '.consulta-bloque__diagnostico pre{margin:0;padding:11px 12px;white-space:pre-wrap;word-break:break-word;font:600 .74rem/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;color:#425b73;background:#fff}',
+      '.consulta-bloque__error{white-space:pre-wrap}',
       '@media(max-width:760px){.consulta-bloque__pasos{grid-template-columns:1fr 1fr}}',
       '@media(max-width:460px){.consulta-bloque{padding:14px}.consulta-bloque__pasos{grid-template-columns:1fr}}'
     ].join('');
@@ -611,33 +645,265 @@
     var bloque = obtenerBloqueProceso();
     var details = bloque.querySelector('[data-proceso-diagnostico]');
     var pre = bloque.querySelector('[data-diagnostico-texto]');
+    var build = bloque.querySelector('[data-diagnostico-build]');
     var info = diagnostico || {};
+    var rutas = Array.isArray(info.rutasDetalle) && info.rutasDetalle.length
+      ? info.rutasDetalle
+      : diagnosticoRutasLive.slice();
     var lineas = [
-      'Motor: ' + (info.motor || 'DIRECTO_SIN_BRIDGE'),
-      'Estrategia: ' + (info.estrategia || 'IDENTIDAD_PRIMERO'),
+      'Build: ' + obtenerBuildActual(),
+      'Motor: ' + (info.motor || 'RESOLVER_FLEXIBLE'),
+      'Estrategia: ' + (info.estrategia || 'RUTAS_PARALELAS'),
       'Base: ' + (info.base || 'titulos-ec2fa'),
       'Colección: ' + (info.coleccion || 'envios'),
       'Cédula: ' + String(cedula || (estudiante && estudiante.cedula) || ''),
       'Período: ' + String(info.periodoCanonico || (estudiante && estudiante.periodoId) || ''),
       'Resultado: ' + String(resultado || 'SIN_RESULTADO'),
-      'Ruta: ' + String(info.ruta || '—'),
+      'Ruta ganadora: ' + String(info.ruta || '—'),
       'Documento: ' + String(info.documentoId || '—'),
-      'Tiempo: ' + String(info.duracionMs || 0) + ' ms'
+      'Tiempo total: ' + String(info.duracionMs || 0) + ' ms'
     ];
 
-    if (Array.isArray(info.rutasProbadas) && info.rutasProbadas.length) {
-      lineas.push('Rutas probadas: ' + info.rutasProbadas.join(' → '));
+    if (Array.isArray(info.periodosCandidatos) && info.periodosCandidatos.length) {
+      lineas.push('Períodos candidatos: ' + info.periodosCandidatos.join(', '));
     }
 
-    if (error && error.message) {
-      lineas.push('Mensaje: ' + String(error.message));
+    if (rutas.length) {
+      lineas.push('', 'RUTAS:');
+      rutas.forEach(function (ruta) {
+        lineas.push(formatearRutaDiagnostico(ruta));
+      });
+    }
+
+    if (error) {
+      lineas.push('', 'ERROR FINAL:');
+      lineas.push('Código: ' + String(error.codigo || error.code || error.name || 'ERROR'));
+      if (error.httpStatus) lineas.push('HTTP: ' + String(error.httpStatus));
+      if (error.firebaseStatus) lineas.push('Firebase status: ' + String(error.firebaseStatus));
+      if (error.firebaseMessage) lineas.push('Firebase mensaje: ' + String(error.firebaseMessage));
+      if (error.message) lineas.push('Mensaje: ' + String(error.message));
+      if (error.stack) lineas.push('Stack: ' + String(error.stack));
     }
 
     if (pre) pre.textContent = lineas.join('\n');
+    if (build) build.textContent = 'Build: ' + obtenerBuildActual();
     if (details) details.classList.remove('is-hidden');
+
+    if (error || rutas.some(function (ruta) {
+      return ruta && (ruta.estado === 'ERROR' || ruta.estado === 'TIMEOUT');
+    })) {
+      if (details) details.open = true;
+    }
+  }
+
+  function conectarDiagnosticoLive() {
+    if (diagnosticoListenerConectado) return;
+    diagnosticoListenerConectado = true;
+
+    window.addEventListener('ta:consulta-titulo-ruta', function (event) {
+      var detail = event && event.detail || {};
+      actualizarRutaLive(detail);
+
+      var bloque = document.querySelector('#consultaProcesoBloque');
+      if (!bloque || bloque.classList.contains('is-hidden')) return;
+
+      mostrarDiagnosticoTitulos({
+        motor: 'RESOLVER_FLEXIBLE',
+        estrategia: 'RUTAS_PARALELAS',
+        rutasDetalle: diagnosticoRutasLive.slice()
+      }, null, '', 'EN_PROCESO');
+
+      if (detail.estado === 'ERROR' || detail.estado === 'TIMEOUT') {
+        var details = bloque.querySelector('[data-proceso-diagnostico]');
+        if (details) details.open = true;
+      }
+    });
+
+    window.addEventListener('ta:runtime-diagnostico', function (event) {
+      var item = event && event.detail || {};
+      if (item.tipo !== 'ERROR' && item.tipo !== 'UNHANDLED_REJECTION') return;
+
+      var bloque = document.querySelector('#consultaProcesoBloque');
+      if (!bloque || bloque.classList.contains('is-hidden')) return;
+
+      var detail = item.detalle || {};
+      actualizarRutaLive({
+        ruta: 'RUNTIME_JS',
+        estado: 'ERROR',
+        codigo: detail.codigo || detail.name || item.tipo,
+        mensaje: detail.mensaje || 'Error JavaScript no controlado.',
+        archivo: detail.archivo || '',
+        linea: detail.linea || '',
+        stack: detail.stack || ''
+      });
+
+      mostrarDiagnosticoTitulos({
+        motor: 'RUNTIME',
+        estrategia: 'ERROR_JAVASCRIPT',
+        rutasDetalle: diagnosticoRutasLive.slice()
+      }, null, '', item.tipo, detail.error || null);
+    });
+  }
+
+  function iniciarDiagnosticoPaso3(estudiante) {
+    detenerDiagnosticoLento();
+    diagnosticoRutasLive = [];
+
+    var bloque = obtenerBloqueProceso();
+    var details = bloque.querySelector('[data-proceso-diagnostico]');
+    if (details) {
+      details.classList.remove('is-hidden');
+      details.open = false;
+    }
+
+    mostrarDiagnosticoTitulos({
+      motor: 'RESOLVER_FLEXIBLE',
+      estrategia: 'RUTAS_PARALELAS',
+      base: 'titulos-ec2fa',
+      coleccion: 'envios',
+      documentoId: String(estudiante && estudiante.periodoId || '') + '__' + String(estudiante && estudiante.cedula || ''),
+      periodoCanonico: estudiante && estudiante.periodoId || '',
+      periodosCandidatos: estudiante && estudiante.periodosCandidatos || [],
+      rutasDetalle: []
+    }, estudiante, estudiante && estudiante.cedula || '', 'INICIANDO');
+
+    diagnosticoLentoTimer = window.setTimeout(function () {
+      var current = document.querySelector('#consultaProcesoBloque');
+      if (!current || current.classList.contains('is-hidden')) return;
+      var diag = current.querySelector('[data-proceso-diagnostico]');
+      if (diag) diag.open = true;
+    }, 2000);
+  }
+
+  function detenerDiagnosticoLento() {
+    if (diagnosticoLentoTimer) {
+      window.clearTimeout(diagnosticoLentoTimer);
+      diagnosticoLentoTimer = null;
+    }
+  }
+
+  function actualizarRutaLive(detail) {
+    if (!detail || !detail.ruta || detail.ruta === 'RESOLVER') return;
+
+    var existente = null;
+    for (var i = diagnosticoRutasLive.length - 1; i >= 0; i -= 1) {
+      if (diagnosticoRutasLive[i].ruta === detail.ruta) {
+        existente = diagnosticoRutasLive[i];
+        break;
+      }
+    }
+
+    if (!existente) {
+      existente = { ruta: detail.ruta };
+      diagnosticoRutasLive.push(existente);
+    }
+
+    Object.keys(detail).forEach(function (key) {
+      existente[key] = detail[key];
+    });
+  }
+
+  function formatearRutaDiagnostico(ruta) {
+    ruta = ruta || {};
+    var partes = [
+      '- ' + String(ruta.ruta || 'DESCONOCIDA'),
+      '[' + String(ruta.estado || 'SIN_ESTADO') + ']'
+    ];
+
+    if (ruta.ms !== undefined && ruta.ms !== '') partes.push(String(ruta.ms) + ' ms');
+    if (ruta.codigo) partes.push('código=' + String(ruta.codigo));
+    if (ruta.httpStatus) partes.push('HTTP=' + String(ruta.httpStatus));
+    if (ruta.firebaseStatus) partes.push('firebase=' + String(ruta.firebaseStatus));
+    if (ruta.documentoId) partes.push('doc=' + String(ruta.documentoId));
+    if (ruta.score !== undefined && ruta.score !== '') partes.push('score=' + String(ruta.score));
+    if (ruta.mensaje) partes.push('mensaje=' + String(ruta.mensaje));
+    if (ruta.firebaseMessage) partes.push('firebaseMensaje=' + String(ruta.firebaseMessage));
+
+    return partes.join(' · ');
+  }
+
+  function construirErrorVisible(mensaje, error, diagnostico) {
+    var lineas = [String(mensaje || 'No se pudo completar la consulta.')];
+    error = error || {};
+    diagnostico = diagnostico || {};
+
+    lineas.push('');
+    lineas.push('Código: ' + String(error.codigo || error.code || error.name || 'ERROR'));
+
+    if (error.httpStatus) lineas.push('HTTP: ' + String(error.httpStatus));
+    if (error.firebaseStatus) lineas.push('Firebase: ' + String(error.firebaseStatus));
+    if (error.firebaseMessage) lineas.push('Firebase mensaje: ' + String(error.firebaseMessage));
+    if (diagnostico.ruta) lineas.push('Ruta: ' + String(diagnostico.ruta));
+    if (diagnostico.documentoId) lineas.push('Documento: ' + String(diagnostico.documentoId));
+    lineas.push('Build: ' + obtenerBuildActual());
+
+    return lineas.join('\n');
+  }
+
+  function enriquecerErrorConDiagnostico(error, contexto, cedula) {
+    if (!error) return;
+
+    var existente = error.diagnostico || {};
+    error.diagnostico = Object.assign({}, existente, {
+      motor: existente.motor || 'RESOLVER_FLEXIBLE',
+      estrategia: existente.estrategia || 'RUTAS_PARALELAS',
+      base: existente.base || 'titulos-ec2fa',
+      coleccion: existente.coleccion || 'envios',
+      cedula: cedula || (contexto.estudiante && contexto.estudiante.cedula) || '',
+      periodoCanonico: existente.periodoCanonico || (contexto.estudiante && contexto.estudiante.periodoId) || '',
+      documentoId: existente.documentoId || (
+        ((contexto.estudiante && contexto.estudiante.periodoId) || '') + '__' +
+        ((contexto.estudiante && contexto.estudiante.cedula) || cedula || '')
+      ),
+      rutasDetalle: diagnosticoRutasLive.slice(),
+      build: obtenerBuildActual()
+    });
+  }
+
+  function copiarDiagnosticoVisible() {
+    var bloque = obtenerBloqueProceso();
+    var pre = bloque.querySelector('[data-diagnostico-texto]');
+    var texto = pre ? pre.textContent : '';
+
+    if (!texto) return;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(function () {
+        var button = bloque.querySelector('[data-diagnostico-copy]');
+        if (!button) return;
+        var anterior = button.textContent;
+        button.textContent = 'Copiado';
+        window.setTimeout(function () { button.textContent = anterior; }, 1200);
+      }).catch(function () {
+        copiarTextoFallback(texto);
+      });
+      return;
+    }
+
+    copiarTextoFallback(texto);
+  }
+
+  function copiarTextoFallback(texto) {
+    var area = document.createElement('textarea');
+    area.value = texto;
+    area.setAttribute('readonly', 'readonly');
+    area.style.position = 'fixed';
+    area.style.left = '-9999px';
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand('copy'); } catch (error) {}
+    document.body.removeChild(area);
+  }
+
+  function obtenerBuildActual() {
+    return (window.TAEstudianteApp && window.TAEstudianteApp.build) ||
+      (window.TAEstudianteDiagnostico && window.TAEstudianteDiagnostico.build) ||
+      '20261008-48';
   }
 
   function limpiarDiagnosticoTitulos() {
+    detenerDiagnosticoLento();
+    diagnosticoRutasLive = [];
     var bloque = obtenerBloqueProceso();
     var details = bloque.querySelector('[data-proceso-diagnostico]');
     var pre = bloque.querySelector('[data-diagnostico-texto]');
