@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Panel de Titulación | ITSQMET</title>
-  <link rel="stylesheet" href="css/administrador.css?v=20261008-admin2" />
+  <link rel="stylesheet" href="css/administrador.css?v=20261008-admin3" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
@@ -31,6 +31,9 @@
         </button>
         <button class="admin-tab" type="button" data-admin-tab="investigadores">
           <span class="admin-tab__icon">I</span><span>Investigadores</span>
+        </button>
+        <button class="admin-tab" type="button" data-admin-tab="reportes">
+          <span class="admin-tab__icon">R</span><span>Reportes</span>
         </button>
         <button class="admin-tab" type="button" data-admin-tab="periodos">
           <span class="admin-tab__icon">P</span><span>Períodos</span>
@@ -186,6 +189,106 @@
           </div>
 
           <div class="status-message" id="faltantesMensaje" role="status" aria-live="polite"></div>
+        </section>
+
+        <section class="admin-panel is-hidden" id="panelReportes" data-admin-panel="reportes" aria-labelledby="tituloReportes">
+          <div class="panel-title-row">
+            <div>
+              <p class="section-kicker">Reportes</p>
+              <h2 id="tituloReportes">Revisiones de Investigación</h2>
+              <p class="muted">Consulta las revisiones registradas, filtra el resultado y descarga un PDF institucional.</p>
+            </div>
+            <div class="toolbar">
+              <button class="btn btn--secondary" type="button" id="btnActualizarReportesRevision">Actualizar</button>
+              <button class="btn btn--primary" type="button" id="btnDescargarReportesRevisionPdf">Descargar PDF</button>
+            </div>
+          </div>
+
+          <section class="card report-filter-card">
+            <div class="report-filter-grid">
+              <div class="field">
+                <label for="reporteRevisionPeriodo">Período</label>
+                <select id="reporteRevisionPeriodo">
+                  <option value="">Todos los períodos</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="reporteRevisionInvestigador">Investigador</label>
+                <select id="reporteRevisionInvestigador">
+                  <option value="">Todos los investigadores</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="reporteRevisionCarrera">Carrera</label>
+                <select id="reporteRevisionCarrera">
+                  <option value="">Todas las carreras</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="reporteRevisionResultado">Resultado</label>
+                <select id="reporteRevisionResultado">
+                  <option value="">Todos</option>
+                  <option value="APROBADO">Aprobado</option>
+                  <option value="APROBADO_CON_OBSERVACION">Aprobado con observación</option>
+                  <option value="DEVUELTO">Devuelto</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="reporteRevisionDesde">Desde</label>
+                <input id="reporteRevisionDesde" type="date" />
+              </div>
+              <div class="field">
+                <label for="reporteRevisionHasta">Hasta</label>
+                <input id="reporteRevisionHasta" type="date" />
+              </div>
+            </div>
+            <div class="report-filter-actions">
+              <button class="btn btn--ghost" type="button" id="btnLimpiarReportesRevision">Limpiar filtros</button>
+            </div>
+          </section>
+
+          <div class="summary-grid report-summary-grid">
+            <article class="summary-card">
+              <span>Total revisados</span>
+              <strong id="reporteRevisionTotal">0</strong>
+            </article>
+            <article class="summary-card summary-card--success">
+              <span>Aprobados</span>
+              <strong id="reporteRevisionAprobados">0</strong>
+            </article>
+            <article class="summary-card summary-card--danger">
+              <span>Devueltos</span>
+              <strong id="reporteRevisionDevueltos">0</strong>
+            </article>
+            <article class="summary-card">
+              <span>Investigadores</span>
+              <strong id="reporteRevisionInvestigadoresTotal">0</strong>
+            </article>
+          </div>
+
+          <section class="card">
+            <div class="table-wrap">
+              <table class="data-table report-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Investigador</th>
+                    <th>Estudiante</th>
+                    <th>Cédula</th>
+                    <th>Carrera</th>
+                    <th>Resultado</th>
+                    <th>Título final</th>
+                    <th>Observación</th>
+                  </tr>
+                </thead>
+                <tbody id="reportesRevisionBody">
+                  <tr><td colspan="8" class="empty-cell">Abre Reportes para cargar las revisiones.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div class="status-message" id="reportesRevisionMensaje" role="status" aria-live="polite"></div>
         </section>
 
     <section class="admin-panel is-hidden" id="panelPeriodos" data-admin-panel="periodos" aria-labelledby="tituloPeriodos">
@@ -888,17 +991,22 @@
   <script src="js/firebase.config.js"></script>
   <script src="js/app.config.js"></script>
   <script src="js/firebase.service.js"></script>
-  <script src="js/admin.ui.js?v=20261008-admin2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="../shared/js/reporte-revisiones.service.js?v=20261008-1"></script>
+  <script src="../shared/js/pdf-revisiones.service.js?v=20261008-1"></script>
+  <script src="js/admin.ui.js?v=20261008-admin3"></script>
 
-  <script src="js/administrador.repository.js?v=20261008-admin2"></script>
+  <script src="js/administrador.repository.js?v=20261008-admin3"></script>
   <script src="js/inicio.admin.js?v=20261008-admin2"></script>
   <script src="js/faltantes.admin.js?v=20261008-admin2"></script>
+  <script src="js/reportes.revisiones.admin.js?v=20261008-admin3"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js"></script>
   <script src="js/investigadores.admin.js?v=20261006-4"></script>
   <script src="js/estudiantes.admin.js"></script>
   <script src="js/ajustes.admin.js"></script>
   <script src="js/respaldo.admin.js"></script>
-  <script src="js/administrador.app.js?v=20261008-admin2"></script>
+  <script src="js/administrador.app.js?v=20261008-admin3"></script>
 </body>
 </html>
