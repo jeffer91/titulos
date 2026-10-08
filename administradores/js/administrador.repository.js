@@ -602,6 +602,10 @@
       return config.estadosTitulo.sinEnviar;
     }
 
+    if (estadoInv === 'APROBADO' || estadoInv === 'APROBADO_CON_OBSERVACION') {
+      return config.estadosTitulo.aprobado;
+    }
+
     if (
       proceso === 'PENDIENTE_COORDINADOR' ||
       proceso === 'PENDIENTE_INVESTIGADOR' ||
@@ -610,10 +614,6 @@
       estado === 'PENDIENTE_INVESTIGADOR'
     ) {
       return config.estadosTitulo.pendiente;
-    }
-
-    if (estadoInv === 'APROBADO' || estadoInv === 'APROBADO_CON_OBSERVACION') {
-      return config.estadosTitulo.aprobado;
     }
 
     return tituloActivo(titulo) ? config.estadosTitulo.pendiente : config.estadosTitulo.sinEnviar;
@@ -650,10 +650,14 @@
       return '';
     }
 
+    if (invRevisado) {
+      return '';
+    }
+
     if (
       proceso === 'PENDIENTE_INVESTIGADOR' ||
       estado === 'PENDIENTE_INVESTIGADOR' ||
-      (coordValidado && !invRevisado && (!estadoInv || estadoInv === 'PENDIENTE'))
+      (coordValidado && (!estadoInv || estadoInv === 'PENDIENTE'))
     ) {
       return 'INVESTIGACION';
     }
