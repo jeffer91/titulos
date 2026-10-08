@@ -8,7 +8,7 @@
 
   var repositoryOriginal = window.TAEstudianteRepository;
   var recomendacionesOriginal = window.TAEstudianteRecomendacionesController;
-  var firebaseService = window.TAFirebaseService;
+  var firebaseService = window.TAEstudianteFirebaseService;
   var ultimoResultado = null;
   var instalado = false;
 
