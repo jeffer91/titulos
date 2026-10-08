@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261008-48';
+  var BUILD = '20261008-49';
   var eventos = [];
   var MAX_EVENTOS = 80;
 
@@ -78,34 +78,13 @@
     }
   }
 
-  function permitirHerramientasDesarrollador(event) {
-    if (!event) return;
-
-    var key = String(event.key || '').toUpperCase();
-    var f12 = key === 'F12' || event.keyCode === 123;
-    var chromeShortcut = event.ctrlKey && event.shiftKey && ['I', 'J', 'C'].indexOf(key) !== -1;
-
-    /*
-      Solo se corta la propagación hacia listeners de la aplicación.
-      NO se llama preventDefault(), por lo que el navegador conserva
-      sus atajos nativos de DevTools.
-    */
-    if (f12 || chromeShortcut) {
-      event.stopImmediatePropagation();
-    }
-  }
-
-  function permitirMenuContextual(event) {
-    if (!event) return;
-    /*
-      Evita que listeners posteriores de la app puedan cancelar el menú.
-      NO se cancela la acción por defecto del navegador.
-    */
-    event.stopImmediatePropagation();
-  }
-
-  window.addEventListener('keydown', permitirHerramientasDesarrollador, true);
-  window.addEventListener('contextmenu', permitirMenuContextual, true);
+  /*
+    IMPORTANTE:
+    Esta capa de diagnóstico NO registra listeners de keydown ni contextmenu.
+    F12, Ctrl+Shift+I/J/C y el clic derecho quedan completamente en manos
+    del navegador. No se usa preventDefault(), stopPropagation() ni
+    stopImmediatePropagation() para esos eventos.
+  */
 
   window.addEventListener('error', function (event) {
     registrar('ERROR', {
@@ -128,11 +107,13 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     /*
-      Limpia handlers inline/directos si alguna dependencia externa hubiera
-      intentado bloquear el menú contextual. La app no necesita esos bloqueos.
+      Limpia únicamente handlers directos heredados. No instalamos un handler
+      sustituto: el menú contextual y DevTools quedan nativos.
     */
     document.oncontextmenu = null;
     window.oncontextmenu = null;
+    document.onkeydown = null;
+    window.onkeydown = null;
     registrar('INICIO', {
       mensaje: 'Diagnóstico runtime activo.',
       userAgent: navigator.userAgent || ''
