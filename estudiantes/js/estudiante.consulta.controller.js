@@ -15,6 +15,7 @@
   var TIMEOUT_CONFIG_MS = 1200;
   var TIMEOUT_ACADEMICO_MS = 5500;
   var TIMEOUT_HISTORIAL_MS = 4500;
+  var TIMEOUT_TITULOS_MS = 8000;
   var consultaToken = 0;
 
   function manejarConsulta(event, opciones) {
@@ -99,10 +100,10 @@
           El repository usa compatibilidad histórica únicamente si el documento
           canónico no existe o si hay un fallo transitorio del transporte.
         */
-        return consultarEstadoTituloRapido(
-          estudiante.periodoId,
-          estudiante.cedula || resultadoCedula.data,
-          repository
+        return conTimeout(
+          consultarEstadoTituloRapido(estudiante, repository),
+          TIMEOUT_TITULOS_MS,
+          'No pudimos completar la consulta del estado del título. Intenta nuevamente.'
         );
       })
       .then(function (resultadoTitulo) {
@@ -203,7 +204,9 @@
       });
   }
 
-  function consultarEstadoTituloRapido(periodoId, cedula, repository) {
+  function consultarEstadoTituloRapido(estudiante, repository) {
+    estudiante = estudiante || {};
+
     if (!repository || typeof repository.consultarEnvio !== 'function') {
       return Promise.reject(crearError(
         'REPOSITORY_TITULOS_NO_DISPONIBLE',
@@ -211,7 +214,11 @@
       ));
     }
 
-    return Promise.resolve(repository.consultarEnvio(periodoId, cedula))
+    return Promise.resolve(repository.consultarEnvio(
+      estudiante.periodoId,
+      estudiante.cedula || estudiante.numeroIdentificacion,
+      estudiante
+    ))
       .then(function (envio) {
         var diagnostico = envio && envio._consultaDiagnostico
           ? envio._consultaDiagnostico
@@ -222,13 +229,16 @@
         return {
           envio: envio || null,
           diagnostico: diagnostico || {
-            motor: 'REST_DIRECTO',
-            estrategia: 'ID_EXACTO_PRIMERO',
+            motor: 'RESOLVER_FLEXIBLE',
+            estrategia: 'RUTAS_PARALELAS',
             base: 'titulos-ec2fa',
             coleccion: 'envios',
-            documentoId: String(periodoId || '') + '__' + String(cedula || ''),
-            ruta: envio ? 'ID_EXACTO' : 'NO_ENCONTRADO',
-            periodoCanonico: String(periodoId || ''),
+            documentoId: String(estudiante.periodoId || '') + '__' + String(estudiante.cedula || ''),
+            ruta: envio ? 'PRIMER_RESULTADO_SEGURO' : 'NO_ENCONTRADO',
+            periodoCanonico: String(estudiante.periodoId || ''),
+            periodosCandidatos: Array.isArray(estudiante.periodosCandidatos)
+              ? estudiante.periodosCandidatos.slice()
+              : [String(estudiante.periodoId || '')],
             status: envio ? 200 : 404,
             duracionMs: 0
           }
@@ -238,11 +248,14 @@
         if (!error.codigo) error.codigo = 'CONSULTA_TITULOS_ERROR';
 
         error.diagnostico = Object.assign({
-          motor: 'REST_DIRECTO',
-          estrategia: 'ID_EXACTO_PRIMERO',
+          motor: 'RESOLVER_FLEXIBLE',
+          estrategia: 'RUTAS_PARALELAS',
           base: 'titulos-ec2fa',
           coleccion: 'envios',
-          periodoCanonico: String(periodoId || ''),
+          periodoCanonico: String(estudiante.periodoId || ''),
+          periodosCandidatos: Array.isArray(estudiante.periodosCandidatos)
+            ? estudiante.periodosCandidatos.slice()
+            : [String(estudiante.periodoId || '')],
           duracionMs: 0
         }, error.diagnostico || {});
 
