@@ -302,8 +302,7 @@
       signal: signal,
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         structuredQuery: {
@@ -422,8 +421,7 @@
       credentials: 'omit',
       signal: signal,
       headers: {
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
+        'Accept': 'application/json'
       }
     })
       .then(function (response) {
