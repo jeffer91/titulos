@@ -26,7 +26,7 @@ async function autenticar(auth, header, rol) {
   if (!claims || !claims.uid) throw fallo(401,'SESION_INVALIDA');
   const roles = rolesVerificados(claims);
   if (!roles.includes(rol)) throw fallo(403,'ROL_NO_AUTORIZADO');
-  return Object.freeze({uid:claims.uid,rol,roles});
+  return Object.freeze({uid:claims.uid,rol,roles,cedula:rol === 'estudiante' && /^\d{10}$/.test(String(claims.cedula||'')) ? String(claims.cedula) : ''});
 }
 function origenesPermitidos(config) {
   const lista = ['https://jeffer91.github.io'];

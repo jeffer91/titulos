@@ -13,8 +13,11 @@
   var appConfigCacheAt = 0;
   var ultimoDiagnosticoEnvio = null;
   var trazaEnvioActual = [];
+  var seguro = window.TAEstudianteSeguro;
+  function modoSeguro() { return Boolean(seguro && seguro.activo && seguro.activo()); }
 
   function cargarConfiguracionApp() {
+    if (modoSeguro()) return seguro.configuracion().then(function (data) { return normalizarAppConfig(data, 'api-segura'); });
     var ahora = Date.now();
 
     if (appConfigCache && (ahora - appConfigCacheAt) < 120000) {
@@ -58,27 +61,36 @@
   }
 
   function buscarEstudiantePorCedula(cedulaIngresada, appConfig) {
+    if (modoSeguro()) return seguro.expediente({ cedula: String(cedulaIngresada || '') }).then(function (data) {
+      return data.estudiante || null;
+    });
     var variantes = construirVariantesCedula(cedulaIngresada);
     if (!variantes.length) return Promise.resolve(null);
+    var erroresAcademicos = [];
 
     /*
       Las dos lecturas académicas son independientes, por eso arrancan juntas:
       A) ficha del estudiante
       B) matrículas por cédula
     */
-    var estudiantePromise = buscarDocumentoAcademicoPorIds(variantes)
+    var estudiantePromise = buscarDocumentoAcademicoPorIds(variantes, erroresAcademicos)
       .then(function (estudiante) {
         if (estudiante) return estudiante;
-        return buscarDocumentoAcademicoPorCampo('cedula', variantes);
+        return buscarDocumentoAcademicoPorCampo('cedula', variantes, erroresAcademicos);
       });
 
-    var matriculasPromise = buscarMatriculas(variantes);
+    var matriculasPromise = buscarMatriculas(variantes, erroresAcademicos);
 
     return Promise.all([estudiantePromise, matriculasPromise])
       .then(function (resultados) {
         var estudiante = resultados[0];
         var matriculas = resultados[1] || [];
 
+        if ((!estudiante || !(matriculas || []).length) && erroresAcademicos.length) {
+          var falloAcademico = erroresAcademicos[0];
+          falloAcademico.codigo = falloAcademico.codigo || falloAcademico.code || 'ERROR_LECTURA_ACADEMICA';
+          throw falloAcademico;
+        }
         if (!estudiante || estudiante.eliminado === true) return null;
 
         var matricula = seleccionarMatricula(matriculas, appConfig);
@@ -86,32 +98,32 @@
       });
   }
 
-  function buscarDocumentoAcademicoPorIds(variantes) {
+  function buscarDocumentoAcademicoPorIds(variantes, errores) {
     var cadena = Promise.resolve(null);
     variantes.forEach(function (cedula) {
       cadena = cadena.then(function (encontrado) {
         if (encontrado) return encontrado;
-        return firebaseService.leerDocumentoAcademico(config.collections.estudiantes, cedula).catch(function () { return null; });
+        return firebaseService.leerDocumentoAcademico(config.collections.estudiantes, cedula).catch(function (error) { if (errores) errores.push(error); return null; });
       });
     });
     return cadena;
   }
 
-  function buscarDocumentoAcademicoPorCampo(campo, variantes) {
+  function buscarDocumentoAcademicoPorCampo(campo, variantes, errores) {
     var cadena = Promise.resolve(null);
     variantes.forEach(function (cedula) {
       cadena = cadena.then(function (encontrado) {
         if (encontrado) return encontrado;
-        return firebaseService.consultarPrimeroAcademico(config.collections.estudiantes, campo, '==', cedula).catch(function () { return null; });
+        return firebaseService.consultarPrimeroAcademico(config.collections.estudiantes, campo, '==', cedula).catch(function (error) { if (errores) errores.push(error); return null; });
       });
     });
     return cadena;
   }
 
-  function buscarMatriculas(variantes) {
+  function buscarMatriculas(variantes, errores) {
     var promesas = variantes.map(function (cedula) {
       return firebaseService.consultarColeccionAcademico(config.collections.matriculas, 'cedula', '==', cedula, 50)
-        .catch(function () { return []; });
+        .catch(function (error) { if (errores) errores.push(error); return []; });
     });
 
     return Promise.all(promesas).then(function (listas) {
@@ -152,6 +164,14 @@
   }
 
   function consultarEnvio(periodoId, cedulaIngresada, contextoEstudiante) {
+    if (modoSeguro()) return seguro.expediente({ cedula: String(cedulaIngresada || ''), periodoId: periodoId }).then(function (data) {
+      var envio = data.envio ? normalizarEnvioExistente(data.envio) : null;
+      ultimoDiagnosticoEnvio = { motor: 'API_SERVIDOR', estrategia: 'CEDULA_Y_PERIODO_VERIFICADOS',
+        base: 'titulos-ec2fa', coleccion: 'envios', ruta: 'API_ESTUDIANTES',
+        documentoId: envio && envio.id || '', status: envio ? 200 : 404 };
+      if (envio) envio._consultaDiagnostico = Object.assign({}, ultimoDiagnosticoEnvio);
+      return envio;
+    });
     var inicio = Date.now();
     var cedula = normalizarCedulaParaMostrar(
       cedulaIngresada ||
@@ -454,6 +474,7 @@
   }
 
   function guardarEnvioFinal(payload) {
+    if (modoSeguro()) return seguro.enviar(payload);
     if (!payload || !payload.cedula) return Promise.reject(new Error('No se puede guardar porque falta la cédula.'));
     payload.periodoId = obtenerPeriodoIdDesdeValor(payload.periodoId || 'SIN_PERIODO');
     var tituloId = construirTituloId(payload.periodoId, payload.cedula);
@@ -524,6 +545,7 @@
   }
 
   function actualizarRespaldoSheets(periodoId, cedula, respaldo) {
+    if (modoSeguro()) return Promise.resolve({ ok: true, omitido: true });
     return firebaseService.actualizarDocumento(config.collections.titulos, construirTituloId(obtenerPeriodoIdDesdeValor(periodoId), cedula), {
       respaldoSheets: respaldo,
       respaldoSheetsEstado: respaldo && respaldo.ok ? 'OK' : 'PENDIENTE',
@@ -532,6 +554,7 @@
   }
 
   function registrarLogEnvio(tituloId, payload, accion) {
+    if (modoSeguro()) return Promise.resolve({ ok: true, origen: 'transaccion-servidor' });
     return firebaseService.agregarDocumento(config.collections.logs, {
       tipo: accion || 'ENVIO_ESTUDIANTE',
       accion: accion || 'ENVIO_ESTUDIANTE',

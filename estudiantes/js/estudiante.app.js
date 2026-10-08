@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261008-52';
+  var BUILD = '20261008-53';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -47,6 +47,11 @@
   }
 
   function preconectarFirebase() {
+    var seguro = window.TAEstudianteSeguro;
+    if (seguro && seguro.activo && seguro.activo()) return seguro.iniciar().catch(function (error) {
+      mostrarErrorBackend({ codigo: error.codigo || 'AUTH_INICIALIZACION', mensaje: error.message });
+      return false;
+    });
     var service = window.TAEstudianteFirebaseService;
     var config = window.TA_ESTUDIANTES_CONFIG || {};
     var state = window.TAEstudianteState;

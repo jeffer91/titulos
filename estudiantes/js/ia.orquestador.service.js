@@ -802,6 +802,12 @@
   }
 
   function leerProveedor(providerId) {
+    var seguro = window.TAEstudianteSeguro;
+    if (seguro && seguro.activo && seguro.activo()) {
+      return seguro.proveedores().then(function (items) {
+        return (items || []).filter(function (item) { return item.id === providerId; })[0] || { activo: false };
+      });
+    }
     if (!firebaseService || !firebaseService.leerDocumento) {
       return Promise.reject(new Error('Firebase no está listo para leer proveedores IA.'));
     }

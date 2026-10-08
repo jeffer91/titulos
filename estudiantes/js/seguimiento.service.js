@@ -96,6 +96,13 @@
   }
 
   function cargarSeguimiento(envio, estudiante) {
+    var seguro = window.TAEstudianteSeguro;
+    if (seguro && seguro.activo && seguro.activo()) {
+      return seguro.historial(envio.periodoId || envio.periodoCanonicoId).then(function (data) {
+        return { envio: envio, estudiante: estudiante, versiones: data.versiones || [],
+          eventos: data.eventos || [], historialProceso: Array.isArray(envio.historialProceso) ? envio.historialProceso.slice() : [] };
+      });
+    }
     return Promise.all([
       cargarVersiones(envio),
       cargarEventos(envio)

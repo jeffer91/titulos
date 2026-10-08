@@ -41,6 +41,11 @@
   });
 
   function llamar(providerId, iaConfig, prompt, opciones) {
+    var seguro = window.TAEstudianteSeguro;
+    if (seguro && seguro.activo && seguro.activo()) {
+      if (providerId !== 'gemini') return Promise.reject(new Error('Proveedor no habilitado en backend seguro.'));
+      return seguro.ia(prompt);
+    }
     providerId = normalizarProveedor(providerId);
     iaConfig = iaConfig || {};
     opciones = opciones || {};
@@ -233,6 +238,10 @@
   }
 
   function validarConfig(providerId, iaConfig) {
+    var seguro = window.TAEstudianteSeguro;
+    if (seguro && seguro.activo && seguro.activo()) {
+      return providerId === 'gemini' && iaConfig && iaConfig.activo !== false ? ok() : error('Proveedor no disponible.');
+    }
     providerId = normalizarProveedor(providerId);
     iaConfig = iaConfig || {};
 

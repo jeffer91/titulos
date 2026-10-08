@@ -24,6 +24,7 @@
     configuracion: true,
     envios: true,
     workflow_events: true,
+    versiones_envio: true,
     ia: true
   });
 

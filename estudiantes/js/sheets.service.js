@@ -5,6 +5,9 @@
   var config = window.TA_ESTUDIANTES_CONFIG;
 
   function respaldarEnvio(envio, appConfig) {
+    var seguro = window.TAEstudianteSeguro;
+    if (seguro && seguro.activo && seguro.activo()) return Promise.resolve({ ok: false, pendiente: true,
+      mensaje: 'Respaldo de Sheets pendiente de integración del lado del servidor.' });
     appConfig = Object.assign({}, config.defaultAppConfig || {}, appConfig || {});
 
     if (!envio) {

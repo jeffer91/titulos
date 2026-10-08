@@ -275,6 +275,10 @@
   }
 
   function cargarConfiguracionSegura(repository) {
+    var seguro = window.TAEstudianteSeguro;
+    if (seguro && seguro.activo && seguro.activo()) {
+      return repository.cargarConfiguracionApp(); // Prohibido sustituir errores por defaults en modo protegido.
+    }
     var defaults = Object.assign({}, (window.TA_ESTUDIANTES_CONFIG && window.TA_ESTUDIANTES_CONFIG.defaultAppConfig) || {});
 
     if (!repository || typeof repository.cargarConfiguracionApp !== 'function') {
@@ -387,6 +391,8 @@
   }
 
   function asegurarFirebase() {
+    var seguro = window.TAEstudianteSeguro;
+    if (seguro && seguro.activo && seguro.activo()) return seguro.asegurarSesion().then(function () { return true; });
     var config = window.TA_ESTUDIANTES_CONFIG;
     var firebaseService = window.TAEstudianteFirebaseService;
     var state = window.TAEstudianteState;
