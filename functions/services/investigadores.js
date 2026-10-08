@@ -61,7 +61,8 @@ function fecha(t){
 async function cola(db,p){
  const consultas=[];
  for(const carrera of carreras(p))if(!['*','TODAS','TODOS','ALL'].includes(clave(carrera)))
-  for(const campo of CAMPOS)consultas.push(db.collection('envios').where(campo,'==',carrera).limit(400).get());
+  for(const valor of [...new Set([carrera,carrera.toUpperCase(),clave(carrera)])])
+   for(const campo of CAMPOS)consultas.push(db.collection('envios').where(campo,'==',valor).limit(400).get());
  const grupos=await Promise.all(consultas);
  const mapa=new Map();let truncado=false;
  for(const g of grupos){if(g.docs.length>=400)truncado=true;
