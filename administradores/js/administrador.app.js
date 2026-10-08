@@ -270,7 +270,17 @@
   }
 
   function obtenerMensaje(error, fallback) {
-    return error && error.message ? error.message : fallback;
+    if (!error) return fallback || 'Error desconocido.';
+
+    var partes = [];
+    var codigo = error.codigo || error.code || error.name || '';
+
+    if (codigo) partes.push('[' + codigo + ']');
+    if (error.operacion) partes.push(String(error.operacion));
+    if (error.coleccion) partes.push('colección ' + String(error.coleccion));
+    partes.push(error.message || fallback || String(error));
+
+    return partes.join(' · ');
   }
 
   window.TAAdministradorApp = Object.freeze({
