@@ -388,7 +388,7 @@
 
   function asegurarFirebase() {
     var config = window.TA_ESTUDIANTES_CONFIG;
-    var firebaseService = window.TAFirebaseService;
+    var firebaseService = window.TAEstudianteFirebaseService;
     var state = window.TAEstudianteState;
 
     if (!firebaseService || typeof firebaseService.iniciar !== 'function') {
