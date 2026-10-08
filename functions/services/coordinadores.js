@@ -12,7 +12,8 @@ const CAMPOS_TITULO=[
  'tituloCoordinadorNumero','tituloCoordinador','tituloPreferidoNumero','tituloPreferidoTexto',
  'tituloElegido','titulosEnviados','propuestas','propuestasDetalle','titulo1','titulo2','titulo3',
  'fechaEnvio','enviadoEn','creadoEn','actualizadoEnLocal','actualizadoEn','intentosUsados','numeroEnvios',
- 'historialProceso','validadoCoordinador','coordinadorRevisado','devueltoPor','resultadoCoordinador'
+ 'historialProceso','validadoCoordinador','coordinadorRevisado','devueltoPor','resultadoCoordinador',
+ 'puedeReenviar','permitirReenvio','requiereRevision','requiereAccionDe','observacionDevolucion'
 ];
 const CAMPOS_HISTORIAL=[
  'id','envioId','idOriginal','tituloId','versionActual','numeroVersion','fechaEnvio','creadoEn','archivadoEn',
