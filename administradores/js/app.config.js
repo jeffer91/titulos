@@ -11,8 +11,8 @@
 
   window.TA_ADMINISTRADORES_CONFIG = Object.freeze({
     modulo: 'administradores',
-    version: '1.2.0-dual-firebase',
-    modo: 'firebase-titulos-con-consulta-academica',
+    version: '1.3.0-backend-administrador-aislado',
+    modo: 'backend-administrador-independiente-dual-firebase',
     firebaseActivo: true,
     electronActivo: true,
 
