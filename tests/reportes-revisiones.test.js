@@ -13,6 +13,8 @@ function read(p) {
 
 const serviceCode = read('shared/js/reporte-revisiones.service.js');
 const pdfCode = read('shared/js/pdf-revisiones.service.js');
+const invServiceCode = read('investigadores/js/reporte-revisiones.service.js');
+const invPdfCode = read('investigadores/js/pdf-revisiones.service.js');
 const invHtml = read('investigadores/investigador.html');
 const invRepo = read('investigadores/js/investigador.repository.js');
 const invApp = read('investigadores/js/investigador.app.js');
@@ -25,6 +27,8 @@ assert(invHtml.includes('id="panelRevisados"'), 'Investigadores debe tener panel
 assert(invHtml.includes('id="btnDescargarRevisadosPdf"'), 'Investigadores debe permitir descargar PDF.');
 assert(invRepo.includes('function listarRevisadosPorInvestigador'), 'Repository investigador debe exponer historial propio.');
 assert(invApp.includes('function descargarRevisionesPdf'), 'App investigador debe generar PDF.');
+assert(invServiceCode.includes('TARevisionReportService'), 'Investigadores debe tener motor de reportes local.');
+assert(invPdfCode.includes('TARevisionPdfService'), 'Investigadores debe tener motor PDF local.');
 assert(adminHtml.includes('data-admin-tab="reportes"'), 'Administrador debe tener Reportes en sidebar.');
 assert(adminHtml.includes('id="panelReportes"'), 'Administrador debe tener panel Reportes.');
 assert(adminHtml.includes('id="btnDescargarReportesRevisionPdf"'), 'Administrador debe descargar PDF.');
