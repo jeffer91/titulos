@@ -20,6 +20,7 @@
   var diagnosticoRutasLive = [];
   var diagnosticoListenerConectado = false;
   var diagnosticoLentoTimer = null;
+  var consultaInteractivaActiva = false;
 
   function manejarConsulta(event, opciones) {
     var ui = window.TAEstudianteUI;
@@ -70,6 +71,7 @@
 
     if (inputCedula) inputCedula.value = resultadoCedula.data;
 
+    activarInterfazConsultaLibre();
     limpiarVistaAntesDeConsultar({ conservarCedula: resultadoCedula.data });
     prepararBloqueProceso();
     actualizarBloqueProceso(1, 'completado', 'Cédula validada', 'El número de identificación tiene un formato válido.');
@@ -213,6 +215,7 @@
       })
       .finally(function () {
         ui.setLoading(button, false);
+        desactivarInterfazConsultaLibre();
       });
   }
 
@@ -696,11 +699,77 @@
     }
   }
 
+  function activarInterfazConsultaLibre() {
+    consultaInteractivaActiva = true;
+
+    if (document.body) {
+      document.body.classList.add('ta-query-active');
+      document.body.classList.remove('has-open-modal');
+      document.body.style.pointerEvents = '';
+      document.body.style.overflow = '';
+    }
+
+    if (document.documentElement) {
+      document.documentElement.style.pointerEvents = '';
+      document.documentElement.style.overflowY = '';
+    }
+
+    /*
+      El Paso 1 no utiliza el modal de IA. Si una versión vieja, un script
+      cacheado o una capa complementaria intenta mostrarlo, se fuerza a oculto
+      mientras dura la consulta académica.
+    */
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.ia-loading-modal, #modalLoadingIA, #iaLoadingModal'),
+      function (modal) {
+        modal.classList.add('is-hidden');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.setAttribute('data-ta-query-disabled', 'true');
+        modal.style.pointerEvents = 'none';
+        modal.style.visibility = 'hidden';
+      }
+    );
+
+    /*
+      Quita bloqueos de accesibilidad/interacción que pudieran haber quedado
+      de un modal anterior. Se limita a la zona de consulta.
+    */
+    [
+      document.querySelector('main'),
+      document.querySelector('#wizardSteps'),
+      document.querySelector('#consultaCard'),
+      document.querySelector('#consultaProcesoBloque')
+    ].forEach(function (node) {
+      if (!node) return;
+      node.removeAttribute('inert');
+      node.style.pointerEvents = '';
+    });
+  }
+
+  function desactivarInterfazConsultaLibre() {
+    consultaInteractivaActiva = false;
+
+    if (document.body) {
+      document.body.classList.remove('ta-query-active');
+      document.body.style.pointerEvents = '';
+    }
+
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.ia-loading-modal[data-ta-query-disabled="true"], #modalLoadingIA[data-ta-query-disabled="true"], #iaLoadingModal[data-ta-query-disabled="true"]'),
+      function (modal) {
+        modal.removeAttribute('data-ta-query-disabled');
+        modal.style.pointerEvents = '';
+        modal.style.visibility = '';
+      }
+    );
+  }
+
   function conectarDiagnosticoLive() {
     if (diagnosticoListenerConectado) return;
     diagnosticoListenerConectado = true;
 
     window.addEventListener('ta:consulta-titulo-ruta', function (event) {
+      if (consultaInteractivaActiva) activarInterfazConsultaLibre();
       var detail = event && event.detail || {};
       actualizarRutaLive(detail);
 
@@ -753,7 +822,12 @@
     var details = bloque.querySelector('[data-proceso-diagnostico]');
     if (details) {
       details.classList.remove('is-hidden');
-      details.open = false;
+      /*
+        Durante la depuración el diagnóstico permanece abierto desde el inicio.
+        Así el usuario puede ver la traza aunque una capa externa intentara
+        interferir con el clic sobre <summary>.
+      */
+      details.open = true;
     }
 
     mostrarDiagnosticoTitulos({
