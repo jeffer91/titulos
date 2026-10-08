@@ -96,7 +96,7 @@
       if(data.truncado)console.warn('[Investigadores][LIMIT] Historial truncado por límite del backend.');
       return report.normalizarLista(data.titulos||[]).filter(function(item){return report.coincideInvestigador(item,investigador);});
     });
-    if (!investigador return Promise.reject(new Error('No se identificó al investigador.'));
+    if (!investigador) return Promise.reject(new Error('No se identificó al investigador.'));
 
     var reportService = window.TARevisionReportService;
     if (!reportService || typeof reportService.normalizarLista !== 'function') {
