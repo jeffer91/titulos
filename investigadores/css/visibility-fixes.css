@@ -1,0 +1,292 @@
+/* Bloque 23: revisión visual y correcciones de visibilidad compartidas. */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+}
+
+body::selection {
+  background: rgba(20, 85, 217, 0.18);
+}
+
+.app-header__content > div:first-child,
+.home-header__content,
+.card__header > div:first-child,
+.hero-card > div:first-child,
+.module-card,
+.title-item,
+.period-item,
+.summary-item,
+.mode-item,
+.info-box,
+.receipt-item,
+.security-item {
+  min-width: 0;
+}
+
+.app-header h1,
+.home-header h1,
+.card h2,
+.card h3,
+.module-card h2,
+.title-item h3,
+.security-item h3,
+.receipt-code,
+code,
+input,
+textarea,
+select,
+.data-table td,
+.data-table th {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.app-status-pill {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.card,
+.notice,
+.module-card,
+.modal,
+.table-wrap,
+.title-item,
+.proposal-item,
+.proposal-card,
+.period-item,
+.summary-item,
+.security-item {
+  max-width: 100%;
+}
+
+input,
+textarea,
+select,
+button,
+.btn {
+  max-width: 100%;
+}
+
+textarea {
+  line-height: 1.45;
+}
+
+.btn {
+  gap: 8px;
+  text-align: center;
+  text-decoration: none;
+  white-space: normal;
+}
+
+.btn--success {
+  background: var(--success-bg, #ecfdf3);
+  color: var(--success, #147a3f);
+}
+
+.btn--danger {
+  background: var(--danger-bg, #fef3f2);
+  color: var(--danger, #b42318);
+}
+
+.btn--warning {
+  background: var(--warning-bg, #fffaeb);
+  color: var(--warning, #9a6700);
+}
+
+.status-message {
+  display: block;
+  min-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.status-message:empty {
+  display: none;
+}
+
+.notice strong,
+.section-kicker,
+.app-badge,
+.module-card__tag,
+.title-badge,
+.period-badge {
+  letter-spacing: 0.02em;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table {
+  table-layout: auto;
+}
+
+.table-actions,
+.review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.table-actions .btn,
+.review-actions .btn {
+  min-height: 40px;
+  padding: 10px 12px;
+}
+
+.review-panel {
+  border: 1px solid var(--line, #d9e2ef);
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.review-panel label {
+  font-weight: 800;
+}
+
+.review-panel textarea {
+  width: 100%;
+  min-height: 86px;
+}
+
+.title-item .form-actions,
+.title-item__top .form-actions {
+  margin: 0;
+}
+
+.proposal-list.is-hidden,
+.is-hidden {
+  display: none !important;
+}
+
+.proposal-list:not(.is-hidden),
+.titles-list:not(:empty),
+.period-list:not(:empty),
+.student-preview:not(:empty),
+.diagnostic-list:not(:empty) {
+  display: grid;
+}
+
+.empty-state {
+  display: block;
+}
+
+.form-actions,
+.final-actions,
+.proposal-actions,
+.modal__actions,
+.period-actions {
+  row-gap: 10px;
+}
+
+.receipt-card,
+.receipt-grid,
+.receipt-item,
+.summary-grid,
+.mode-grid,
+.feature-grid,
+.diagnostic-list,
+.student-grid,
+.module-grid,
+.security-grid {
+  min-width: 0;
+}
+
+.security-grid .security-item code,
+.route-list code {
+  white-space: normal;
+}
+
+.quick-return {
+  display: inline-flex;
+  margin-top: 14px;
+}
+
+@media (max-width: 980px) {
+  .app-header,
+  .home-header {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .app-container,
+  .home-container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .card,
+  .notice,
+  .module-card {
+    padding: 18px;
+  }
+
+  .app-status-pill {
+    align-self: flex-start;
+  }
+
+  .form-actions,
+  .final-actions,
+  .proposal-actions,
+  .modal__actions,
+  .period-actions,
+  .review-actions,
+  .table-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-actions .btn,
+  .final-actions .btn,
+  .proposal-actions .btn,
+  .modal__actions .btn,
+  .period-actions .btn,
+  .review-actions .btn,
+  .table-actions .btn,
+  .btn {
+    width: 100%;
+  }
+
+  .data-table {
+    min-width: 720px;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-header h1,
+  .home-header h1 {
+    font-size: 1.8rem;
+  }
+
+  .card,
+  .notice,
+  .module-card {
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .mode-item,
+  .summary-item,
+  .info-box,
+  .receipt-item,
+  .proposal-card,
+  .title-item,
+  .period-item,
+  .security-item {
+    border-radius: 14px;
+    padding: 14px;
+  }
+}
