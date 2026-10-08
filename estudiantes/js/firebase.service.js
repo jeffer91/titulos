@@ -293,7 +293,7 @@
 
   function obtenerMensajeError(error) { return error && error.message ? error.message : String(error || 'Error desconocido'); }
 
-  window.TAFirebaseService = Object.freeze({
+  window.TAEstudianteFirebaseService = Object.freeze({
     iniciar: iniciar,
     cargarSdk: cargarSdk,
     estaListo: estaListo,
