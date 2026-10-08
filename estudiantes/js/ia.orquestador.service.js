@@ -15,7 +15,7 @@
   'use strict';
 
   var config = window.TA_ESTUDIANTES_CONFIG;
-  var firebaseService = window.TAFirebaseService;
+  var firebaseService = window.TAEstudianteFirebaseService;
   var providersService = window.TAIAProviders;
   var promptService = window.TATitulosPrompt;
   var validator = window.TATitulosAcademicValidator;
