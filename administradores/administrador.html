@@ -3,132 +3,190 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Administrador | Sistema de títulos</title>
-  <link rel="stylesheet" href="css/administrador.css?v=20261006-4" />
+  <title>Panel de Titulación | ITSQMET</title>
+  <link rel="stylesheet" href="css/administrador.css?v=20261008-admin2" />
   <link rel="stylesheet" href="../shared/css/visibility-fixes.css" />
 </head>
 <body>
-  <nav class="global-nav" aria-label="Navegación principal del sistema">
-    <div class="global-nav__content">
-      <a class="global-nav__link" href="../estudiantes/estudiante.html">Estudiantes</a>
-      <a class="global-nav__link" href="../coordinadores/coordinador.html">Coordinadores</a>
-      <a class="global-nav__link" href="../investigadores/investigador.html">Investigadores</a>
-      <a class="global-nav__link is-active" href="administrador.html">Administrador</a>
-    </div>
-  </nav>
-
-  <header class="admin-header">
-    <div class="admin-header__content">
-      <div>
-        <p class="section-kicker section-kicker--light">Panel administrativo</p>
-        <h1>Administrador de títulos académicos</h1>
-        <p>Control de períodos, coordinadores, estudiantes, revisiones, respaldo y conexiones de generación de sugerencias.</p>
+  <div class="admin-shell">
+    <aside class="admin-sidebar" aria-label="Menú administrador">
+      <div class="admin-brand">
+        <strong>ITSQMET</strong>
+        <span>Titulación</span>
       </div>
-      <div class="admin-status" id="adminEstadoGeneral">Iniciando panel</div>
-    </div>
-  </header>
 
-  <main class="admin-container">
-    <nav class="admin-tabs" aria-label="Menú administrador">
-      <button class="admin-tab is-active" type="button" data-admin-tab="inicio">Inicio</button>
-      <button class="admin-tab" type="button" data-admin-tab="periodos">Períodos</button>
-      <button class="admin-tab" type="button" data-admin-tab="coordinadores">Coordinadores</button>
-      <button class="admin-tab" type="button" data-admin-tab="investigadores">Investigadores</button>
-      <button class="admin-tab" type="button" data-admin-tab="estudiantes">Estudiantes</button>
-      <button class="admin-tab" type="button" data-admin-tab="ajustes">Ajustes</button>
-      <button class="admin-tab" type="button" data-admin-tab="respaldo">Respaldo</button>
-    </nav>
+      <nav class="admin-tabs">
+        <button class="admin-tab is-active" type="button" data-admin-tab="inicio">
+          <span class="admin-tab__icon">⌂</span><span>Inicio</span>
+        </button>
+        <button class="admin-tab" type="button" data-admin-tab="faltantes">
+          <span class="admin-tab__icon">!</span><span>Faltantes</span>
+          <span class="admin-tab__badge" id="faltantesSidebarBadge">0</span>
+        </button>
+        <button class="admin-tab" type="button" data-admin-tab="estudiantes">
+          <span class="admin-tab__icon">E</span><span>Estudiantes</span>
+        </button>
+        <button class="admin-tab" type="button" data-admin-tab="coordinadores">
+          <span class="admin-tab__icon">C</span><span>Coordinadores</span>
+        </button>
+        <button class="admin-tab" type="button" data-admin-tab="investigadores">
+          <span class="admin-tab__icon">I</span><span>Investigadores</span>
+        </button>
+        <button class="admin-tab" type="button" data-admin-tab="periodos">
+          <span class="admin-tab__icon">P</span><span>Períodos</span>
+        </button>
+        <div class="admin-tabs__divider" aria-hidden="true"></div>
+        <button class="admin-tab" type="button" data-admin-tab="ajustes">
+          <span class="admin-tab__icon">⚙</span><span>Ajustes</span>
+        </button>
+        <button class="admin-tab" type="button" data-admin-tab="respaldo">
+          <span class="admin-tab__icon">↓</span><span>Respaldo</span>
+        </button>
+      </nav>
+    </aside>
 
-    <section class="admin-panel is-active" id="panelInicio" data-admin-panel="inicio" aria-labelledby="tituloInicio">
-      <div class="panel-title-row">
-        <div>
-          <p class="section-kicker">Inicio</p>
-          <h2 id="tituloInicio">Resumen general</h2>
-          <p class="muted">Revisa el avance de títulos por período, carrera y estado.</p>
+    <div class="admin-workspace">
+      <header class="admin-header">
+        <div class="admin-header__content">
+          <div class="admin-header__title">
+            <h1>Panel de Titulación</h1>
+            <p id="adminPeriodoActual">Gestión de títulos académicos</p>
+          </div>
+          <div class="admin-status" id="adminEstadoGeneral">Iniciando</div>
         </div>
-        <div class="toolbar">
-          <select id="inicioPeriodoSelect" aria-label="Período de inicio">
-            <option value="">Cargando períodos...</option>
-          </select>
-          <button class="btn btn--primary" type="button" id="btnActualizarInicio">Actualizar</button>
-        </div>
-      </div>
+      </header>
 
-      <div class="summary-grid">
-        <article class="summary-card">
-          <span>Total estudiantes</span>
-          <strong id="inicioTotalEstudiantes">0</strong>
-        </article>
-        <article class="summary-card">
-          <span>Sin enviar</span>
-          <strong id="inicioSinEnviar">0</strong>
-        </article>
-        <article class="summary-card">
-          <span>Enviados</span>
-          <strong id="inicioEnviados">0</strong>
-        </article>
-        <article class="summary-card summary-card--warning">
-          <span>Pendientes</span>
-          <strong id="inicioPendientes">0</strong>
-        </article>
-        <article class="summary-card summary-card--danger">
-          <span>Devueltos</span>
-          <strong id="inicioDevueltos">0</strong>
-        </article>
-        <article class="summary-card summary-card--success">
-          <span>Aprobados</span>
-          <strong id="inicioAprobados">0</strong>
-        </article>
-      </div>
-
-      <div class="dashboard-grid">
-        <section class="card">
-          <div class="card__header">
+      <main class="admin-container">
+        <section class="admin-panel is-active" id="panelInicio" data-admin-panel="inicio" aria-labelledby="tituloInicio">
+          <div class="panel-title-row">
             <div>
-              <p class="section-kicker">Carreras</p>
-              <h3>Faltan por revisar por carrera</h3>
+              <p class="section-kicker">Inicio</p>
+              <h2 id="tituloInicio">Resumen operativo</h2>
+              <p class="muted">Estado actual del proceso por período.</p>
+            </div>
+            <div class="toolbar">
+              <select id="inicioPeriodoSelect" aria-label="Período de inicio">
+                <option value="">Cargando períodos...</option>
+              </select>
+              <button class="btn btn--primary" type="button" id="btnActualizarInicio">Actualizar</button>
             </div>
           </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Carrera</th>
-                  <th class="text-right">Pendientes</th>
-                </tr>
-              </thead>
-              <tbody id="inicioPendientesCarreraBody">
-                <tr><td colspan="2" class="empty-cell">Sin datos cargados.</td></tr>
-              </tbody>
-            </table>
+
+          <div class="summary-grid">
+            <article class="summary-card">
+              <span>Total estudiantes</span>
+              <strong id="inicioTotalEstudiantes">0</strong>
+            </article>
+            <article class="summary-card">
+              <span>Sin enviar</span>
+              <strong id="inicioSinEnviar">0</strong>
+            </article>
+            <article class="summary-card summary-card--warning">
+              <span>Coordinación</span>
+              <strong id="inicioCoordinacionPendientes">0</strong>
+              <small>pendientes</small>
+            </article>
+            <article class="summary-card summary-card--warning">
+              <span>Investigación</span>
+              <strong id="inicioInvestigacionPendientes">0</strong>
+              <small>pendientes</small>
+            </article>
+            <article class="summary-card summary-card--danger">
+              <span>Devueltos</span>
+              <strong id="inicioDevueltos">0</strong>
+            </article>
+            <article class="summary-card summary-card--success">
+              <span>Aprobados</span>
+              <strong id="inicioAprobados">0</strong>
+            </article>
           </div>
+
+          <section class="home-focus card">
+            <div>
+              <p class="section-kicker">Prioridad</p>
+              <h3>Revisiones pendientes</h3>
+              <p class="muted">Consulta el detalle por carrera separado entre Coordinación e Investigación.</p>
+            </div>
+            <button class="btn btn--secondary" type="button" data-admin-tab="faltantes">Ver faltantes</button>
+          </section>
+
+          <div class="status-message" id="inicioMensaje" role="status" aria-live="polite"></div>
         </section>
 
-        <section class="card">
-          <div class="card__header">
+        <section class="admin-panel is-hidden" id="panelFaltantes" data-admin-panel="faltantes" aria-labelledby="tituloFaltantes">
+          <div class="panel-title-row">
             <div>
-              <p class="section-kicker">Períodos</p>
-              <h3>Faltan por revisar por período</h3>
+              <p class="section-kicker">Faltantes</p>
+              <h2 id="tituloFaltantes">Pendientes de revisión</h2>
+              <p class="muted">Expedientes que esperan acción de Coordinación o Investigación.</p>
+            </div>
+            <div class="toolbar">
+              <select id="faltantesPeriodoSelect" aria-label="Período de faltantes">
+                <option value="">Cargando períodos...</option>
+              </select>
+              <button class="btn btn--primary" type="button" id="btnActualizarFaltantes">Actualizar</button>
             </div>
           </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Período</th>
-                  <th class="text-right">Pendientes</th>
-                </tr>
-              </thead>
-              <tbody id="inicioPendientesPeriodoBody">
-                <tr><td colspan="2" class="empty-cell">Sin datos cargados.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
 
-      <div class="status-message" id="inicioMensaje" role="status" aria-live="polite"></div>
-    </section>
+          <div class="summary-grid summary-grid--faltantes">
+            <article class="summary-card">
+              <span>Total faltantes</span>
+              <strong id="faltantesTotalGeneral">0</strong>
+            </article>
+            <article class="summary-card summary-card--warning">
+              <span>Coordinación</span>
+              <strong id="faltantesCoordinacionTotal">0</strong>
+              <small>por revisar</small>
+            </article>
+            <article class="summary-card summary-card--warning">
+              <span>Investigación</span>
+              <strong id="faltantesInvestigacionTotal">0</strong>
+              <small>por revisar</small>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <section class="card">
+              <div class="card__header">
+                <div>
+                  <p class="section-kicker">Coordinación</p>
+                  <h3>Faltantes por carrera</h3>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table data-table--compact">
+                  <thead>
+                    <tr><th>Carrera</th><th class="text-right">Pendientes</th></tr>
+                  </thead>
+                  <tbody id="faltantesCoordinacionBody">
+                    <tr><td colspan="2" class="empty-cell">Sin datos cargados.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card__header">
+                <div>
+                  <p class="section-kicker">Investigación</p>
+                  <h3>Faltantes por carrera</h3>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table data-table--compact">
+                  <thead>
+                    <tr><th>Carrera</th><th class="text-right">Pendientes</th></tr>
+                  </thead>
+                  <tbody id="faltantesInvestigacionBody">
+                    <tr><td colspan="2" class="empty-cell">Sin datos cargados.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="status-message" id="faltantesMensaje" role="status" aria-live="polite"></div>
+        </section>
 
     <section class="admin-panel is-hidden" id="panelPeriodos" data-admin-panel="periodos" aria-labelledby="tituloPeriodos">
       <div class="panel-title-row">
@@ -668,7 +726,9 @@
 
       <div class="status-message" id="respaldoMensaje" role="status" aria-live="polite"></div>
     </section>
-  </main>
+      </main>
+    </div>
+  </div>
 
   <section class="modal is-hidden" id="modalDetalleEstudiante" aria-hidden="true">
     <div class="modal__backdrop"></div>
@@ -828,16 +888,17 @@
   <script src="js/firebase.config.js"></script>
   <script src="js/app.config.js"></script>
   <script src="js/firebase.service.js"></script>
-  <script src="js/admin.ui.js"></script>
+  <script src="js/admin.ui.js?v=20261008-admin2"></script>
 
-  <script src="js/administrador.repository.js"></script>
-  <script src="js/inicio.admin.js"></script>
+  <script src="js/administrador.repository.js?v=20261008-admin2"></script>
+  <script src="js/inicio.admin.js?v=20261008-admin2"></script>
+  <script src="js/faltantes.admin.js?v=20261008-admin2"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js"></script>
   <script src="js/investigadores.admin.js?v=20261006-4"></script>
   <script src="js/estudiantes.admin.js"></script>
   <script src="js/ajustes.admin.js"></script>
   <script src="js/respaldo.admin.js"></script>
-  <script src="js/administrador.app.js"></script>
+  <script src="js/administrador.app.js?v=20261008-admin2"></script>
 </body>
 </html>
