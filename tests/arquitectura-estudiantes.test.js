@@ -29,8 +29,6 @@ const controller = read('estudiantes/js/estudiante.consulta.controller.js');
 const firebaseService = read('estudiantes/js/firebase.service.js');
 const runtimeDiag = read('estudiantes/js/diagnostico.runtime.js');
 const estudianteCss = read('estudiantes/css/estudiante.css');
-const consultaConfig = read('consulta-estado/consulta.config.js');
-const consultaApp = read('consulta-estado/consulta.app.js');
 const workflow = read('.github/workflows/pages.yml');
 
 const eliminados = [
@@ -87,31 +85,40 @@ assert.strictEqual(
   false,
   'El diagnóstico runtime no debe cortar la propagación de eventos de DevTools.'
 );
-assert(html.includes('../consulta-estado/consulta.config.js'), 'Estudiantes debe cargar consulta.config.js directamente');
-assert(html.includes('../consulta-estado/consulta.service.js'), 'Estudiantes debe cargar consulta.service.js directamente');
+assert.strictEqual(
+  html.includes('../consulta-estado/consulta.config.js') || html.includes('../consulta-estado/consulta.service.js'),
+  false,
+  'Estudiantes no debe cargar el motor REST independiente para consultar envios.'
+);
 assert(
   controller.includes('repository.consultarEnvio'),
   'El controlador debe delegar la lectura optimizada al repository.'
 );
 assert(
-  repo.includes("motor: 'RESOLVER_FLEXIBLE'") &&
-  repo.includes("ruta: 'SDK_ID_EXACTO'") &&
-  repo.includes("ruta: 'REST_ID_EXACTO'") &&
-  repo.includes("ruta: 'SDK_IDENTIDAD'"),
-  'Repository debe resolver por SDK/REST exactos y fallback flexible.'
+  repo.includes('Promise.all([estudiantePromise, matriculasPromise])'),
+  'Ficha académica y matrículas deben consultarse en paralelo.'
 );
 assert(
-  repo.includes('periodosCandidatos') && repo.includes('puntuarCandidato'),
-  'El resolver debe usar contexto académico y puntuar candidatos.'
+  repo.includes("config.collections.titulos") &&
+  repo.includes("'cedula'") &&
+  repo.includes("motor: 'CONSULTA_CEDULA'") &&
+  repo.includes("estrategia: 'CEDULA_MAS_PERIODO'"),
+  'Títulos debe consultarse una sola vez por cédula y filtrarse por período conocido.'
 );
-assert(
-  firebaseService.includes('function leerDocumentoServidor'),
-  'Firebase service debe ofrecer lectura fresca del documento exacto desde servidor.'
-);
+[
+  'SDK_ID_EXACTO',
+  'REST_ID_EXACTO',
+  'SDK_IDENTIDAD',
+  'REST_IDENTIDAD',
+  'TAConsultaEstadoService',
+  'puntuarCandidato'
+].forEach((needle) => {
+  assert.strictEqual(repo.includes(needle), false, 'El resolver simple no debe contener ' + needle);
+});
 assert(
   controller.includes('TIMEOUT_TITULOS_MS = 8000') &&
   controller.includes('consultarEstadoTituloRapido(estudiante, repository)'),
-  'Paso 3 debe tener watchdog propio y pasar el contexto académico completo.'
+  'Paso 3 debe mantener watchdog propio y pasar cédula/período conocidos.'
 );
 assert(
   controller.includes('ta:consulta-titulo-ruta') &&
@@ -143,8 +150,6 @@ assert.strictEqual(
 
 const order = [
   'js/diagnostico.runtime.js',
-  '../consulta-estado/consulta.config.js',
-  '../consulta-estado/consulta.service.js',
   'js/estudiante.repository.js',
   'js/estudiante.state.js',
   'js/estudiante.consulta.controller.js',
@@ -161,8 +166,6 @@ const versions = {
   app: firstMatch(app, /var BUILD = '([^']+)'/, 'estudiante.app.js'),
   loader: firstMatch(loader, /var BUILD = '([^']+)'/, 'estudiante-loader.html'),
   index: firstMatch(index, /build=([^"&<]+)/, 'estudiantes/index.html'),
-  consultaConfig: firstMatch(consultaConfig, /version: '([^']+)'/, 'consulta.config.js'),
-  consultaApp: firstMatch(consultaApp, /var VERSION = '([^']+)'/, 'consulta.app.js'),
   runtimeDiag: firstMatch(runtimeDiag, /var BUILD = '([^']+)'/, 'diagnostico.runtime.js')
 };
 
@@ -183,4 +186,4 @@ assert(
   'GitHub Actions debe ejecutar las pruebas de regresión antes de publicar.'
 );
 
-console.log('OK arquitectura-estudiantes: resolver flexible paralelo, watchdog y build consistente ' + expected + '.');
+console.log('OK arquitectura-estudiantes: académico paralelo, títulos por cédula y build consistente ' + expected + '.');
