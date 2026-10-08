@@ -160,6 +160,9 @@
       .then(function (snapshot) {
         if (!snapshot.exists) return null;
         return normalizarDocumento(snapshot);
+      })
+      .catch(function (error) {
+        throw crearErrorOperacion('LEER_DOCUMENTO', collectionName, error);
       });
   }
 
@@ -171,7 +174,10 @@
     });
 
     if (!merge) payload.creadoEn = serverTimestamp();
-    return getDb().collection(collectionName).doc(documentId).set(payload, { merge: merge });
+    return getDb().collection(collectionName).doc(documentId).set(payload, { merge: merge })
+      .catch(function (error) {
+        throw crearErrorOperacion('GUARDAR_DOCUMENTO', collectionName, error);
+      });
   }
 
   function agregarDocumento(collectionName, data) {
@@ -181,7 +187,10 @@
       actualizadoEn: serverTimestamp()
     });
 
-    return getDb().collection(collectionName).add(payload);
+    return getDb().collection(collectionName).add(payload)
+      .catch(function (error) {
+        throw crearErrorOperacion('AGREGAR_DOCUMENTO', collectionName, error);
+      });
   }
 
   function listarDocumentos(collectionName, options) {
@@ -207,6 +216,8 @@
         docs.push(normalizarDocumento(doc));
       });
       return docs;
+    }).catch(function (error) {
+      throw crearErrorOperacion('LISTAR_DOCUMENTOS', collectionName, error);
     });
   }
 
@@ -219,6 +230,20 @@
     var data = snapshot.data() || {};
     data.id = snapshot.id;
     return data;
+  }
+
+  function crearErrorOperacion(operacion, collectionName, original) {
+    var codigoOriginal = original && (original.code || original.codigo || original.name) || 'ERROR_FIREBASE';
+    var error = new Error(
+      'Coordinadores · ' + operacion + ' · ' + String(collectionName || 'sin colección') +
+      ': ' + obtenerMensajeError(original)
+    );
+    error.codigo = String(codigoOriginal);
+    error.operacion = String(operacion || '');
+    error.coleccion = String(collectionName || '');
+    error.firebaseCode = original && original.code || '';
+    error.original = original || null;
+    return error;
   }
 
   function obtenerMensajeError(error) {
