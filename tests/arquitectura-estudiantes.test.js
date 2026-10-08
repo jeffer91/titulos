@@ -28,6 +28,7 @@ const repo = read('estudiantes/js/estudiante.repository.js');
 const controller = read('estudiantes/js/estudiante.consulta.controller.js');
 const firebaseService = read('estudiantes/js/firebase.service.js');
 const runtimeDiag = read('estudiantes/js/diagnostico.runtime.js');
+const estudianteCss = read('estudiantes/css/estudiante.css');
 const consultaConfig = read('consulta-estado/consulta.config.js');
 const consultaApp = read('consulta-estado/consulta.app.js');
 const workflow = read('.github/workflows/pages.yml');
@@ -67,18 +68,24 @@ eliminados.forEach((rel) => {
 
 assert(html.includes('js/diagnostico.runtime.js'), 'Estudiantes debe cargar diagnóstico runtime.');
 assert.strictEqual(
-  runtimeDiag.includes('preventDefault()'),
-  true,
-  'El comentario de diagnóstico debe documentar que no se usa preventDefault en DevTools.'
+  /addEventListener\(\s*['"]keydown['"]/.test(runtimeDiag),
+  false,
+  'El diagnóstico runtime no debe interceptar F12 ni atajos de DevTools.'
+);
+assert.strictEqual(
+  /addEventListener\(\s*['"]contextmenu['"]/.test(runtimeDiag),
+  false,
+  'El diagnóstico runtime no debe interceptar el clic derecho.'
 );
 assert.strictEqual(
   /event\.preventDefault\s*\(/.test(runtimeDiag),
   false,
-  'El diagnóstico runtime no debe bloquear F12 ni el menú contextual.'
+  'El diagnóstico runtime no debe cancelar acciones nativas del navegador.'
 );
-assert(
-  runtimeDiag.includes("event.stopImmediatePropagation()"),
-  'Debe neutralizar listeners posteriores sin cancelar el comportamiento nativo del navegador.'
+assert.strictEqual(
+  /event\.stopImmediatePropagation\s*\(/.test(runtimeDiag),
+  false,
+  'El diagnóstico runtime no debe cortar la propagación de eventos de DevTools.'
 );
 assert(html.includes('../consulta-estado/consulta.config.js'), 'Estudiantes debe cargar consulta.config.js directamente');
 assert(html.includes('../consulta-estado/consulta.service.js'), 'Estudiantes debe cargar consulta.service.js directamente');
@@ -111,6 +118,18 @@ assert(
   controller.includes('Copiar diagnóstico') &&
   controller.includes('ERROR FINAL:'),
   'Paso 3 debe mostrar traza en vivo, error final y permitir copiar el diagnóstico.'
+);
+assert(
+  controller.includes('function activarInterfazConsultaLibre') &&
+  controller.includes("document.body.classList.add('ta-query-active')") &&
+  controller.includes("details.open = true"),
+  'La consulta debe mantener la pantalla interactiva y abrir el diagnóstico desde el inicio.'
+);
+assert(
+  estudianteCss.includes('body.ta-query-active .ia-loading-modal') &&
+  estudianteCss.includes('pointer-events: none !important') &&
+  estudianteCss.includes('#consultaProcesoBloque .consulta-bloque__diagnostico'),
+  'CSS debe ocultar overlays de IA y mantener interactivo el diagnóstico durante la consulta.'
 );
 assert.strictEqual(loader.includes('document.write'), false, 'Loader no debe volver a usar document.write');
 assert.strictEqual(html.includes('shared/css/base.css'), false, 'No debe existir referencia al CSS inexistente base.css');
