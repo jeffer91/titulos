@@ -133,3 +133,58 @@ test('sin red la verificación de servidor falla en vez de aceptar caché',async
  b.setOffline(true);
  await assert.rejects(()=>b.svc.leerDocumentoServidor('investigadores',cedula),/NETWORK_OFFLINE/);
 });
+
+test('PIN desactivado no se reactiva por restablecerlo y genera auditoría de cambio de acceso',async()=>{
+ const b=backend();await b.init();
+ await b.svc.guardarPinInvestigador({docId:cedula,cedula,nombre:'Persona',hash,crear:true});
+ const off=await b.svc.cambiarAccesoInvestigador({docId:cedula,cedula,activo:false});
+ assert.equal(off.pinActivo,false);
+ assert.equal(b.doc().pinActivo,false);
+ const nuevo='b'.repeat(64);
+ const updated=await b.svc.guardarPinInvestigador({
+  docId:cedula,cedula,hash:nuevo,crear:false,revisionEsperada:1
+ });
+ assert.equal(updated.activo,false);
+ assert.equal(updated.pinActivo,false);
+ assert.equal(b.doc().pinHash,nuevo);
+ assert.equal(b.doc().pinActivo,false);
+ assert.equal(b.doc().activo,false);
+ assert.equal(b.log().length,3);
+ assert.equal(b.log()[1].tipo,'ADMIN_CAMBIO_ACCESO_INVESTIGADOR');
+ const enabled=await b.svc.cambiarAccesoInvestigador({docId:cedula,cedula,activo:true});
+ assert.equal(enabled.pinActivo,true);
+ assert.equal(b.doc().pinHash,nuevo);
+});
+test('PIN con revisión antigua se rechaza y no se escribe historial falso',async()=>{
+ const b=backend();await b.init();
+ await b.svc.guardarPinInvestigador({docId:cedula,cedula,nombre:'Persona',hash,crear:true});
+ const before=b.log().length;
+ await assert.rejects(()=>b.svc.guardarPinInvestigador({
+  docId:cedula,cedula,hash:'b'.repeat(64),crear:false,revisionEsperada:0
+ }),/modificado por otra sesión/);
+ assert.equal(b.log().length,before);
+ assert.equal(b.doc().pinHash,hash);
+ const valid=await b.svc.guardarPinInvestigador({
+  docId:cedula,cedula,hash:'b'.repeat(64),crear:false,revisionEsperada:1
+ });
+ assert.equal(valid.revision,2);
+});
+test('vías genéricas no pueden borrar, crear ni sustituir investigadores',async()=>{
+ const b=backend();await b.init();
+ await b.svc.guardarPinInvestigador({docId:cedula,cedula,nombre:'Persona',hash,crear:true});
+ await assert.rejects(()=>b.svc.eliminarLote('investigadores',[cedula]),/No se puede eliminar/);
+ await assert.rejects(()=>b.svc.agregarDocumento('investigadores',{cedula}),/guardado transaccional/);
+ assert.throws(()=>b.svc.guardarDocumento('investigadores',cedula,{pinHash:'b'},true),/transaccionales/);
+ assert.throws(()=>b.svc.actualizarDocumento('investigadores',cedula,{activo:false}),/transaccionales/);
+ assert.equal(b.doc().pinHash,hash);
+ assert.equal(b.log().length,1);
+});
+test('la búsqueda por cédula no exige leer los PINs de todos los investigadores',async()=>{
+ const b=backend();await b.init();
+ await b.svc.guardarPinInvestigador({docId:cedula,cedula,nombre:'Persona',hash,crear:true});
+ // La implementación solo lee el documento por ID y tres consultas WHERE.
+ const source=fs.readFileSync(path.join(__dirname,'../../administradores/js/firebase.service.js'),'utf8');
+ assert.match(source,/function buscarInvestigadoresPorCedulaServidor\(cedula\)/);
+ assert.match(source,/\.where\('cedula','==',id\)/);
+ assert.doesNotMatch(source,/function buscarInvestigadoresPorCedulaServidor[\s\S]*?listarDocumentosServidor\('investigadores',\{limit:1001\}\)/);
+});

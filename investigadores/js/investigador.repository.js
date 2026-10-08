@@ -11,35 +11,19 @@
     if(modoSeguro())return seguro.perfil().then(normalizarInvestigador);
     var id=soloNumeros(cedula);
     if(id.length!==10)return Promise.reject(new Error('Ingresa una cédula válida de 10 dígitos.'));
-    // Un documento antiguo puede estar bajo un ID diferente de la cédula. Antes
-    // de autenticar hay que asegurarse de que NO existen identidades duplicadas.
-    // No se usa caché local para autorizar un acceso.
-    return Promise.all([
-      firebaseService.leerDocumentoServidor(config.collections.investigadores,id),
-      firebaseService.listarDocumentosServidor(config.collections.investigadores,{limit:1001})
-    ]).then(function(results) {
-      var directo=results[0],listado=results[1]||[];
-      if(listado.length>1000)
-        throw new Error('El registro de investigadores necesita paginación. Consulta a Administración.');
-      var mapa={};
-      if(directo){
-        var actual=normalizarInvestigador(directo);
-        if(actual.cedula!==id)
-          throw new Error('La cédula del registro de Firebase no coincide. Solicita revisión a Administración.');
-        mapa[String(actual.id)]=actual;
-      }
-      listado.forEach(function(doc) {
-        var perfil=normalizarInvestigador(doc);
-        if(perfil.cedula===id)mapa[String(perfil.id)]=perfil;
-      });
-      var keys=Object.keys(mapa);
-      if(keys.length>1)
+    // Buscar exclusivamente por cédula, también en campos heredados, sin descargar
+    // los hashes de todos los investigadores y sin usar caché local.
+    return firebaseService.buscarInvestigadoresPorCedulaServidor(id).then(function(documentos){
+      var perfiles=(documentos||[]).map(normalizarInvestigador);
+      if(perfiles.length>1)
         throw new Error('Hay varios registros con tu cédula en Firebase. Administración debe resolver los duplicados.');
-      if(!keys.length)
+      if(!perfiles.length)
         throw new Error('Tu cédula no consta en el registro de investigadores. Comunícate con Administración.');
-      var investigador=mapa[keys[0]];
-      if(!investigador.activo)throw new Error('Tu registro de investigador está inactivo.');
-      return investigador;
+      var encontrado=perfiles[0];
+      if(encontrado.cedula!==id)
+        throw new Error('La cédula del registro de Firebase no coincide. Solicita revisión a Administración.');
+      if(!encontrado.activo)throw new Error('Tu registro de investigador está inactivo.');
+      return encontrado;
     });
   }
 

@@ -15,6 +15,8 @@
     if(modoSeguro()){
       var pin=document.getElementById('investigadorPinCrear');
       if(pin){pin.required=false;pin.disabled=true;}
+      var generar=document.getElementById('btnGenerarPinCrear');
+      if(generar)generar.disabled=true;
     }
     var actualizar = ui.qs('#btnActualizarInvestigadores');
     var abrirCrear = ui.qs('#btnAbrirCrearInvestigador');
@@ -138,69 +140,50 @@
 
   function crearInvestigador(event) {
     event.preventDefault();
-
-    var cedula = soloNumeros(ui.value('#investigadorCedulaInput'));
-    var nombre = limpiar(ui.value('#investigadorNombreInput'));
-    var email = limpiar(ui.value('#investigadorEmailInput')).toLowerCase();
-    var pin = soloNumeros(ui.value('#investigadorPinCrear'));
-    var button = ui.qs('#btnCrearInvestigador');
-
-    if (cedula.length !== 10) {
-      ui.showStatus('#crearInvestigadorMensaje', 'La cédula debe tener 10 dígitos.', 'error');
+    var cedula=soloNumeros(ui.value('#investigadorCedulaInput'));
+    var nombre=limpiar(ui.value('#investigadorNombreInput'));
+    var email=limpiar(ui.value('#investigadorEmailInput')).toLowerCase();
+    var uid=limpiar(ui.value('#investigadorUidSeguro'));
+    var pin=soloNumeros(ui.value('#investigadorPinCrear'));
+    var button=ui.qs('#btnCrearInvestigador');
+    if(cedula.length!==10||!nombre){
+      ui.showStatus('#crearInvestigadorMensaje','Ingresa una cédula de 10 dígitos y nombres completos.','error');
       return;
     }
-
-    if (!nombre) {
-      ui.showStatus('#crearInvestigadorMensaje', 'Ingresa los nombres y apellidos.', 'error');
+    if(modoSeguro()&&!email&&!uid){
+      ui.showStatus('#crearInvestigadorMensaje','Se requiere correo o UID vinculado a Firebase Authentication.','error');
       return;
     }
-
-    if (!/^\d{4}$/.test(pin)) {
-      ui.showStatus('#crearInvestigadorMensaje', 'El PIN debe tener exactamente 4 dígitos.', 'error');
+    if(!modoSeguro()&&!/^\d{4}$/.test(pin)){
+      ui.showStatus('#crearInvestigadorMensaje','El PIN debe tener exactamente cuatro dígitos.','error');
       return;
     }
-
-    ui.setLoading(button, true, 'Guardando...');
-    ui.showStatus('#crearInvestigadorMensaje', 'Guardando y verificando el acceso...', 'info');
-
-    resolverDocumentoInvestigador(cedula)
-      .then(function (resultado) {
-        if (resultado.existente) throw new Error('Ya existe un investigador con esa cédula.');
-        if (resultado.docId !== cedula) throw new Error('La cédula corresponde a otro documento.');
-        return hashPin(cedula, pin);
-      })
-      .then(function (hash) {
-        return firebaseService.guardarPinInvestigador({
-          docId: cedula, cedula: cedula, nombre: nombre, email: email, hash: hash, crear: true
-        }).then(function (resultado) {
-          return verificarPinGuardado(cedula, hash, resultado.revision);
-        });
-      })
-      .then(function () {
-        ui.setText('#crearInvestigadorPinVisible', pin);
-
-        var recibo = ui.qs('#crearInvestigadorRecibo');
-        if (recibo) recibo.classList.remove('is-hidden');
-
-        ui.showStatus(
-          '#crearInvestigadorMensaje',
-          'Investigador creado. El acceso ya está activo.',
-          'success'
-        );
-
-        if (button) {
-          button.disabled = true;
-          button.textContent = 'Investigador guardado';
-        }
-
-        return cargar();
-      })
-      .catch(function (error) {
-        ui.showStatus('#crearInvestigadorMensaje', mensaje(error, 'No se pudo crear el investigador.'), 'error');
-      })
-      .finally(function () {
-        if (button && !button.disabled) ui.setLoading(button, false);
-      });
+    ui.setLoading(button,true,'Guardando...');
+    ui.showStatus('#crearInvestigadorMensaje','Guardando investigador...','info');
+    var accion=modoSeguro()?seguro.crearInvestigador({
+      cedula:cedula,nombre:nombre,email:email,authUid:uid
+    }):resolverDocumentoInvestigador(cedula).then(function(result){
+      if(result.existente)throw new Error('Ya existe un investigador con esta cédula.');
+      return hashPin(cedula,pin);
+    }).then(function(hash){
+      return firebaseService.guardarPinInvestigador({
+        docId:cedula,cedula:cedula,nombre:nombre,email:email,hash:hash,crear:true
+      }).then(function(result){return verificarPinGuardado(cedula,hash,result.revision,true);});
+    });
+    accion.then(function(){
+      if(!modoSeguro()){
+        ui.setText('#crearInvestigadorPinVisible',pin);
+        var recibo=ui.qs('#crearInvestigadorRecibo');
+        if(recibo)recibo.classList.remove('is-hidden');
+      }
+      ui.showStatus('#crearInvestigadorMensaje',modoSeguro()?
+        'Perfil registrado. La cuenta real debe tener rol investigador en Firebase Authentication.':
+        'Investigador creado y PIN confirmado en Firebase.','success');
+      if(button){button.disabled=true;button.textContent='Investigador guardado';}
+      return cargar();
+    }).catch(function(error){
+      ui.showStatus('#crearInvestigadorMensaje',mensaje(error,'No se pudo crear el investigador.'),'error');
+    }).finally(function(){if(button&&!button.disabled)ui.setLoading(button,false);});
   }
 
   function abrirModalPin(investigador) {
@@ -328,12 +311,14 @@
       })
       .then(function(hash) {
         return firebaseService.guardarPinInvestigador({
-          docId:investigador.id,cedula:investigador.cedula,hash:hash,crear:false
+          docId:investigador.id,cedula:investigador.cedula,hash:hash,crear:false,
+          revisionEsperada:Number(investigador.raw&&investigador.raw.pinRevision||0)
         }).then(function(resultado) {
-          return verificarPinGuardado(investigador.id, hash, resultado.revision);
+          return verificarPinGuardado(investigador.id,hash,resultado.revision,resultado.pinActivo&&resultado.activo);
         });
       })
-      .then(function () {
+      .then(function (guardado) {
+        var accesoActivo=guardado && guardado.pinActivo===true && guardado.activo!==false;
         ui.setText('#cambiarPinVisible', pin);
 
         var recibo = ui.qs('#cambiarPinRecibo');
@@ -341,7 +326,9 @@
 
         ui.showStatus(
           '#modalPinInvestigadorMensaje',
-          'PIN guardado. El acceso está activo.',
+          accesoActivo?
+            'PIN guardado en Firebase. El acceso permanece activo.':
+            'PIN guardado en Firebase. El acceso sigue desactivado; actívalo por separado.',
           'success'
         );
 
@@ -360,41 +347,27 @@
       });
   }
 
-  function cambiarAcceso(investigador, activar, button) {
-    if (activar && !investigador.pinCreado) {
-      abrirModalPin(investigador);
-      return;
+  function cambiarAcceso(investigador,activar,button) {
+    if(!modoSeguro()&&activar&&!investigador.pinCreado){
+      abrirModalPin(investigador);return;
     }
-
-    ui.setLoading(button, true, activar ? 'Activando...' : 'Desactivando...');
-
-    firebaseService.guardarDocumento(config.collections.investigadores, investigador.id, {
-      activo: Boolean(activar),
-      pinActivo: Boolean(activar && investigador.pinCreado),
-      pinActivadoEn: activar ? new Date().toISOString() : investigador.raw && investigador.raw.pinActivadoEn || null,
-      pinActivadoPor: activar ? 'administrador' : investigador.raw && investigador.raw.pinActivadoPor || '',
-      pinDesactivadoEn: activar ? null : new Date().toISOString()
-    }, { merge: true })
-      .then(function () {
-        ui.showStatus(
-          '#investigadoresMensaje',
-          activar ? 'Acceso reactivado.' : 'Acceso desactivado.',
-          'success'
-        );
-        return cargar();
-      })
-      .catch(function (error) {
-        ui.showStatus('#investigadoresMensaje', mensaje(error, 'No se pudo actualizar el acceso.'), 'error');
-      })
-      .finally(function () {
-        ui.setLoading(button, false);
+    ui.setLoading(button,true,activar?'Activando...':'Desactivando...');
+    var accion=modoSeguro()?seguro.investigadorEstado({id:investigador.id,activo:Boolean(activar)}):
+      firebaseService.cambiarAccesoInvestigador({
+        docId:investigador.id,cedula:investigador.cedula,activo:Boolean(activar)
       });
+    accion.then(function(){
+      ui.showStatus('#investigadoresMensaje',activar?'Acceso reactivado.':'Acceso desactivado.','success');
+      return cargar();
+    }).catch(function(error){
+      ui.showStatus('#investigadoresMensaje',mensaje(error,'No se pudo actualizar el acceso.'),'error');
+    }).finally(function(){ui.setLoading(button,false);});
   }
 
   function renderResumen() {
     ui.setText('#investigadoresTotal', investigadores.length);
     ui.setText('#investigadoresActivos', investigadores.filter(function (item) {
-      return item.activo && item.pinCreado && item.pinActivo;
+      return item.activo && (modoSeguro() || (item.pinCreado && item.pinActivo));
     }).length);
     ui.setText('#investigadoresSinPin', investigadores.filter(function (item) {
       return !item.pinCreado;
@@ -426,13 +399,13 @@
 
       // Nunca conservar ni mostrar el PIN en la tabla: solo su estado.
       tr.children[3].appendChild(ui.crearBadge(
-        investigador.pinCreado ? '••••' : 'Sin PIN',
-        investigador.pinCreado ? 'primary' : 'muted'
+        modoSeguro()?'Firebase Auth':(investigador.pinCreado ? '••••' : 'Sin PIN'),
+        modoSeguro()?'primary':(investigador.pinCreado ? 'primary' : 'muted')
       ));
 
       tr.children[4].appendChild(ui.crearBadge(
-        investigador.activo && investigador.pinCreado && investigador.pinActivo ? 'Activo' : 'Sin acceso',
-        investigador.activo && investigador.pinCreado && investigador.pinActivo ? 'success' : 'muted'
+        investigador.activo && (modoSeguro() || investigador.pinCreado && investigador.pinActivo) ? 'Activo' : 'Sin acceso',
+        investigador.activo && (modoSeguro() || investigador.pinCreado && investigador.pinActivo) ? 'success' : 'muted'
       ));
 
       acciones.className = 'table-actions';
@@ -443,15 +416,15 @@
       pinButton.addEventListener('click', function () {
         abrirModalPin(investigador);
       });
-      acciones.appendChild(pinButton);
+      if(!modoSeguro())acciones.appendChild(pinButton);
 
-      if (investigador.pinCreado) {
+      if (modoSeguro() || investigador.pinCreado) {
         accesoButton.type = 'button';
         accesoButton.className = 'btn btn--small ' +
-          (investigador.activo && investigador.pinActivo ? 'btn--ghost' : 'btn--primary');
-        accesoButton.textContent = investigador.activo && investigador.pinActivo ? 'Desactivar' : 'Reactivar';
+          (investigador.activo && (modoSeguro()||investigador.pinActivo) ? 'btn--ghost' : 'btn--primary');
+        accesoButton.textContent = investigador.activo && (modoSeguro()||investigador.pinActivo) ? 'Desactivar' : 'Reactivar';
         accesoButton.addEventListener('click', function () {
-          cambiarAcceso(investigador, !(investigador.activo && investigador.pinActivo), accesoButton);
+          cambiarAcceso(investigador, !(investigador.activo && (modoSeguro()||investigador.pinActivo)), accesoButton);
         });
         acciones.appendChild(accesoButton);
       }
@@ -462,28 +435,16 @@
   }
 
   function resolverDocumentoInvestigador(cedula) {
-    // La lectura viene del servidor. Un listado truncado no sirve para decidir
-    // si existe un investigador: se rechaza la operación en vez de duplicarlo.
-    return Promise.all([
-      firebaseService.leerDocumentoServidor(config.collections.investigadores, cedula),
-      firebaseService.listarDocumentosServidor(config.collections.investigadores, {limit:1001})
-    ]).then(function(results) {
-      var directo=results[0],documentos=results[1]||[];
-      if(documentos.length>1000)throw new Error('Hay más de 1000 investigadores. Debe habilitarse paginación antes de crear o cambiar PINs.');
-      var mapa={};
-      if(directo)mapa[String(directo.id||directo._docId||cedula)]=directo;
-      documentos.forEach(function(item){
-        var identidad=soloNumeros(item.cedula||item.identificacion||item.numeroIdentificacion||item.id||item._docId);
-        if(identidad===cedula)mapa[String(item.id||item._docId)]=item;
-      });
-      var coincidencias=Object.keys(mapa);
-      if(coincidencias.length>1)
-        throw new Error('Existen varios documentos de Firebase para esta cédula. No se modificará el PIN hasta resolver los duplicados.');
-      return {docId:coincidencias[0]||cedula,existente:coincidencias.length?mapa[coincidencias[0]]:null};
+    return firebaseService.buscarInvestigadoresPorCedulaServidor(cedula).then(function(docs){
+      if(docs.length>1)throw new Error(
+        'Existen varios documentos para esta cédula. No se modificará el PIN hasta resolver los duplicados.');
+      var encontrado=docs[0]||null;
+      return {docId:encontrado?String(encontrado.id||encontrado._docId):cedula,
+        existente:encontrado};
     });
   }
 
-  function verificarPinGuardado(docId, hashEsperado, revisionEsperada) {
+  function verificarPinGuardado(docId, hashEsperado, revisionEsperada, exigirActivo) {
     // get({source:'server'}) evita mostrar un éxito basado solo en caché local.
     return firebaseService.leerDocumentoServidor(config.collections.investigadores, docId)
       .then(function(doc){
@@ -492,7 +453,7 @@
           throw new Error('El hash del PIN cambió en Firebase. No se confirmó el acceso.');
         if(Number(doc.pinRevision)!==Number(revisionEsperada))
           throw new Error('Otra operación modificó el PIN después de guardarlo. Actualiza el registro.');
-        if(doc.pinActivo!==true||doc.activo===false)
+        if(exigirActivo && (doc.pinActivo!==true||doc.activo===false))
           throw new Error('El PIN está registrado, pero el acceso permanece desactivado.');
         return doc;
       });

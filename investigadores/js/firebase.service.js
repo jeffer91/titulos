@@ -213,6 +213,33 @@
       });
   }
 
+  function buscarInvestigadoresPorCedulaServidor(cedula){
+    var id=String(cedula||'').replace(/\D/g,'');
+    if(!/^\d{10}$/.test(id))return Promise.reject(new Error('Cédula inválida.'));
+    asegurarLectura('investigadores');
+    var col=getDb().collection('investigadores');
+    return Promise.all([
+      col.doc(id).get({source:'server'}),
+      col.where('cedula','==',id).limit(12).get({source:'server'}),
+      col.where('identificacion','==',id).limit(12).get({source:'server'}),
+      col.where('numeroIdentificacion','==',id).limit(12).get({source:'server'})
+    ]).then(function(result){
+      var mapa=Object.create(null),directo=result[0];
+      if(directo.exists)mapa[directo.id]=normalizarDocumento(directo);
+      result.slice(1).forEach(function(snap){
+        if(snap.docs.length>=12)throw new Error('Se detectaron demasiados registros asociados a la cédula.');
+        snap.forEach(function(row){mapa[row.id]=normalizarDocumento(row);});
+      });
+      var docs=Object.keys(mapa).map(function(k){return mapa[k];});
+      if(docs.some(function(d){
+        return String(d.cedula||d.identificacion||d.numeroIdentificacion||d.id).replace(/\D/g,'')!==id;
+      }))throw new Error('La cédula no coincide con el registro recuperado. Solicita revisión a Administración.');
+      return docs;
+    }).catch(function(error){
+      throw crearErrorOperacion('BUSCAR_INVESTIGADOR_CEDULA','investigadores',error);
+    });
+  }
+
   function listarDocumentosServidor(collectionName,options) {
     asegurarLectura(collectionName);
     var opts=options||{},query=getDb().collection(collectionName);
@@ -332,6 +359,7 @@
     getDb: getDb,
     leerDocumento: leerDocumento,
     leerDocumentoServidor: leerDocumentoServidor,
+    buscarInvestigadoresPorCedulaServidor: buscarInvestigadoresPorCedulaServidor,
     listarDocumentos: listarDocumentos,
     listarDocumentosServidor: listarDocumentosServidor,
     guardarDocumento: guardarDocumento,

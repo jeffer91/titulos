@@ -218,11 +218,41 @@
 
   // Única escritura autorizada en el modo PIN heredado: operación atómica con
   // comprobación de la cédula y auditoría sin secretos. El modo seguro debe usar Auth.
+  function buscarInvestigadoresPorCedulaServidor(cedula) {
+    var id=String(cedula||'').replace(/\D/g,'');
+    if(!/^\d{10}$/.test(id))return Promise.reject(new Error('Cédula inválida.'));
+    asegurarLectura('investigadores');
+    var db=getDb(),coll=db.collection('investigadores');
+    return Promise.all([
+      coll.doc(id).get({source:'server'}),
+      coll.where('cedula','==',id).limit(12).get({source:'server'}),
+      coll.where('identificacion','==',id).limit(12).get({source:'server'}),
+      coll.where('numeroIdentificacion','==',id).limit(12).get({source:'server'})
+    ]).then(function(snapshots){
+      var mapa=Object.create(null);
+      if(snapshots[0].exists)mapa[snapshots[0].id]=adaptarDocumento('investigadores',normalizarDocumento(snapshots[0]));
+      snapshots.slice(1).forEach(function(result){
+        if(result.docs.length>=12)throw new Error('Se detectaron demasiados registros para la cédula. Requiere auditoría.');
+        result.forEach(function(item){
+          mapa[item.id]=adaptarDocumento('investigadores',normalizarDocumento(item));
+        });
+      });
+      var docs=Object.keys(mapa).map(function(idDoc){return mapa[idDoc];});
+      if(docs.some(function(doc){
+        return String(doc.cedula||doc.identificacion||doc.numeroIdentificacion||doc.id).replace(/\D/g,'')!==id;
+      }))throw new Error('Un documento con este ID pertenece a otra cédula. Contacta a Administración.');
+      return docs;
+    }).catch(function(error){
+      throw crearErrorOperacion('BUSCAR_INVESTIGADOR_CEDULA','investigadores',error);
+    });
+  }
+
   function guardarPinInvestigador(data) {
     var docId=String(data && data.docId || '');
     var cedula=String(data && data.cedula || '');
     var hash=String(data && data.hash || '');
     var crear=Boolean(data && data.crear);
+    var esperada=data && data.revisionEsperada;
     if(!/^\d{10}$/.test(cedula) || !docId || docId.indexOf('/')!==-1 ||
       !/^[a-f0-9]{64}$/i.test(hash)) {
       return Promise.reject(new Error('Datos de PIN inválidos. No se guardó ningún cambio.'));
@@ -241,19 +271,24 @@
           var guardada=String(actual.cedula||actual.identificacion||actual.numeroIdentificacion||snapshot.id||'').replace(/\D/g,'');
           if(guardada!==cedula)throw new Error('La cédula del documento ha cambiado. No se modificó el PIN.');
         }
-        var revision=Number(actual && actual.pinRevision || 0)+1;
+        var vigente=Number(actual && actual.pinRevision || 0);
+        if(!crear && esperada!==undefined && esperada!==null &&
+           Number(esperada)!==vigente)
+          throw new Error('El PIN fue modificado por otra sesión. Actualiza la lista antes de restablecerlo.');
+        var revision=vigente+1;
+        var habilitado=crear || (actual&&actual.activo!==false&&actual.pinActivo!==false);
         var fields={
           cedula:cedula,
           pinHash:hash.toLowerCase(),
           pinCreado:true,
-          pinActivo:true,
-          activo:true,
+          pinActivo:habilitado,
+          activo:crear?true:actual.activo!==false,
           pinHashActualizadoEn:window.firebase.firestore.FieldValue.serverTimestamp(),
           pinRevision:revision,
           pinCreadoEn:actual&&actual.pinCreadoEn||momento,
-          pinActivadoEn:momento,
-          pinActivadoPor:crear?'administrador_alta':'administrador_pin',
-          pinDesactivadoEn:null,
+          pinActivadoEn:habilitado?momento:(actual&&actual.pinActivadoEn||null),
+          pinActivadoPor:habilitado?(crear?'administrador_alta':'administrador_pin'):(actual&&actual.pinActivadoPor||''),
+          pinDesactivadoEn:habilitado?null:(actual&&actual.pinDesactivadoEn||momento),
           pinVerificadoEn:momento,
           pinVerificadoPor:crear?'administrador_alta':'administrador_pin'
         };
@@ -273,7 +308,7 @@
           pinRevision:revision,fechaLocal:momento,
           actor:'administrador_legacy',creadoEn:window.firebase.firestore.FieldValue.serverTimestamp()
         });
-        return {docId:docId,revision:revision};
+        return {docId:docId,revision:revision,activo:fields.activo,pinActivo:fields.pinActivo};
       });
     }).catch(function(error){
       throw crearErrorOperacion('GUARDAR_PIN_TRANSACCIONAL', 'investigadores', error);
@@ -285,12 +320,47 @@
     // Las credenciales SOLO pueden modificarse mediante guardarPinInvestigador,
     // con comprobación de identidad, transacción y evento de auditoría.
     if(merge===false)throw new Error('No se permite reemplazar por completo los registros de investigadores.');
-    var claves=['pinHash','pinCreado','pinRevision','pinHashActualizadoEn',
-      'pinCreadoEn','pinVerificadoEn','pinVerificadoPor'];
-    if(claves.some(function(k){return Object.prototype.hasOwnProperty.call(data||{},k);}))
-      throw new Error('Cambio de credenciales rechazado: utiliza el guardado transaccional de PIN.');
+    // Ningún guardado genérico cambia perfiles ni credenciales de investigadores.
+    // Usar guardarPinInvestigador o cambiarAccesoInvestigador.
+    throw new Error('Los investigadores solo pueden modificarse mediante operaciones transaccionales autorizadas.');
   }
 
+
+
+  function cambiarAccesoInvestigador(data){
+    var id=String(data&&data.docId||'');
+    var cedula=String(data&&data.cedula||'');
+    var activar=data&&data.activo;
+    if(!id || id.indexOf('/')!==-1 || !/^\d{10}$/.test(cedula) || typeof activar!=='boolean')
+      return Promise.reject(new Error('Datos de activación de investigador incorrectos.'));
+    asegurarEscritura('investigadores');
+    asegurarEscritura('workflow_events');
+    var db=getDb(),ref=db.collection('investigadores').doc(id);
+    var ahora=new Date().toISOString();
+    return db.runTransaction(function(tx){
+      return tx.get(ref).then(function(snap){
+        if(!snap.exists)throw new Error('El investigador no existe. Actualiza la lista.');
+        var actual=snap.data();
+        var enBase=String(actual.cedula||actual.identificacion||actual.numeroIdentificacion||snap.id||'').replace(/\D/g,'');
+        if(enBase!==cedula)throw new Error('La cédula del documento cambió. Acceso no modificado.');
+        if(activar && (!actual.pinCreado || !actual.pinHash))
+          throw new Error('No puede activar un investigador sin PIN registrado.');
+        var patch={activo:activar,pinActivo:activar,
+          pinDesactivadoEn:activar?null:ahora,
+          pinActivadoEn:activar?ahora:(actual.pinActivadoEn||null),
+          pinActivadoPor:activar?'administrador':(actual.pinActivadoPor||''),
+          actualizadoEn:window.firebase.firestore.FieldValue.serverTimestamp()};
+        tx.set(ref,patch,{merge:true});
+        tx.set(db.collection('workflow_events').doc(),{
+          modulo:'administradores',tipo:'ADMIN_CAMBIO_ACCESO_INVESTIGADOR',
+          entidad:'investigadores',entidadId:id,estado:activar?'ACTIVO':'INACTIVO',
+          fechaLocal:ahora,actor:'administrador_legacy',
+          creadoEn:window.firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return {id:id,activo:activar,pinActivo:activar};
+      });
+    }).catch(function(error){throw crearErrorOperacion('CAMBIAR_ACCESO_INVESTIGADOR','investigadores',error);});
+  }
 
   function periodoCanonico(id){
     var m=/^(\d{4})[-_](0?[1-9]|1[0-2])(?:__|[-_\s]+)(\d{4})[-_](0?[1-9]|1[0-2])$/.exec(String(id||'').trim());
@@ -380,6 +450,8 @@
 
   function agregarDocumento(collectionName, data) {
     asegurarEscritura(collectionName);
+    if(collectionName==='investigadores')
+      return Promise.reject(new Error('La creación de investigadores solo se permite con guardado transaccional.'));
     var payload = Object.assign({}, data || {}, { creadoEn: serverTimestamp(), actualizadoEn: serverTimestamp() });
     return getDb().collection(collectionName).add(payload)
       .catch(function (error) {
@@ -408,6 +480,8 @@
 
   function eliminarLote(collectionName, ids) {
     asegurarEscritura(collectionName);
+    if(collectionName==='investigadores')
+      return Promise.reject(new Error('No se puede eliminar investigadores por lote.'));
     var chunks = dividirEnBloques(Array.isArray(ids) ? ids : [], BATCH_LIMIT);
     var total = 0;
     return chunks.reduce(function (promise, chunk) {
@@ -627,7 +701,9 @@
     leerDocumento: leerDocumento,
     leerDocumentoServidor: leerDocumentoServidor,
     listarDocumentosServidor: listarDocumentosServidor,
+    buscarInvestigadoresPorCedulaServidor: buscarInvestigadoresPorCedulaServidor,
     guardarPinInvestigador: guardarPinInvestigador,
+    cambiarAccesoInvestigador: cambiarAccesoInvestigador,
     cambiarPeriodoActivoAtomico: cambiarPeriodoActivoAtomico,
     guardarDocumento: guardarDocumento,
     actualizarDocumento: actualizarDocumento,

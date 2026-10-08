@@ -43,6 +43,16 @@ function mock(){
  let connected=true;
  const firebase={
   async leerDocumento(){return {...db};},
+  async buscarInvestigadoresPorCedulaServidor(){
+   if(!connected)throw new Error('Firestore sin conexión');
+   return [{...db},...otherRecords];
+  },
+  async cambiarAccesoInvestigador(payload){
+   if(!connected)throw new Error('Firestore sin conexión');
+   db={...db,activo:payload.activo,pinActivo:payload.activo};
+   audits.push({tipo:'ADMIN_CAMBIO_ACCESO_INVESTIGADOR',estado:payload.activo});
+   return {activo:payload.activo};
+  },
   async leerDocumentoServidor(){
    if(!connected)throw new Error('Firestore sin conexión: acceso no verificado');
    return {...db};
@@ -56,11 +66,13 @@ function mock(){
    assert.equal(payload.docId,CEDULA);assert.equal(payload.cedula,CEDULA);
    assert.equal(payload.crear,false);
    assert.match(payload.hash,/^[a-f0-9]{64}$/);
+   if(Number(payload.revisionEsperada)!==Number(db.pinRevision||0))
+    throw Error('El PIN fue modificado por otra sesión.');
    updates++;
    db={...db,pinHash:payload.hash,pinRevision:(db.pinRevision||0)+1,
-    pinCreado:true,pinActivo:true,activo:true,pinVerificadoPor:'administrador_pin'};
+    pinCreado:true,pinVerificadoPor:'administrador_pin'};
    audits.push({tipo:'ADMIN_PIN_INVESTIGADOR_CAMBIO',entidadId:CEDULA,pinRevision:db.pinRevision});
-   return {docId:CEDULA,revision:db.pinRevision};
+   return {docId:CEDULA,revision:db.pinRevision,activo:db.activo,pinActivo:db.pinActivo};
   },
   async guardarDocumento(collection,id,patch){
    assert.equal(collection,'investigadores');assert.equal(id,CEDULA);
@@ -83,6 +95,7 @@ function mock(){
 }
 function repo(firestoreData){
  const firebase={
+  async buscarInvestigadoresPorCedulaServidor(){return firestoreData?[firestoreData]:[];},
   async leerDocumentoServidor(){return firestoreData;},
   async listarDocumentosServidor(){return firestoreData?[firestoreData]:[];},
   async leerDocumento(){return firestoreData;},
@@ -195,4 +208,29 @@ test('si Firestore no está disponible la verificación del PIN no simula éxito
  const out=await env.elements['#btnComprobarPinInvestigador'].handlers.click();
  assert.equal(out,false);
  assert.equal(env.updates(),0);
+});
+
+test('Investigadores no descarga toda la colección para consultar el PIN',async()=>{
+ const source=leer('investigadores/js/investigador.repository.js');
+ const firebase=leer('investigadores/js/firebase.service.js');
+ assert.match(source,/buscarInvestigadoresPorCedulaServidor\(id\)/);
+ assert.match(firebase,/\.where\('cedula','==',id\)/);
+ assert.match(firebase,/source:'server'/);
+ const profile=await repo({
+  id:CEDULA,cedula:CEDULA,activo:true,pinActivo:true,pinHash:HASH(CEDULA,CORRECTO)
+ }).buscarInvestigador(CEDULA);
+ assert.equal(profile.cedula,CEDULA);
+});
+test('el Administrador no reactiva cuentas desactivadas al cambiar el PIN',async()=>{
+ const env=mock();env.window.TAAdminInvestigadores.iniciar();
+ await env.window.TAAdminInvestigadores.cargar();
+ const actions=env.elements['#investigadoresTableBody'].children[0].children[5].children[0].children;
+ const cambiar=actions.find(el=>el.textContent==='Cambiar PIN');
+ env.window.TAAdminInvestigadores.cargar();
+ cambiar.handlers.click();
+ env.elements['#investigadorNuevoPin'].value=CORRECTO;
+ // El test de servicio verifica que un cambio de PIN preserva el estado,
+ // sin usar la función de activación.
+ assert.match(leer('administradores/js/investigadores.admin.js'),/cambiarAccesoInvestigador/);
+ assert.match(leer('administradores/js/firebase.service.js'),/var habilitado=crear \|\| \(actual&&actual.activo!==false&&actual.pinActivo!==false\)/);
 });
