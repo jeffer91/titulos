@@ -24,6 +24,4 @@
     measurementId: 'G-4MC529QMW9'
   });
 
-  /* Alias temporal para código antiguo: la base operativa siempre es Títulos. */
-  window.TA_ESTUDIANTES_FIREBASE_CONFIG = window.TA_ESTUDIANTES_FIREBASE_TITULOS_CONFIG;
 })();
