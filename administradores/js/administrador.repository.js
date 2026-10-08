@@ -13,14 +13,20 @@
     if (estado.firebaseListo) return Promise.resolve(true);
 
     if (!firebaseService || !firebaseService.iniciar) {
-      return Promise.reject(new Error('No se encontró el servicio de Firebase.'));
+      var errorBackend = new Error('No se cargó el backend propio del Administrador.');
+      errorBackend.codigo = 'BACKEND_ADMIN_NO_DISPONIBLE';
+      return Promise.reject(errorBackend);
     }
 
     return firebaseService.iniciar(config.firebase).then(function (resultado) {
       estado.firebaseListo = Boolean(resultado && resultado.ok);
 
       if (!estado.firebaseListo) {
-        throw new Error(resultado && resultado.mensaje ? resultado.mensaje : config.textos.firebaseError);
+        var errorConexion = new Error(
+          resultado && resultado.mensaje ? resultado.mensaje : config.textos.firebaseError
+        );
+        errorConexion.codigo = resultado && resultado.codigo || 'FIREBASE_ADMIN_ERROR';
+        throw errorConexion;
       }
 
       return true;
@@ -31,9 +37,6 @@
     return leerDocumento(config.collections.config, config.documents.appConfig)
       .then(function (data) {
         return Object.assign({}, config.defaultAppConfig, data || {});
-      })
-      .catch(function () {
-        return Object.assign({}, config.defaultAppConfig);
       });
   }
 
