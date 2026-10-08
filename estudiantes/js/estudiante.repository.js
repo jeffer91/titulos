@@ -2,7 +2,7 @@
   Repositorio del módulo estudiantes con separación estricta de bases:
   - utet-4387a: Estudiante + matriculas, solo lectura.
   - titulos-ec2fa: configuracion + envios + workflow_events.
-  - La lectura de envios se delega exclusivamente a /consulta-estado/.
+  - envios se consulta directamente por cédula en titulos-ec2fa y luego se filtra por período.
 */
 (function () {
   'use strict';
