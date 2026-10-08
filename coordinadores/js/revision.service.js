@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var firebaseService = window.TACoordFirebaseService;
+  var firebaseService = window.TACoordinadorFirebaseService;
 
   function guardarRevision(collectionName, documentId, data) {
     var db = firebaseService.getDb();
