@@ -8,6 +8,8 @@
 
   var investigador = null;
   var titulos = [];
+  var revisiones = [];
+  var revisionesFiltradas = [];
   var carreraActual = '';
 
   document.addEventListener('DOMContentLoaded', iniciar);
@@ -36,6 +38,13 @@
     on('btnRevisarActivacion', 'click', revisarActivacion);
     on('btnActualizarTitulos', 'click', function () { cargarTitulos(true); });
     on('btnVolverCarreras', 'click', volverCarreras);
+    on('btnVistaPendientes', 'click', mostrarVistaPendientes);
+    on('btnVistaRevisados', 'click', mostrarVistaRevisados);
+    on('btnActualizarRevisados', 'click', cargarRevisiones);
+    on('btnDescargarRevisadosPdf', 'click', descargarRevisionesPdf);
+    on('filtroRevisionPeriodo', 'change', aplicarFiltrosRevisiones);
+    on('filtroRevisionCarrera', 'change', aplicarFiltrosRevisiones);
+    on('filtroRevisionResultado', 'change', aplicarFiltrosRevisiones);
     on('btnSalir', 'click', salir);
   }
 
@@ -179,6 +188,9 @@
     mostrar('panelTrabajo');
     mostrar('panelCarreras');
     ocultar('panelCola');
+    ocultar('panelRevisados');
+    mostrar('resumenPendientes');
+    activarBotonVista('btnVistaPendientes');
 
     setText('investigadorNombre', investigador.nombre || 'Investigador');
     setText(
@@ -186,6 +198,216 @@
       (investigador.cedula || '') + (investigador.email ? ' · ' + investigador.email : '')
     );
     setText('estadoGeneral', 'Acceso activo');
+  }
+
+  function mostrarVistaPendientes() {
+    mostrar('resumenPendientes');
+    mostrar('revisionMensaje');
+    ocultar('panelRevisados');
+    activarBotonVista('btnVistaPendientes');
+
+    if (carreraActual) {
+      ocultar('panelCarreras');
+      mostrar('panelCola');
+    } else {
+      mostrar('panelCarreras');
+      ocultar('panelCola');
+    }
+  }
+
+  function mostrarVistaRevisados() {
+    ocultar('resumenPendientes');
+    ocultar('revisionMensaje');
+    ocultar('panelCarreras');
+    ocultar('panelCola');
+    mostrar('panelRevisados');
+    activarBotonVista('btnVistaRevisados');
+
+    if (!revisiones.length) {
+      cargarRevisiones();
+    } else {
+      aplicarFiltrosRevisiones();
+    }
+  }
+
+  function activarBotonVista(idActivo) {
+    ['btnVistaPendientes', 'btnVistaRevisados'].forEach(function (id) {
+      var button = el(id);
+      if (button) button.classList.toggle('is-active', id === idActivo);
+    });
+  }
+
+  function cargarRevisiones() {
+    if (!investigador) return Promise.resolve();
+
+    var button = el('btnActualizarRevisados');
+    setLoading(button, true, 'Actualizando...');
+    mensaje('reporteRevisionMensaje', 'Cargando tus revisiones...', 'info');
+
+    return repository.listarRevisadosPorInvestigador(investigador)
+      .then(function (items) {
+        revisiones = items || [];
+        cargarOpcionesRevisiones();
+        aplicarFiltrosRevisiones();
+        setText('totalRevisados', revisiones.length);
+        mensaje(
+          'reporteRevisionMensaje',
+          revisiones.length ? '' : 'Todavía no tienes revisiones registradas.',
+          revisiones.length ? '' : 'info'
+        );
+      })
+      .catch(function (error) {
+        revisiones = [];
+        revisionesFiltradas = [];
+        renderRevisiones();
+        mensaje('reporteRevisionMensaje', error.message || 'No se pudieron cargar tus revisiones.', 'error');
+      })
+      .finally(function () {
+        setLoading(button, false);
+      });
+  }
+
+  function cargarOpcionesRevisiones() {
+    var service = window.TARevisionReportService;
+    if (!service) return;
+
+    var opciones = service.opciones(revisiones);
+    llenarSelect('filtroRevisionPeriodo', opciones.periodos, 'Todos');
+    llenarSelect('filtroRevisionCarrera', opciones.carreras, 'Todas');
+  }
+
+  function aplicarFiltrosRevisiones() {
+    var service = window.TARevisionReportService;
+    if (!service) return;
+
+    revisionesFiltradas = service.filtrar(revisiones, {
+      periodo: value('filtroRevisionPeriodo'),
+      carrera: value('filtroRevisionCarrera'),
+      resultado: value('filtroRevisionResultado')
+    });
+
+    renderRevisiones();
+  }
+
+  function renderRevisiones() {
+    var service = window.TARevisionReportService;
+    var body = el('revisadosBody');
+    if (!body || !service) return;
+
+    var resumen = service.resumen(revisionesFiltradas);
+    setText('reporteTotalRevisados', resumen.total);
+    setText('reporteTotalAprobados', resumen.aprobados);
+    setText('reporteTotalDevueltos', resumen.devueltos);
+
+    body.innerHTML = '';
+
+    if (!revisionesFiltradas.length) {
+      body.innerHTML = '<tr><td colspan="6" class="queue-empty">No hay revisiones que coincidan con los filtros.</td></tr>';
+      return;
+    }
+
+    revisionesFiltradas.forEach(function (item) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + escapeHtml(formatearFechaCorta(item.fechaRevision)) + '</td>' +
+        '<td><strong>' + escapeHtml(item.nombres || '—') + '</strong></td>' +
+        '<td>' + escapeHtml(item.cedula || '—') + '</td>' +
+        '<td>' + escapeHtml(item.carrera || '—') + '</td>' +
+        '<td><span class="report-state report-state--' + claseResultado(item.estadoRevision) + '">' + escapeHtml(item.resultadoLabel || item.estadoRevision || '—') + '</span></td>' +
+        '<td class="review-title-cell">' + escapeHtml(item.tituloFinal || '—') + '</td>';
+      body.appendChild(tr);
+    });
+  }
+
+  function descargarRevisionesPdf() {
+    var pdf = window.TARevisionPdfService;
+    var service = window.TARevisionReportService;
+
+    if (!pdf || !service) {
+      mensaje('reporteRevisionMensaje', 'No se cargó el generador PDF. Actualiza la página.', 'error');
+      return;
+    }
+
+    if (!revisionesFiltradas.length) {
+      mensaje('reporteRevisionMensaje', 'No hay revisiones para descargar con estos filtros.', 'warning');
+      return;
+    }
+
+    try {
+      var periodo = value('filtroRevisionPeriodo');
+      var carrera = value('filtroRevisionCarrera');
+      var resultado = value('filtroRevisionResultado');
+      var periodoLabel = textoOpcion('filtroRevisionPeriodo');
+      var resultadoLabel = textoOpcion('filtroRevisionResultado');
+
+      var filename = pdf.descargar({
+        titulo: 'REPORTE DE REVISIONES DE INVESTIGACIÓN',
+        subtitulo: 'Investigador: ' + (investigador.nombre || investigador.cedula || ''),
+        revisiones: revisionesFiltradas,
+        resumen: service.resumen(revisionesFiltradas),
+        ocultarInvestigador: true,
+        filtros: {
+          periodo: periodo,
+          periodoLabel: periodo ? periodoLabel : 'Todos',
+          carrera: carrera,
+          resultado: resultado,
+          resultadoLabel: resultado ? resultadoLabel : 'Todos',
+          investigador: investigador.id || investigador.cedula,
+          investigadorLabel: investigador.nombre || investigador.cedula
+        }
+      });
+
+      mensaje('reporteRevisionMensaje', 'PDF generado: ' + filename, 'success');
+    } catch (error) {
+      mensaje('reporteRevisionMensaje', error.message || 'No se pudo generar el PDF.', 'error');
+    }
+  }
+
+  function llenarSelect(id, items, placeholder) {
+    var select = el(id);
+    if (!select) return;
+
+    var actual = select.value;
+    select.innerHTML = '<option value="">' + escapeHtml(placeholder || 'Todos') + '</option>';
+
+    (items || []).forEach(function (item) {
+      var option = document.createElement('option');
+      option.value = item.value;
+      option.textContent = item.label;
+      select.appendChild(option);
+    });
+
+    if (actual && Array.prototype.some.call(select.options, function (option) { return option.value === actual; })) {
+      select.value = actual;
+    }
+  }
+
+  function textoOpcion(id) {
+    var select = el(id);
+    if (!select || !select.options || select.selectedIndex < 0) return '';
+    return select.options[select.selectedIndex].textContent || '';
+  }
+
+  function claseResultado(estado) {
+    estado = String(estado || '').toUpperCase();
+    if (estado === 'DEVUELTO') return 'danger';
+    if (estado === 'APROBADO_CON_OBSERVACION') return 'warning';
+    return 'success';
+  }
+
+  function formatearFechaCorta(valor) {
+    if (!valor) return '—';
+    try {
+      var fecha = new Date(valor);
+      if (isNaN(fecha.getTime())) return '—';
+      return new Intl.DateTimeFormat('es-EC', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      }).format(fecha);
+    } catch (error) {
+      return '—';
+    }
   }
 
   function cargarTitulos(mantenerCarrera) {
@@ -547,6 +769,8 @@
   function salir() {
     investigador = null;
     titulos = [];
+    revisiones = [];
+    revisionesFiltradas = [];
     carreraActual = '';
 
     ocultar('panelTrabajo');
