@@ -16,7 +16,36 @@
   var FIREBASE_APP_CDN = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js';
   var FIREBASE_FIRESTORE_CDN = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js';
   var BATCH_LIMIT = 450;
-  var COLECCIONES_ACADEMICAS = { Estudiante: true, matriculas: true };
+  var COLECCIONES_ACADEMICAS = Object.freeze({
+    Estudiante: true,
+    matriculas: true
+  });
+
+  var COLECCIONES_TITULOS_LECTURA = Object.freeze({
+    envios: true,
+    versiones_envio: true,
+    configuracion: true,
+    workflow_events: true,
+    ia: true,
+    coordinadores: true,
+    investigadores: true,
+    periodos: true,
+    carreras: true,
+    resoluciones: true
+  });
+
+  var COLECCIONES_TITULOS_ESCRITURA = Object.freeze({
+    envios: true,
+    versiones_envio: true,
+    configuracion: true,
+    workflow_events: true,
+    ia: true,
+    coordinadores: true,
+    investigadores: true,
+    periodos: true,
+    carreras: true,
+    resoluciones: true
+  });
 
   function iniciar(firebaseConfig) {
     return cargarSdk().then(function () {
@@ -85,51 +114,105 @@
   }
 
   function getDb() {
-    if (!initialized || !dbTitulos) throw new Error('Firebase de Títulos no está inicializado.');
+    if (!initialized || !dbTitulos) {
+      var error = new Error('Firebase de Títulos del Administrador no está inicializado.');
+      error.codigo = 'FIREBASE_ADMIN_TITULOS_NO_INICIALIZADO';
+      throw error;
+    }
     return dbTitulos;
   }
 
   function getDbAcademico() {
-    if (!initialized || !dbAcademico) throw new Error('Firebase académico no está inicializado.');
+    if (!initialized || !dbAcademico) {
+      var error = new Error('Firebase académico del Administrador no está inicializado.');
+      error.codigo = 'FIREBASE_ADMIN_ACADEMICO_NO_INICIALIZADO';
+      throw error;
+    }
     return dbAcademico;
   }
 
   function estaListo() { return initialized && Boolean(dbTitulos); }
 
+  function asegurarLectura(collectionName) {
+    var nombre = String(collectionName || '');
+
+    if (COLECCIONES_ACADEMICAS[nombre]) return;
+
+    if (!COLECCIONES_TITULOS_LECTURA[nombre]) {
+      var error = new Error('Backend de Administrador: la colección ' + nombre + ' no está autorizada para lectura.');
+      error.codigo = 'COLECCION_NO_AUTORIZADA_ADMIN';
+      error.coleccion = nombre;
+      throw error;
+    }
+  }
+
+  function asegurarEscritura(collectionName) {
+    var nombre = String(collectionName || '');
+
+    if (COLECCIONES_ACADEMICAS[nombre]) {
+      var errorAcademico = new Error('La Firebase académica es de solo lectura desde Administrador.');
+      errorAcademico.codigo = 'ESCRITURA_ACADEMICA_BLOQUEADA_ADMIN';
+      errorAcademico.coleccion = nombre;
+      throw errorAcademico;
+    }
+
+    if (!COLECCIONES_TITULOS_ESCRITURA[nombre]) {
+      var error = new Error('Backend de Administrador: la colección ' + nombre + ' no está autorizada para escritura.');
+      error.codigo = 'ESCRITURA_NO_AUTORIZADA_ADMIN';
+      error.coleccion = nombre;
+      throw error;
+    }
+  }
+
   function leerDocumento(collectionName, documentId) {
+    asegurarLectura(collectionName);
     var db = esAcademica(collectionName) ? getDbAcademico() : getDb();
     return db.collection(collectionName).doc(documentId).get().then(function (snapshot) {
       if (!snapshot.exists) return null;
       return adaptarDocumento(collectionName, normalizarDocumento(snapshot));
+    }).catch(function (error) {
+      throw crearErrorOperacion('LEER_DOCUMENTO', collectionName, error);
     });
   }
 
   function guardarDocumento(collectionName, documentId, data, options) {
-    rechazarEscrituraAcademica(collectionName);
+    asegurarEscritura(collectionName);
     var merge = typeof options === 'boolean' ? options : (!options || options.merge !== false);
     var payload = Object.assign({}, data || {}, { actualizadoEn: serverTimestamp() });
     if (!merge) payload.creadoEn = payload.creadoEn || serverTimestamp();
-    return getDb().collection(collectionName).doc(documentId).set(payload, { merge: merge });
+    return getDb().collection(collectionName).doc(documentId).set(payload, { merge: merge })
+      .catch(function (error) {
+        throw crearErrorOperacion('GUARDAR_DOCUMENTO', collectionName, error);
+      });
   }
 
   function actualizarDocumento(collectionName, documentId, data) {
-    rechazarEscrituraAcademica(collectionName);
-    return getDb().collection(collectionName).doc(documentId).set(Object.assign({}, data || {}, { actualizadoEn: serverTimestamp() }), { merge: true });
+    asegurarEscritura(collectionName);
+    return getDb().collection(collectionName).doc(documentId).set(Object.assign({}, data || {}, { actualizadoEn: serverTimestamp() }), { merge: true })
+      .catch(function (error) {
+        throw crearErrorOperacion('ACTUALIZAR_DOCUMENTO', collectionName, error);
+      });
   }
 
   function eliminarDocumento(collectionName, documentId) {
-    rechazarEscrituraAcademica(collectionName);
-    return getDb().collection(collectionName).doc(documentId).delete();
+    asegurarEscritura(collectionName);
+    return getDb().collection(collectionName).doc(documentId).delete()
+      .catch(function (error) {
+        throw crearErrorOperacion('ELIMINAR_DOCUMENTO', collectionName, error);
+      });
   }
 
   function agregarDocumento(collectionName, data) {
-    rechazarEscrituraAcademica(collectionName);
+    asegurarEscritura(collectionName);
     var payload = Object.assign({}, data || {}, { creadoEn: serverTimestamp(), actualizadoEn: serverTimestamp() });
-    return getDb().collection(collectionName).add(payload);
+    return getDb().collection(collectionName).add(payload)
+      .catch(function (error) {
+        throw crearErrorOperacion('AGREGAR_DOCUMENTO', collectionName, error);
+      });
   }
 
   function guardarLote(collectionName, documents, options) {
-    rechazarEscrituraAcademica(collectionName);
+    asegurarEscritura(collectionName);
     var docs = Array.isArray(documents) ? documents : [];
     var merge = !options || options.merge !== false;
     var chunks = dividirEnBloques(docs, BATCH_LIMIT);
@@ -147,7 +230,7 @@
   }
 
   function eliminarLote(collectionName, ids) {
-    rechazarEscrituraAcademica(collectionName);
+    asegurarEscritura(collectionName);
     var chunks = dividirEnBloques(Array.isArray(ids) ? ids : [], BATCH_LIMIT);
     var total = 0;
     return chunks.reduce(function (promise, chunk) {
@@ -160,9 +243,12 @@
   }
 
   function listarDocumentos(collectionName, options) {
+    asegurarLectura(collectionName);
     if (collectionName === 'Estudiante') return listarEstudiantesAcademicos(options);
     var db = esAcademica(collectionName) ? getDbAcademico() : getDb();
-    return ejecutarListado(db, collectionName, options);
+    return ejecutarListado(db, collectionName, options).catch(function (error) {
+      throw crearErrorOperacion('LISTAR_DOCUMENTOS', collectionName, error);
+    });
   }
 
   function listarColeccion(collectionName) {
@@ -172,13 +258,31 @@
   function obtenerColeccion(collectionName) { return listarColeccion(collectionName); }
 
   function listarDocumentosAcademico(collectionName, options) {
+    if (!COLECCIONES_ACADEMICAS[String(collectionName || '')]) {
+      var error = new Error('Backend de Administrador: ' + collectionName + ' no es una colección académica autorizada.');
+      error.codigo = 'COLECCION_ACADEMICA_NO_AUTORIZADA_ADMIN';
+      error.coleccion = String(collectionName || '');
+      return Promise.reject(error);
+    }
+
     if (collectionName === 'Estudiante') return listarEstudiantesAcademicos(options);
-    return ejecutarListado(getDbAcademico(), collectionName, options);
+    return ejecutarListado(getDbAcademico(), collectionName, options).catch(function (error) {
+      throw crearErrorOperacion('LISTAR_ACADEMICO', collectionName, error);
+    });
   }
 
   function leerDocumentoAcademico(collectionName, documentId) {
+    if (!COLECCIONES_ACADEMICAS[String(collectionName || '')]) {
+      var error = new Error('Backend de Administrador: ' + collectionName + ' no es una colección académica autorizada.');
+      error.codigo = 'COLECCION_ACADEMICA_NO_AUTORIZADA_ADMIN';
+      error.coleccion = String(collectionName || '');
+      return Promise.reject(error);
+    }
+
     return getDbAcademico().collection(collectionName).doc(documentId).get().then(function (snapshot) {
       return snapshot.exists ? normalizarDocumento(snapshot) : null;
+    }).catch(function (error) {
+      throw crearErrorOperacion('LEER_ACADEMICO', collectionName, error);
     });
   }
 
@@ -292,15 +396,18 @@
   }
 
   function contarColeccion(collectionName, limit) {
+    asegurarLectura(collectionName);
     var db = esAcademica(collectionName) ? getDbAcademico() : getDb();
-    return db.collection(collectionName).limit(limit || 5).get().then(function (snapshot) { return snapshot.size; });
+    return db.collection(collectionName).limit(limit || 5).get().then(function (snapshot) {
+      return snapshot.size;
+    }).catch(function (error) {
+      throw crearErrorOperacion('CONTAR_COLECCION', collectionName, error);
+    });
   }
 
   function esAcademica(collectionName) { return Boolean(COLECCIONES_ACADEMICAS[collectionName]); }
 
-  function rechazarEscrituraAcademica(collectionName) {
-    if (esAcademica(collectionName)) throw new Error('La Firebase académica es de solo lectura desde esta aplicación.');
-  }
+
 
   function dividirEnBloques(items, size) {
     var chunks = [];
@@ -315,6 +422,22 @@
 
   function normalizarDocumento(snapshot) {
     return Object.assign({}, snapshot.data() || {}, { id: snapshot.id, _docId: snapshot.id });
+  }
+
+  function crearErrorOperacion(operacion, collectionName, original) {
+    var codigo = original && (original.codigo || original.code || original.name) || 'ERROR_FIREBASE_ADMIN';
+    var mensaje = original && original.message ? original.message : String(original || 'Error desconocido');
+    var error = new Error(
+      '[' + codigo + '] Administrador · ' + String(operacion || '') +
+      ' · colección ' + String(collectionName || '') + ' · ' + mensaje
+    );
+
+    error.codigo = String(codigo);
+    error.operacion = String(operacion || '');
+    error.coleccion = String(collectionName || '');
+    error.firebaseCode = original && original.code || '';
+    error.original = original || null;
+    return error;
   }
 
   function obtenerMensajeError(error) { return error && error.message ? error.message : String(error || 'Error desconocido'); }
