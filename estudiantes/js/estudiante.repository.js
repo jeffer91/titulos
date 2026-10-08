@@ -12,6 +12,7 @@
   var appConfigCache = null;
   var appConfigCacheAt = 0;
   var ultimoDiagnosticoEnvio = null;
+  var trazaEnvioActual = [];
 
   function cargarConfiguracionApp() {
     var ahora = Date.now();
@@ -146,6 +147,15 @@
     var documentoId = contexto.periodoPrincipal + '__' + contexto.cedula;
 
     ultimoDiagnosticoEnvio = null;
+    trazaEnvioActual = [];
+    emitirDiagnosticoRuta({
+      ruta: 'RESOLVER',
+      estado: 'INICIANDO',
+      documentoId: documentoId,
+      periodo: contexto.periodoPrincipal,
+      cedula: contexto.cedula,
+      build: (window.TAEstudianteApp && window.TAEstudianteApp.build) || '20261008-48'
+    });
 
     if (!service || typeof service.leerDocumento !== 'function') {
       var errorServicio = new Error('No se pudo iniciar el motor de consulta de Títulos.');
@@ -197,6 +207,7 @@
             documentoId: documentoId,
             ruta: 'NO_ENCONTRADO',
             rutasProbadas: rutas.map(function (ruta) { return ruta.nombre; }),
+            rutasDetalle: trazaEnvioActual.slice(),
             periodoCanonico: contexto.periodoPrincipal,
             periodosCandidatos: contexto.periodosCandidatos.slice(),
             status: 404,
@@ -213,6 +224,7 @@
           documentoId: resultado.documentoId || documentoId,
           ruta: resultado.ruta || 'DESCONOCIDA',
           rutasProbadas: resultado.rutasProbadas || [resultado.ruta || 'DESCONOCIDA'],
+          rutasDetalle: trazaEnvioActual.slice(),
           periodoCanonico: contexto.periodoPrincipal,
           periodosCandidatos: contexto.periodosCandidatos.slice(),
           status: 200,
@@ -234,6 +246,7 @@
             base: 'titulos-ec2fa',
             coleccion: config.collections.titulos,
             documentoId: documentoId,
+            rutasDetalle: trazaEnvioActual.slice(),
             periodoCanonico: contexto.periodoPrincipal,
             periodosCandidatos: contexto.periodosCandidatos.slice(),
             duracionMs: Date.now() - inicio
@@ -414,21 +427,46 @@
       rutas.forEach(function (ruta) {
         esperarRepo(ruta.retraso || 0)
           .then(function () {
+            var inicioRuta = Date.now();
+            registrarRuta(ruta.nombre, 'CONSULTANDO', {
+              timeoutMs: Number(ruta.timeout || 3500)
+            });
+
             return conTimeoutRepo(
               Promise.resolve().then(ruta.ejecutar),
               ruta.timeout || 3500,
               ruta.nombre
-            );
+            ).then(function (resultado) {
+              return {
+                resultado: resultado,
+                inicioRuta: inicioRuta
+              };
+            }).catch(function (error) {
+              error._taInicioRuta = inicioRuta;
+              throw error;
+            });
           })
-          .then(function (resultado) {
+          .then(function (paquete) {
             if (terminado) return;
             huboRespuesta = true;
 
+            var resultado = paquete && paquete.resultado;
+            var inicioRuta = paquete && paquete.inicioRuta || Date.now();
+
             if (resultado && resultado.envio) {
+              registrarRuta(ruta.nombre, 'ENCONTRADO', {
+                ms: Date.now() - inicioRuta,
+                documentoId: resultado.documentoId || resultado.envio.id || resultado.envio._docId || '',
+                score: Number(resultado.score || 0)
+              });
               terminado = true;
               resolve(resultado);
               return;
             }
+
+            registrarRuta(ruta.nombre, 'NO_ENCONTRADO', {
+              ms: Date.now() - inicioRuta
+            });
 
             pendientes -= 1;
             if (pendientes <= 0) {
@@ -439,7 +477,17 @@
           })
           .catch(function (error) {
             if (terminado) return;
+
             errores.push(error);
+            registrarRuta(ruta.nombre, error && error.codigo === 'TIMEOUT' ? 'TIMEOUT' : 'ERROR', {
+              ms: Date.now() - Number(error && error._taInicioRuta || Date.now()),
+              codigo: error && (error.codigo || error.code || error.name) || 'ERROR',
+              mensaje: error && error.message || 'Error desconocido.',
+              httpStatus: error && error.httpStatus || '',
+              firebaseStatus: error && error.firebaseStatus || '',
+              firebaseMessage: error && error.firebaseMessage || ''
+            });
+
             pendientes -= 1;
 
             if (pendientes <= 0) {
@@ -450,6 +498,52 @@
           });
       });
     });
+  }
+
+  function registrarRuta(nombre, estado, extra) {
+    var ruta = String(nombre || 'DESCONOCIDA');
+    var existente = null;
+
+    for (var i = trazaEnvioActual.length - 1; i >= 0; i -= 1) {
+      if (trazaEnvioActual[i].ruta === ruta) {
+        existente = trazaEnvioActual[i];
+        break;
+      }
+    }
+
+    if (!existente || estado === 'CONSULTANDO') {
+      existente = {
+        ruta: ruta,
+        estado: estado,
+        inicio: new Date().toISOString()
+      };
+      trazaEnvioActual.push(existente);
+    }
+
+    existente.estado = estado;
+    Object.keys(extra || {}).forEach(function (key) {
+      existente[key] = extra[key];
+    });
+
+    if (estado !== 'CONSULTANDO') existente.fin = new Date().toISOString();
+
+    emitirDiagnosticoRuta(Object.assign({}, existente));
+  }
+
+  function emitirDiagnosticoRuta(detalle) {
+    try {
+      if (window.TAEstudianteDiagnostico && typeof window.TAEstudianteDiagnostico.registrar === 'function') {
+        window.TAEstudianteDiagnostico.registrar('RUTA_TITULO', detalle);
+      }
+
+      if (typeof window.CustomEvent === 'function' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('ta:consulta-titulo-ruta', {
+          detail: detalle
+        }));
+      }
+    } catch (error) {
+      console.warn('[Estudiantes] No se pudo emitir diagnóstico de ruta:', error);
+    }
   }
 
   function construirContextoResolucion(periodoId, cedulaIngresada, estudiante) {
@@ -622,7 +716,10 @@
       Promise.resolve(promesa),
       new Promise(function (_, reject) {
         timer = window.setTimeout(function () {
-          reject(new Error('TIMEOUT_' + String(etiqueta || 'REPO').toUpperCase()));
+          var error = new Error('La ruta ' + String(etiqueta || 'REPO') + ' superó ' + Number(ms || 1500) + ' ms.');
+          error.codigo = 'TIMEOUT';
+          error.ruta = String(etiqueta || 'REPO');
+          reject(error);
         }, Number(ms || 1500));
       })
     ]).finally(function () {
