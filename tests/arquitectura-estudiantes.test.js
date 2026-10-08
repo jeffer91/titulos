@@ -27,6 +27,7 @@ const index = read('estudiantes/index.html');
 const repo = read('estudiantes/js/estudiante.repository.js');
 const controller = read('estudiantes/js/estudiante.consulta.controller.js');
 const firebaseService = read('estudiantes/js/firebase.service.js');
+const runtimeDiag = read('estudiantes/js/diagnostico.runtime.js');
 const consultaConfig = read('consulta-estado/consulta.config.js');
 const consultaApp = read('consulta-estado/consulta.app.js');
 const workflow = read('.github/workflows/pages.yml');
@@ -64,6 +65,21 @@ eliminados.forEach((rel) => {
   assert.strictEqual(repo.includes(needle), false, 'Repository no debe recuperar buscador legacy: ' + needle);
 });
 
+assert(html.includes('js/diagnostico.runtime.js'), 'Estudiantes debe cargar diagnóstico runtime.');
+assert.strictEqual(
+  runtimeDiag.includes('preventDefault()'),
+  true,
+  'El comentario de diagnóstico debe documentar que no se usa preventDefault en DevTools.'
+);
+assert.strictEqual(
+  /event\.preventDefault\s*\(/.test(runtimeDiag),
+  false,
+  'El diagnóstico runtime no debe bloquear F12 ni el menú contextual.'
+);
+assert(
+  runtimeDiag.includes("event.stopImmediatePropagation()"),
+  'Debe neutralizar listeners posteriores sin cancelar el comportamiento nativo del navegador.'
+);
 assert(html.includes('../consulta-estado/consulta.config.js'), 'Estudiantes debe cargar consulta.config.js directamente');
 assert(html.includes('../consulta-estado/consulta.service.js'), 'Estudiantes debe cargar consulta.service.js directamente');
 assert(
@@ -90,6 +106,12 @@ assert(
   controller.includes('consultarEstadoTituloRapido(estudiante, repository)'),
   'Paso 3 debe tener watchdog propio y pasar el contexto académico completo.'
 );
+assert(
+  controller.includes('ta:consulta-titulo-ruta') &&
+  controller.includes('Copiar diagnóstico') &&
+  controller.includes('ERROR FINAL:'),
+  'Paso 3 debe mostrar traza en vivo, error final y permitir copiar el diagnóstico.'
+);
 assert.strictEqual(loader.includes('document.write'), false, 'Loader no debe volver a usar document.write');
 assert.strictEqual(html.includes('shared/css/base.css'), false, 'No debe existir referencia al CSS inexistente base.css');
 
@@ -101,6 +123,7 @@ assert.strictEqual(
 );
 
 const order = [
+  'js/diagnostico.runtime.js',
   '../consulta-estado/consulta.config.js',
   '../consulta-estado/consulta.service.js',
   'js/estudiante.repository.js',
@@ -120,7 +143,8 @@ const versions = {
   loader: firstMatch(loader, /var BUILD = '([^']+)'/, 'estudiante-loader.html'),
   index: firstMatch(index, /build=([^"&<]+)/, 'estudiantes/index.html'),
   consultaConfig: firstMatch(consultaConfig, /version: '([^']+)'/, 'consulta.config.js'),
-  consultaApp: firstMatch(consultaApp, /var VERSION = '([^']+)'/, 'consulta.app.js')
+  consultaApp: firstMatch(consultaApp, /var VERSION = '([^']+)'/, 'consulta.app.js'),
+  runtimeDiag: firstMatch(runtimeDiag, /var BUILD = '([^']+)'/, 'diagnostico.runtime.js')
 };
 
 const expected = versions.app;
