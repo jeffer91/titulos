@@ -2,7 +2,7 @@
 
 // Seguridad de Coordinadores: identidad, carrera y estado SIEMPRE desde Firestore en servidor.
 // El navegador solo envía IDs y decisiones; jamás perfiles ni carreras autodeclarados.
-const CAMPO_CARRERAS=['carrerasNombres','carreras','carrerasAsignadas','carrerasIds','carrera'];
+const CAMPOS_CARRERAS=['carrerasNombres','carreras','carrerasAsignadas','carrerasIds','carrera'];
 const CAMPOS_BUSQUEDA=['carreraNombre','carrera','nombreCarrera','carreraCodigo','codigoCarrera'];
 const CAMPOS_TITULO=[
  'id','cedula','numeroIdentificacion','nombres','nombreCompleto','nombre','carreraNombre','carrera',
