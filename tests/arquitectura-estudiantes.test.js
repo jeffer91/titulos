@@ -90,6 +90,11 @@ assert.strictEqual(
   false,
   'Estudiantes no debe cargar el motor REST independiente para consultar envios.'
 );
+assert.strictEqual(
+  app.includes('TAConsultaEstadoService'),
+  false,
+  'La app no debe exigir TAConsultaEstadoService después de retirar el motor REST.'
+);
 assert(
   controller.includes('repository.consultarEnvio'),
   'El controlador debe delegar la lectura optimizada al repository.'
