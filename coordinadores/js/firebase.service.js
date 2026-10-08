@@ -6,6 +6,20 @@
   var db = null;
   var initialized = false;
   var sdkLoaded = false;
+  var APP_NAME = 'ta-titulos-coordinadores';
+
+  var COLECCIONES_LECTURA = Object.freeze({
+    envios: true,
+    versiones_envio: true,
+    configuracion: true,
+    workflow_events: true,
+    coordinadores: true
+  });
+
+  var COLECCIONES_ESCRITURA = Object.freeze({
+    envios: true,
+    workflow_events: true
+  });
 
   var FIREBASE_APP_CDN = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js';
   var FIREBASE_FIRESTORE_CDN = 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js';
@@ -22,13 +36,13 @@
         }
 
         try {
-          if (!window.firebase.apps.length) {
-            app = window.firebase.initializeApp(firebaseConfig);
-          } else {
-            app = window.firebase.app();
+          try {
+            app = window.firebase.app(APP_NAME);
+          } catch (errorApp) {
+            app = window.firebase.initializeApp(firebaseConfig, APP_NAME);
           }
 
-          db = window.firebase.firestore();
+          db = window.firebase.firestore(app);
           initialized = true;
 
           return {
@@ -110,8 +124,30 @@
   }
 
   function getDb() {
-    if (!initialized || !db) throw new Error('Firebase no está inicializado.');
+    if (!initialized || !db) {
+      var error = new Error('Firebase de Coordinadores no está inicializado.');
+      error.codigo = 'FIREBASE_COORDINADORES_NO_INICIALIZADO';
+      throw error;
+    }
     return db;
+  }
+
+  function asegurarLectura(collectionName) {
+    var nombre = String(collectionName || '');
+    if (!COLECCIONES_LECTURA[nombre]) {
+      var error = new Error('Backend de Coordinadores: la colección ' + nombre + ' no está autorizada para lectura.');
+      error.codigo = 'COLECCION_NO_AUTORIZADA_COORDINADORES';
+      throw error;
+    }
+  }
+
+  function asegurarEscritura(collectionName) {
+    var nombre = String(collectionName || '');
+    if (!COLECCIONES_ESCRITURA[nombre]) {
+      var error = new Error('Backend de Coordinadores: la colección ' + nombre + ' no está autorizada para escritura.');
+      error.codigo = 'ESCRITURA_NO_AUTORIZADA_COORDINADORES';
+      throw error;
+    }
   }
 
   function estaListo() {
@@ -119,6 +155,7 @@
   }
 
   function leerDocumento(collectionName, documentId) {
+    asegurarLectura(collectionName);
     return getDb().collection(collectionName).doc(documentId).get()
       .then(function (snapshot) {
         if (!snapshot.exists) return null;
@@ -127,6 +164,7 @@
   }
 
   function guardarDocumento(collectionName, documentId, data, options) {
+    asegurarEscritura(collectionName);
     var merge = !options || options.merge !== false;
     var payload = Object.assign({}, data || {}, {
       actualizadoEn: serverTimestamp()
@@ -137,6 +175,7 @@
   }
 
   function agregarDocumento(collectionName, data) {
+    asegurarEscritura(collectionName);
     var payload = Object.assign({}, data || {}, {
       creadoEn: serverTimestamp(),
       actualizadoEn: serverTimestamp()
@@ -146,6 +185,7 @@
   }
 
   function listarDocumentos(collectionName, options) {
+    asegurarLectura(collectionName);
     var query = getDb().collection(collectionName);
     var opts = options || {};
 
@@ -185,7 +225,7 @@
     return error && error.message ? error.message : String(error || 'Error desconocido');
   }
 
-  window.TACoordFirebaseService = Object.freeze({
+  window.TACoordinadorFirebaseService = Object.freeze({
     iniciar: iniciar,
     estaListo: estaListo,
     getDb: getDb,
