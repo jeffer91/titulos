@@ -51,7 +51,14 @@
     var config = window.TA_ESTUDIANTES_CONFIG || {};
     var state = window.TAEstudianteState;
 
-    if (!service || typeof service.iniciar !== 'function') return Promise.resolve(false);
+    if (!service || typeof service.iniciar !== 'function') {
+      mostrarErrorBackend({
+        codigo: 'BACKEND_ESTUDIANTES_NO_DISPONIBLE',
+        mensaje: 'No se cargó el servicio Firebase exclusivo de Estudiantes.'
+      });
+      return Promise.resolve(false);
+    }
+
     if (service.estaListo && service.estaListo()) {
       if (state && state.marcarFirebaseListo) state.marcarFirebaseListo(true);
       return Promise.resolve(true);
@@ -60,11 +67,24 @@
     return service.iniciar(config.firebase)
       .then(function (resultado) {
         var ok = !(resultado && resultado.ok === false);
-        if (ok && state && state.marcarFirebaseListo) state.marcarFirebaseListo(true);
-        return ok;
+
+        if (ok) {
+          if (state && state.marcarFirebaseListo) state.marcarFirebaseListo(true);
+          return true;
+        }
+
+        mostrarErrorBackend({
+          codigo: resultado && resultado.codigo || 'FIREBASE_ESTUDIANTES_ERROR',
+          mensaje: resultado && resultado.mensaje || 'No se pudo conectar el backend de Estudiantes.'
+        });
+        return false;
       })
       .catch(function (error) {
-        console.warn('[Estudiantes] Precarga Firebase pendiente:', error);
+        mostrarErrorBackend({
+          codigo: error && (error.codigo || error.code || error.name) || 'FIREBASE_ESTUDIANTES_ERROR',
+          mensaje: error && error.message || 'No se pudo conectar el backend de Estudiantes.',
+          stack: error && error.stack || ''
+        });
         return false;
       });
   }
@@ -163,6 +183,30 @@
 
     var faltantes = Object.keys(dependencias).filter(function (key) { return !dependencias[key]; });
     return { ok: faltantes.length === 0, faltantes: faltantes };
+  }
+
+  function mostrarErrorBackend(detalle) {
+    detalle = detalle || {};
+    var codigo = detalle.codigo || 'BACKEND_ESTUDIANTES_ERROR';
+    var mensaje = detalle.mensaje || 'Ocurrió un error en el backend de Estudiantes.';
+    var texto = 'Error de conexión [' + codigo + ']: ' + mensaje;
+
+    console.error('[Estudiantes][Backend]', detalle);
+
+    var consultaMensaje = document.querySelector('#consultaMensaje');
+    if (consultaMensaje) {
+      consultaMensaje.textContent = texto;
+      consultaMensaje.className = 'status-message status-message--danger';
+      consultaMensaje.classList.remove('is-hidden');
+    }
+
+    if (window.TAEstudianteDiagnostico && typeof window.TAEstudianteDiagnostico.registrar === 'function') {
+      window.TAEstudianteDiagnostico.registrar('ERROR_BACKEND_ESTUDIANTES', {
+        codigo: codigo,
+        mensaje: mensaje,
+        stack: detalle.stack || ''
+      });
+    }
   }
 
   function mostrarErrorDependencias(faltantes) {
