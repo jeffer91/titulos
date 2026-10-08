@@ -47,7 +47,7 @@
   }
 
   function preconectarFirebase() {
-    var service = window.TAFirebaseService;
+    var service = window.TAEstudianteFirebaseService;
     var config = window.TA_ESTUDIANTES_CONFIG || {};
     var state = window.TAEstudianteState;
 
@@ -144,7 +144,7 @@
   function verificarDependencias() {
     var dependencias = {
       TA_ESTUDIANTES_CONFIG: window.TA_ESTUDIANTES_CONFIG,
-      TAFirebaseService: window.TAFirebaseService,
+      TAEstudianteFirebaseService: window.TAEstudianteFirebaseService,
       TAEstudianteRepository: window.TAEstudianteRepository,
       TAEstudianteValidaciones: window.TAEstudianteValidaciones,
       TAEstudianteUI: window.TAEstudianteUI,
