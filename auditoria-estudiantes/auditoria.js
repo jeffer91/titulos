@@ -24,7 +24,57 @@
     cleanupBtn.addEventListener('click', limpiarManual);
     resetBtn.addEventListener('click', reiniciarPanel);
     transportBtn.addEventListener('click', ejecutarTransporteReal);
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-run-step]'), function (button) {
+      button.addEventListener('click', function () {
+        ejecutarPasoManual(Number(button.getAttribute('data-run-step') || 0));
+      });
+    });
   });
+
+  function prepararRunSiNecesario() {
+    if (audit.runId && audit.docId && audit.datos) return;
+
+    audit.inicioMs = Date.now();
+    audit.runId = 'AUDIT_' + Date.now();
+    audit.datos = leerDatosFormulario();
+    audit.docId = audit.datos.periodo + '__' + audit.datos.cedula;
+    audit.eventIds = [];
+    setText('#metricRun', audit.runId);
+    setText('#metricDoc', audit.docId);
+    setText('#runInfo', 'Ejecución manual activa: ' + audit.runId);
+    log('INICIO ejecución manual · ' + audit.runId);
+  }
+
+  function ejecutarPasoManual(numero) {
+    var pasos = {
+      1: paso1CrearEnvio,
+      2: paso2ConsultarEstudiante,
+      3: paso3ValidarCoordinacion,
+      4: paso4VerificarInvestigacion,
+      5: paso5AprobarInvestigacion,
+      6: paso6ConsultarFinal,
+      7: paso7Limpiar
+    };
+    var fn = pasos[numero];
+
+    if (!fn) return;
+
+    prepararRunSiNecesario();
+    bloquear(true);
+
+    inicializarFirebase()
+      .then(function () { return fn(); })
+      .then(function () {
+        setText('#runInfo', 'Paso ' + numero + ' completado. Continúa con el siguiente para aislar el flujo.');
+      })
+      .catch(function (error) {
+        setText('#runInfo', 'Paso ' + numero + ' falló: ' + mensaje(error));
+      })
+      .finally(function () {
+        bloquear(false);
+      });
+  }
 
   function ejecutarFlujoCompleto() {
     reiniciarPanel();
@@ -591,6 +641,9 @@
   function bloquear(valor) {
     runAll.disabled = Boolean(valor);
     cleanupBtn.disabled = Boolean(valor);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-run-step]'), function (button) {
+      button.disabled = Boolean(valor);
+    });
   }
 
   function log(texto) {
