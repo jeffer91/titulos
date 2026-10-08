@@ -36,6 +36,7 @@ jobs:
           node tests/consulta-estado.test.js
           node tests/estudiante-envio-rapido.test.js
           node tests/arquitectura-estudiantes.test.js
+          node tests/arquitectura-coordinadores.test.js
           node tests/investigacion-cola.test.js
           node tests/auditoria-e2e.test.js
           node tests/administrador-faltantes.test.js
