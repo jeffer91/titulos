@@ -5,7 +5,7 @@
   var config = window.TA_ADMINISTRADORES_CONFIG;
   var ui = window.TAAdminUI;
   var repository = window.TAAdministradorRepository;
-  var firebaseService = window.TAFirebaseService || window.TAAdminFirebaseService;
+  var firebaseService = window.TAAdminFirebaseService;
 
   var estado = {
     cargado: false,
