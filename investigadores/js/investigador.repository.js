@@ -4,8 +4,11 @@
 
   var config = window.TA_INVESTIGADORES_CONFIG;
   var firebaseService = window.TAInvestigadorFirebaseService;
+  var seguro = window.TAInvestigadorSeguro;
+  function modoSeguro(){return Boolean(seguro&&seguro.activo&&seguro.activo());}
 
   function buscarInvestigador(cedula) {
+    if(modoSeguro())return seguro.perfil().then(normalizarInvestigador);
     var id = soloNumeros(cedula);
     if (id.length !== 10) return Promise.reject(new Error('Ingresa una cédula válida de 10 dígitos.'));
 
@@ -26,6 +29,7 @@
   }
 
   function crearPin(investigador, pin) {
+    if(modoSeguro())return Promise.reject(new Error('El PIN heredado no se utiliza en acceso seguro.'));
     validarPin(pin);
     if (!investigador || !investigador.id) return Promise.reject(new Error('No se identificó al investigador.'));
     if (investigador.pinCreado) return Promise.reject(new Error('Ya existe un PIN para este investigador.'));
@@ -43,6 +47,7 @@
   }
 
   function validarAcceso(investigador, pin) {
+    if(modoSeguro())return Promise.reject(new Error('La autorización se comprueba mediante Firebase Authentication.'));
     if (!investigador || !investigador.pinCreado || !investigador.pinHash) {
       return Promise.reject(new Error('Tu acceso todavía no tiene un PIN asignado.'));
     }
@@ -61,6 +66,10 @@
   }
 
   function listarTitulosHabilitados(investigador) {
+    if(modoSeguro())return seguro.cola().then(function(result){
+      if(result.truncado)console.warn('[Investigadores][LIMIT] Cola truncada por límite del backend.');
+      return (result.titulos||[]).map(normalizarTitulo);
+    });
     /*
       Investigación trabaja por estado, no por el período activo global.
       Un expediente entra a esta cola cuando Coordinación lo habilita,
@@ -81,7 +90,13 @@
   }
 
   function listarRevisadosPorInvestigador(investigador) {
-    if (!investigador) return Promise.reject(new Error('No se identificó al investigador.'));
+    if(modoSeguro())return seguro.revisados().then(function(data){
+      var report=window.TARevisionReportService;
+      if(!report||typeof report.normalizarLista!=='function')throw new Error('No se cargó el motor de reportes.');
+      if(data.truncado)console.warn('[Investigadores][LIMIT] Historial truncado por límite del backend.');
+      return report.normalizarLista(data.titulos||[]).filter(function(item){return report.coincideInvestigador(item,investigador);});
+    });
+    if (!investigador return Promise.reject(new Error('No se identificó al investigador.'));
 
     var reportService = window.TARevisionReportService;
     if (!reportService || typeof reportService.normalizarLista !== 'function') {
@@ -102,6 +117,7 @@
   }
 
   function revisarTitulo(titulo, accion, observacion, investigador) {
+    if(modoSeguro())return seguro.revisar({tituloId:titulo&&titulo.id,accion:accion,observacion:observacion}).then(normalizarTitulo);
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título.'));
     if (!estaHabilitadoPorCoordinador(titulo)) return Promise.reject(new Error('Este título todavía no está habilitado por Coordinación.'));
     if (!investigador || !investigador.pinActivo) return Promise.reject(new Error('El acceso del investigador no está activo.'));

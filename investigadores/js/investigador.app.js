@@ -17,6 +17,27 @@
   function iniciar() {
     conectarEventos();
     setText('estadoGeneral', 'Conectando');
+    var seguro = window.TAInvestigadorSeguro;
+    if(seguro && seguro.activo && seguro.activo()){
+      setText('estadoGeneral','Autenticando');
+      seguro.iniciar().then(function(identificado){
+        if(!identificado){
+          setText('estadoGeneral','Sesión requerida');
+          mensaje('accesoMensaje','Ingresa con tu cuenta institucional para continuar.','info');
+          return null;
+        }
+        return repository.buscarInvestigador('').then(function(perfil){
+          investigador=perfil;
+          abrirPanel();
+          return cargarTitulos(false);
+        });
+      }).catch(function(error){
+        investigador=null;
+        setText('estadoGeneral','Acceso denegado');
+        mensaje('accesoMensaje',errorMensaje(error,'Tu cuenta no tiene autorización para esta revisión.'),'error');
+      });
+      return;
+    }
 
     if (!firebaseService || typeof firebaseService.iniciar !== 'function') {
       setText('estadoGeneral', 'Backend no disponible');
@@ -778,6 +799,8 @@
   }
 
   function salir() {
+    var seguro=window.TAInvestigadorSeguro;
+    if(seguro&&seguro.activo&&seguro.activo())return seguro.cerrarSesion();
     investigador = null;
     titulos = [];
     revisiones = [];

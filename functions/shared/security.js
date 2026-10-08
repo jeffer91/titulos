@@ -28,8 +28,8 @@ async function autenticar(auth, header, rol) {
   if (!roles.includes(rol)) throw fallo(403,'ROL_NO_AUTORIZADO');
   return Object.freeze({uid:claims.uid,rol,roles,
     cedula:rol === 'estudiante' && /^\d{10}$/.test(String(claims.cedula||'')) ? String(claims.cedula) : '',
-    email:rol === 'coordinador' ? String(claims.email||'').trim().toLowerCase() : '',
-    emailVerified:rol === 'coordinador' && claims.email_verified === true});
+    email:['coordinador','investigador'].includes(rol) ? String(claims.email||'').trim().toLowerCase() : '',
+    emailVerified:['coordinador','investigador'].includes(rol) && claims.email_verified === true});
 }
 function origenesPermitidos(config) {
   const lista = ['https://jeffer91.github.io'];

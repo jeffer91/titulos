@@ -1,6 +1,7 @@
 'use strict';
-const {crearHandler} = require('../shared/http');
-function crearModulo({auth,origins}) {
-  return crearHandler({modulo:'investigadores',rol:'investigador',auth,origins});
+const {crearHandler}=require('../shared/http');
+const {crearRutasInvestigadores}=require('../services/investigadores');
+function crearModulo({auth,origins,db}){
+ return crearHandler({modulo:'investigadores',rol:'investigador',auth,origins,routes:crearRutasInvestigadores({db})});
 }
-module.exports = {crearModulo};
+module.exports={crearModulo};

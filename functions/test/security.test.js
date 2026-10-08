@@ -84,7 +84,7 @@ test('4 backends distintos, administrador sin acceso implícito a otros roles',a
   const roles={estudiantes:'estudiante',coordinadores:'coordinador',investigadores:'investigador',administradores:'administrador'};
   for(const [modulo,rol] of Object.entries(roles)) {
     const crear=require('../modules/'+modulo).crearModulo;
-    const backend=modulo==='estudiantes'?{operativa:{},academica:{}}:modulo==='coordinadores'?{db:{}}:{};
+    const backend=modulo==='estudiantes'?{operativa:{},academica:{}}:['coordinadores','investigadores'].includes(modulo)?{db:{}}:{};
     const yes=request({headers:{authorization:'Bearer x'}});
     await crear({...backend,auth:fakeAuth({uid:'u',roles:[rol]})})(yes.req,yes.res);
     assert.equal(yes.res.statusCode,200,modulo);

@@ -6,6 +6,14 @@
   <title>Investigadores | Revisión de títulos</title>
   <link rel="stylesheet" href="css/investigador.css?v=4.8.0" />
   <link rel="stylesheet" href="css/visibility-fixes.css?v=4.8.0" />
+  <style>
+    #investigadorLoginSeguro[hidden],#investigadorLoginSeguroForm[hidden]{display:none!important}
+    .investigador-seguro #investigadorLoginSeguro{display:block!important}
+    .investigador-seguro #formIdentificacion,.investigador-seguro #formLoginPin,
+    .investigador-seguro #formCrearPin,.investigador-seguro #panelPendiente,
+    .investigador-seguro #panelAcceso>.access-intro{display:none!important}
+    #investigadorLoginSeguroForm input{width:100%;max-width:440px;padding:11px;border:1px solid #cbd5e1;border-radius:8px}
+  </style>
 </head>
 <body>
   <header class="app-header">
@@ -19,6 +27,21 @@
 
   <main class="container">
     <section class="card access-card" id="panelAcceso">
+      <div id="investigadorLoginSeguro" hidden>
+        <div class="access-intro">
+          <span class="step">Acceso institucional seguro</span>
+          <h2>Identificación del investigador</h2>
+          <p>Ingresa con tu cuenta institucional. Solo podrás revisar tus carreras asignadas.</p>
+        </div>
+        <form id="investigadorLoginSeguroForm" class="access-form">
+          <label for="investigadorLoginCorreo">Correo institucional</label>
+          <input id="investigadorLoginCorreo" type="email" autocomplete="username" required />
+          <label for="investigadorLoginClave">Contraseña</label>
+          <input id="investigadorLoginClave" type="password" autocomplete="current-password" required />
+          <button class="btn btn--primary" type="submit">Ingresar</button>
+        </form>
+        <div class="message" id="investigadorLoginEstado" role="status"></div>
+      </div>
       <div class="access-intro">
         <span class="step">Acceso seguro</span>
         <h2 id="accesoTitulo">Ingresa tu cédula</h2>
@@ -195,13 +218,15 @@
   </main>
 
   <script src="js/firebase.config.js?v=4.8.0"></script>
+  <script src="js/secure.config.js?v=4.8.1"></script>
+  <script src="js/secure.service.js?v=4.8.1"></script>
   <script src="js/app.config.js?v=4.8.0"></script>
   <script src="js/firebase.service.js?v=4.8.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="js/reporte-revisiones.service.js?v=4.8.0"></script>
   <script src="js/pdf-revisiones.service.js?v=4.8.0"></script>
-  <script src="js/investigador.repository.js?v=4.8.0"></script>
-  <script src="js/investigador.app.js?v=4.8.0"></script>
+  <script src="js/investigador.repository.js?v=4.8.1"></script>
+  <script src="js/investigador.app.js?v=4.8.1"></script>
 </body>
 </html>
