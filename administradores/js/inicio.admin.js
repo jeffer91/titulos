@@ -74,21 +74,41 @@
 
     return Promise.all([
       repository.listarEstudiantesConTitulos(periodo),
-      cargarPendientesPorPeriodo()
+      repository.obtenerFaltantesRevision(periodo)
     ]).then(function (resultados) {
-      var estudiantes = resultados[0];
-      var pendientesPeriodo = resultados[1];
+      var estudiantes = resultados[0] || [];
+      var faltantes = resultados[1] || {
+        coordinacion: { total: 0, carreras: [] },
+        investigacion: { total: 0, carreras: [] }
+      };
       var stats = calcularStats(estudiantes);
-      var pendientesCarrera = calcularPendientesPorCarrera(estudiantes);
+
+      stats.coordinacionPendientes = Number(faltantes.coordinacion && faltantes.coordinacion.total || 0);
+      stats.investigacionPendientes = Number(faltantes.investigacion && faltantes.investigacion.total || 0);
 
       ui.renderInicioResumen(stats);
-      ui.renderPendientesPorCarrera(pendientesCarrera);
-      ui.renderPendientesPorPeriodo(pendientesPeriodo);
+      actualizarPeriodoHeader(periodo);
+
+      window.dispatchEvent(new CustomEvent('admin:faltantes-actualizados', {
+        detail: {
+          total: stats.coordinacionPendientes + stats.investigacionPendientes,
+          coordinacion: stats.coordinacionPendientes,
+          investigacion: stats.investigacionPendientes
+        }
+      }));
 
       ui.showStatus('#inicioMensaje', 'Resumen actualizado correctamente.', 'success');
     }).catch(function (error) {
       ui.showStatus('#inicioMensaje', obtenerMensaje(error, 'No se pudo actualizar el resumen.'), 'error');
     });
+  }
+
+  function actualizarPeriodoHeader(periodoId) {
+    var encontrado = estado.periodos.filter(function (periodo) {
+      return periodo.id === periodoId;
+    })[0];
+
+    ui.setText('#adminPeriodoActual', encontrado ? encontrado.label : repository.formatearPeriodoId(periodoId));
   }
 
   function cargarPendientesPorPeriodo() {
