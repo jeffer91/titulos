@@ -8,13 +8,20 @@
  function iniciar(){
    if(!activo())return Promise.resolve(false);
    if(initPromise)return initPromise;
-   initPromise=new Promise(function(resolve,reject){
-     if(window.firebase&&window.firebase.auth)return resolve();
-     var tag=document.createElement('script');
-     tag.src='https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js';
-     tag.onload=resolve;tag.onerror=function(){reject(error('AUTH_SDK_ERROR','No se pudo descargar Firebase Authentication.'));};
-     document.head.appendChild(tag);
-   }).then(function(){
+   function cargarSdk(url){
+     return new Promise(function(resolve,reject){
+       var tag=document.createElement('script');
+       tag.src=url;tag.async=false;
+       tag.onload=resolve;tag.onerror=function(){reject(error('AUTH_SDK_ERROR','No se pudo descargar el SDK de autenticación.'));};
+       document.head.appendChild(tag);
+     });
+   }
+   initPromise=(window.firebase&&window.firebase.initializeApp?Promise.resolve():
+       cargarSdk('https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js'))
+     .then(function(){
+       return window.firebase&&window.firebase.auth?true:
+         cargarSdk('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js');
+     }).then(function(){
      if(!window.firebase||!window.firebase.auth)throw error('AUTH_SDK_ERROR','Authentication no está disponible.');
      var app;
      try{app=window.firebase.app('ta-estudiante-autenticado');}
@@ -49,8 +56,12 @@
          window.location.reload();
        });
      }
-     auth.onAuthStateChanged(function(){ultimoExpediente=null;mostrarEstado();});
-     return mostrarEstado();
+     return new Promise(function(resolve,reject){
+       var unsub=auth.onAuthStateChanged(function(){
+         unsub();ultimoExpediente=null;
+         mostrarEstado().then(resolve,reject);
+       },reject);
+     });
    });
    return initPromise;
  }

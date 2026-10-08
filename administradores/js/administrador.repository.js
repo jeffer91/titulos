@@ -54,21 +54,25 @@
   }
 
   function listarEstudiantes() {
-    if(modoSeguro())return seguro.noMigrado('consultas académicas');
+    if(modoSeguro())return seguro.estudiantes().then(function(docs){return deduplicarEstudiantesBasico((docs||[]).map(normalizarEstudiante));});
     return listarColeccion(config.collections.estudiantes).then(function (docs) {
       return deduplicarEstudiantesBasico(docs.map(normalizarEstudiante));
     });
   }
 
   function listarTitulos() {
-    if(modoSeguro())return seguro.noMigrado('consulta general de expedientes');
+    if(modoSeguro())return seguro.envios().then(function(docs){return (docs||[]).map(normalizarTitulo);});
     return listarColeccion(config.collections.titulos).then(function (docs) {
       return docs.map(normalizarTitulo);
     });
   }
 
   function listarRevisionesInvestigacion() {
-    if(modoSeguro())return seguro.noMigrado('reporte general de revisiones');
+    if(modoSeguro())return seguro.envios().then(function(docs){
+      var service=window.TARevisionReportService;
+      if(!service||typeof service.normalizarLista!=='function')throw new Error('El motor de reportes no está disponible.');
+      return service.normalizarLista(docs);
+    });
     var reportService = window.TARevisionReportService;
     if (!reportService || typeof reportService.normalizarLista !== 'function') {
       return Promise.reject(new Error('No se cargó el motor de reportes de revisiones.'));
@@ -191,7 +195,14 @@
   }
 
   function obtenerCarreras() {
-    if(modoSeguro())return seguro.carreras();
+    // En modo seguro usar el mismo catálogo académico que las listas; no asumir
+    // que la colección opcional de carreras de Títulos está poblada.
+    if(modoSeguro())return listarEstudiantes().then(function(items){
+      var mapa={};(items||[]).forEach(function(item){
+        var n=item.carrera||item.nombreCarrera,k=normalizarTexto(n);
+        if(k&&k!=='SIN CARRERA'&&!mapa[k])mapa[k]={nombreCarrera:n,codigoCarrera:item.codigoCarrera||''};
+      });return Object.keys(mapa).map(function(k){return mapa[k];}).sort(function(a,b){return a.nombreCarrera.localeCompare(b.nombreCarrera);});
+    });
     return listarEstudiantes().then(function (estudiantes) {
       var mapa = {};
 
@@ -337,6 +348,7 @@
   }
 
   function archivarIntento(tituloId, motivo) {
+    if(modoSeguro())return seguro.archivar(tituloId,motivo);
     if (!tituloId) {
       return Promise.reject(new Error('No se pudo identificar el intento.'));
     }

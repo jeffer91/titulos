@@ -119,6 +119,7 @@ function infoPublica(academicaData,cedula){
  return {
   cedula,nombres:limpio(e.nombres||e.nombreCompleto||e.nombre),
   carrera:limpio(m.nombreCarrera),nombreCarrera:limpio(m.nombreCarrera),
+  carreraClave:limpio(m.nombreCarrera).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(),
   codigoCarrera:limpio(m.codigoCarrera),sede:limpio(m.sede),
   modalidad:limpio(m.modalidadTitulacion||m.modalidad||m.jornada),
   periodoId:academicaData.periodoId,estadoMatricula:limpio(m.estadoMatricula||'ACTIVO').toUpperCase(),

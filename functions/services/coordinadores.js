@@ -82,8 +82,12 @@ async function consultarTitulos(db,perfil) {
  if(!carreras.length)return {titulos:[],truncado:false};
  const consultas=[];
  // Las consultas se limitan DESDE FIRESTORE, no se descarga la base global.
- for(const carrera of carreras)for(const campo of CAMPOS_BUSQUEDA) {
-   consultas.push(db.collection('envios').where(campo,'==',carrera).limit(500).get());
+ for(const carrera of carreras) {
+   // Campo canónico nuevo + variantes exactas para documentos legados.
+   consultas.push(db.collection('envios').where('carreraClave','==',clave(carrera)).limit(500).get());
+   for(const value of new Set([carrera,carrera.toUpperCase(),carrera.toLowerCase(),clave(carrera)]))
+     for(const campo of CAMPOS_BUSQUEDA)
+       consultas.push(db.collection('envios').where(campo,'==',value).limit(500).get());
  }
  const resultados=await Promise.all(consultas);
  const mapa=new Map();let truncado=false;

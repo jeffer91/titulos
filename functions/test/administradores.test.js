@@ -12,6 +12,10 @@ function memoria(initial={}) {
  function collection(name) {
   return {
    doc(id){const key=id||'auto-'+(++seq);return {name,id:key,get:async()=>snapshot(name,key)};},
+   where(key,op,value){
+    assert.equal(op,'==');
+    return {limit(n){return {get:async()=>({docs:[...rows(name)].filter(([id,x])=>x[key]===value).slice(0,n).map(([id])=>snapshot(name,id))})};}};
+   },
    limit(limit){return {get:async()=>({docs:[...rows(name).keys()].slice(0,limit).map(id=>snapshot(name,id))})};},
    async add(data){const id='auto-'+(++seq);rows(name).set(id,{...data});return {id};}
   };
@@ -156,7 +160,7 @@ test('ninguna ruta administrativa ofrece acceso directo a documentos envios arbi
 
 test('solo se pueden asignar roles operativos, nunca crear otro administrador desde API',async()=>{
  const calls=[];
- const authAdmin={getUser:async uid=>({uid,disabled:false,customClaims:{roles:[]}}),
+ const authAdmin={getUser:async uid=>({uid,disabled:false,customClaims:{roles:[]},email:'inv@example.edu',emailVerified:true}),
   setCustomUserClaims:async(uid,claims)=>{calls.push({uid,claims});}};
  const {rutas,db}=setup(seed(),authAdmin);
  await assert.rejects(()=>rutas['/usuarios/rol'].handle({usuario:actor,body:{
@@ -165,6 +169,8 @@ test('solo se pueden asignar roles operativos, nunca crear otro administrador de
  await assert.rejects(()=>rutas['/usuarios/rol'].handle({usuario:actor,body:{
   uid:'alumno-1',role:'estudiante',cedula:'1712345678'
  }}),e=>e.code==='ALTA_ESTUDIANTE_REQUIERE_VERIFICACION_ACADEMICA');
+ await assert.rejects(()=>rutas['/usuarios/rol'].handle({usuario:actor,body:{uid:'uidDocente',role:'coordinador'}}),
+  e=>e.code==='PERFIL_NO_VINCULADO_O_AMBIGUO');
  const ok=await rutas['/usuarios/rol'].handle({usuario:actor,body:{uid:'uidDocente',role:'investigador'}});
  assert.equal(ok.asignado,true);
  assert.deepEqual(calls,[{uid:'uidDocente',claims:{roles:['investigador']}}]);

@@ -47,7 +47,7 @@
           estado.inicializado = true;
           document.body.classList.remove('admin-auth-pending');
           ui.setText('#adminEstadoGeneral', 'Acceso verificado');
-          activarTab('coordinadores');
+          activarTab(obtenerTabInicial());
           return true;
         });
       }).catch(function (error) {
@@ -232,7 +232,7 @@
   function cargarModulo(nombreTab, forzar) {
     var seguro = window.TAAdministradorSeguro;
     if (seguro && seguro.activo && seguro.activo() &&
-        ['coordinadores','investigadores','periodos','ajustes'].indexOf(nombreTab) === -1) {
+        ['inicio','faltantes','estudiantes','coordinadores','investigadores','reportes','periodos','ajustes'].indexOf(nombreTab) === -1) {
       mostrarMensajeModulo(nombreTab, {
         titulo:'Operación pendiente de migración',
         mensaje:'Esta sección todavía no tiene endpoints autorizados del backend.',

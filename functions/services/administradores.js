@@ -1,14 +1,24 @@
 'use strict';
 const person=require('./admin-personal');
+const adminData=require('./admin-data');
 const {publicConfig,validate,safeProvider,fail,text}=require('./admin-config');
 const adminFields=['id','nombreCarrera','codigoCarrera','carrera','nombre','codigo','activo'];
 
 function documento(snap){return snap&&snap.exists?{...snap.data(),id:snap.id}:null;}
 function safe(d,fields){const o={};for(const k of fields)if(d&&d[k]!==undefined)o[k]=d[k];return o;}
 function bodyObject(b){if(!b||typeof b!=='object'||Array.isArray(b))fail(400,'SOLICITUD_INVALIDA');return b;}
-function crearRutasAdministradores({db,authAdmin}){
+function crearRutasAdministradores({db,authAdmin,academica}){
  if(!db)throw Error('BASE_ADMINISTRADOR_REQUERIDA');
  return {
+  '/estudiantes':{method:'GET',async handle(){
+    return adminData.estudiantes(academica);
+  }},
+  '/envios':{method:'GET',async handle(){
+    return adminData.envios(db);
+  }},
+  '/envios/archivar':{method:'POST',async handle({usuario,body}){
+    return adminData.archivar(db,body,usuario);
+  }},
   '/configuracion':{method:'GET',async handle(){
    const snap=await db.collection('configuracion').doc('general').get();
    return publicConfig(documento(snap)||{});
@@ -85,8 +95,36 @@ function crearRutasAdministradores({db,authAdmin}){
    const target=await authAdmin.getUser(uid);
    if(target.disabled)fail(403,'CUENTA_DESHABILITADA');
    const claims=target.customClaims||{};
-   const roles=Array.isArray(claims.roles)?claims.roles.filter(x=>x!=='administrador'):
-     typeof claims.role==='string'?[claims.role].filter(x=>x!=='administrador'):[];
+   // El administrador nunca puede convertir en "usuario normal" a un administrador existente.
+   if(claims.role==='administrador'||Array.isArray(claims.roles)&&claims.roles.includes('administrador'))
+     fail(403,'CUENTA_ADMINISTRATIVA_PROTEGIDA');
+   const roles=Array.isArray(claims.roles)?claims.roles.filter(x=>['estudiante','coordinador','investigador'].includes(x)):
+     typeof claims.role==='string'&&['estudiante','coordinador','investigador'].includes(claims.role)?[claims.role]:[];
+   // Una cuenta solo recibe un rol operativo si su perfil real está vinculado,
+   // activo y corresponde al UID o al correo VERIFICADO por Firebase.
+   if(role==='coordinador'||role==='investigador'){
+    const collection=role==='coordinador'?'coordinadores':'investigadores';
+    const col=db.collection(collection);
+    const byUid=await col.where('authUid','==',uid).limit(2).get();
+    let perfiles=byUid.docs.map(documento);
+    if(!perfiles.length&&target.emailVerified===true&&target.email){
+     const email=String(target.email).trim().toLowerCase();
+     const byEmail=await col.where('email','==',email).limit(2).get();
+     perfiles=byEmail.docs.map(documento);
+     if(!perfiles.length){
+      const byCorreo=await col.where('correo','==',email).limit(2).get();
+      perfiles=byCorreo.docs.map(documento);
+     }
+    }
+    if(perfiles.length!==1)fail(403,'PERFIL_NO_VINCULADO_O_AMBIGUO');
+    const vinculo=perfiles[0];
+    if(vinculo.activo===false||String(vinculo.estado||'').toUpperCase()==='INACTIVO')
+      fail(403,'PERFIL_INACTIVO');
+    if(vinculo.authUid&&vinculo.authUid!==uid)fail(403,'VINCULO_UID_INCORRECTO');
+    if(!vinculo.authUid&&(!target.emailVerified||!target.email||
+      String(vinculo.email||vinculo.correo||'').trim().toLowerCase()!==String(target.email).trim().toLowerCase()))
+      fail(403,'EMAIL_NO_VERIFICADO');
+   }
    const updated={...claims,roles:[...new Set([...roles,role])]};
    if(role==='estudiante'){
     if(!/^\d{10}$/.test(text(body.cedula)))fail(422,'CEDULA_VERIFICADA_REQUERIDA');

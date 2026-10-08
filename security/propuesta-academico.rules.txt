@@ -1,0 +1,13 @@
+/*
+  FRAGMENTO PARA REVISIÓN MANUAL (NO DESPLEGABLE) — utet-4387a.
+  Estudiante y matriculas son recursos compartidos: otras aplicaciones
+  institucionales podrían leer o editar estos documentos directamente.
+  NO PEGAR ESTAS REGLAS EN PRODUCCIÓN SIN AUDITAR TODAS ESAS APLICACIONES.
+  Para Títulos, la cuenta de servicio de Functions necesita IAM lectura;
+  bloquear solicitudes SDK en Firestore NO bloquea llamadas Admin SDK.
+
+  ADVERTENCIA: una regla wildcard allow existente puede seguir concediendo
+  acceso, aunque este bloque aparezca como deny.
+*/
+match /Estudiante/{id} { allow read, write: if false; }
+match /matriculas/{id} { allow read, write: if false; }

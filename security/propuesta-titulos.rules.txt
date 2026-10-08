@@ -1,0 +1,20 @@
+/*
+  FRAGMENTO DE MIGRACIÓN (NO ES UN ARCHIVO DESPLEGABLE).
+  Proyecto: titulos-ec2fa
+  Incorporar SOLAMENTE después de migrar las aplicaciones que utilicen estas colecciones.
+  MUY IMPORTANTE: Firestore concede acceso si CUALQUIER regla coincidente
+  permite la operación. Estos deny NO REVOCAN reglas wildcard amplias.
+  Se debe inspeccionar y corregir el archivo completo de reglas vigente.
+  Firebase Admin SDK/Cloud Functions usa IAM y no está sujeto a estas reglas cliente.
+*/
+match /envios/{id} { allow read, write: if false; }
+match /versiones_envio/{id} { allow read, write: if false; }
+match /workflow_events/{id} { allow read, write: if false; }
+match /configuracion/{id} { allow read, write: if false; }
+match /coordinadores/{id} { allow read, write: if false; }
+match /investigadores/{id} { allow read, write: if false; }
+match /periodos/{id} { allow read, write: if false; }
+match /carreras/{id} { allow read, write: if false; }
+match /resoluciones/{id} { allow read, write: if false; }
+match /ia/{id} { allow read, write: if false; }
+match /ia_cuotas/{id} { allow read, write: if false; }
