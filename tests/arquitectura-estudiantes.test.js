@@ -71,18 +71,24 @@ assert(
   'El controlador debe delegar la lectura optimizada al repository.'
 );
 assert(
-  repo.includes("motor: 'REST_DIRECTO'") && repo.includes('service.consultar(periodoId, cedulaIngresada)'),
-  'Repository debe consultar el estado exclusivamente mediante REST.'
+  repo.includes("motor: 'RESOLVER_FLEXIBLE'") &&
+  repo.includes("ruta: 'SDK_ID_EXACTO'") &&
+  repo.includes("ruta: 'REST_ID_EXACTO'") &&
+  repo.includes("ruta: 'SDK_IDENTIDAD'"),
+  'Repository debe resolver por SDK/REST exactos y fallback flexible.'
 );
-assert.strictEqual(
-  repo.includes('leerDocumentoServidor'),
-  false,
-  'Repository no debe volver a leer envios mediante Firestore SDK.'
+assert(
+  repo.includes('periodosCandidatos') && repo.includes('puntuarCandidato'),
+  'El resolver debe usar contexto académico y puntuar candidatos.'
 );
-assert.strictEqual(
+assert(
   firebaseService.includes('function leerDocumentoServidor'),
-  false,
-  'La lectura SDK especial de envios debe permanecer eliminada.'
+  'Firebase service debe ofrecer lectura fresca del documento exacto desde servidor.'
+);
+assert(
+  controller.includes('TIMEOUT_TITULOS_MS = 8000') &&
+  controller.includes('consultarEstadoTituloRapido(estudiante, repository)'),
+  'Paso 3 debe tener watchdog propio y pasar el contexto académico completo.'
 );
 assert.strictEqual(loader.includes('document.write'), false, 'Loader no debe volver a usar document.write');
 assert.strictEqual(html.includes('shared/css/base.css'), false, 'No debe existir referencia al CSS inexistente base.css');
@@ -134,4 +140,4 @@ assert(
   'GitHub Actions debe ejecutar las pruebas de regresión antes de publicar.'
 );
 
-console.log('OK arquitectura-estudiantes: motor único, sin legacy y build consistente ' + expected + '.');
+console.log('OK arquitectura-estudiantes: resolver flexible paralelo, watchdog y build consistente ' + expected + '.');
