@@ -5,22 +5,23 @@
   var firebaseService = window.TACoordinadorFirebaseService;
 
   function guardarRevision(collectionName, documentId, data) {
-    var db = firebaseService.getDb();
-    var payload = Object.assign({}, data || {}, {
-      actualizadoEn: serverTimestamp()
-    });
+    if (!firebaseService || typeof firebaseService.guardarDocumento !== 'function') {
+      var error = new Error('No se cargó el backend propio de Coordinadores.');
+      error.codigo = 'BACKEND_COORDINADORES_NO_DISPONIBLE';
+      return Promise.reject(error);
+    }
 
-    return db.collection(collectionName).doc(documentId).set(payload, { merge: true });
+    return firebaseService.guardarDocumento(collectionName, documentId, data || {}, { merge: true });
   }
 
   function registrarLog(collectionName, data) {
-    var db = firebaseService.getDb();
-    var payload = Object.assign({}, data || {}, {
-      creadoEn: serverTimestamp(),
-      actualizadoEn: serverTimestamp()
-    });
+    if (!firebaseService || typeof firebaseService.agregarDocumento !== 'function') {
+      var error = new Error('No se cargó el backend propio de Coordinadores.');
+      error.codigo = 'BACKEND_COORDINADORES_NO_DISPONIBLE';
+      return Promise.reject(error);
+    }
 
-    return db.collection(collectionName).add(payload);
+    return firebaseService.agregarDocumento(collectionName, data || {});
   }
 
   function serverTimestamp() {
