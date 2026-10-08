@@ -3,7 +3,7 @@
   'use strict';
 
   var config = window.TA_INVESTIGADORES_CONFIG;
-  var firebaseService = window.TAAdminFirebaseService;
+  var firebaseService = window.TAInvestigadorFirebaseService;
   var repository = window.TAInvestigadorRepository;
 
   var investigador = null;
@@ -18,15 +18,26 @@
     conectarEventos();
     setText('estadoGeneral', 'Conectando');
 
+    if (!firebaseService || typeof firebaseService.iniciar !== 'function') {
+      setText('estadoGeneral', 'Backend no disponible');
+      mensaje('accesoMensaje', '[BACKEND_INVESTIGADORES_NO_DISPONIBLE] No se cargó el backend propio de Investigadores.', 'error');
+      bloquearAcceso(true);
+      return;
+    }
+
     firebaseService.iniciar(config.firebase)
       .then(function (resultado) {
-        if (!resultado.ok) throw new Error(resultado.mensaje || 'No se pudo conectar con Firebase.');
+        if (!resultado.ok) {
+          var errorConexion = new Error(resultado.mensaje || 'No se pudo conectar con Firebase.');
+          errorConexion.codigo = resultado.codigo || 'FIREBASE_INVESTIGADORES_ERROR';
+          throw errorConexion;
+        }
         setText('estadoGeneral', 'Listo');
         mensaje('accesoMensaje', '', '');
       })
       .catch(function (error) {
         setText('estadoGeneral', 'Sin conexión');
-        mensaje('accesoMensaje', error.message || 'No se pudo iniciar la aplicación.', 'error');
+        mensaje('accesoMensaje', errorMensaje(error, 'No se pudo iniciar la aplicación.'), 'error');
         bloquearAcceso(true);
       });
   }
@@ -80,7 +91,7 @@
       })
       .catch(function (error) {
         investigador = null;
-        mensaje('accesoMensaje', error.message || 'No se pudo validar el registro.', 'error');
+        mensaje('accesoMensaje', errorMensaje(error, 'No se pudo validar el registro.'), 'error');
       })
       .finally(function () {
         setLoading(button, false);
@@ -123,7 +134,7 @@
         if (input) input.focus();
       })
       .catch(function (error) {
-        mensaje('accesoMensaje', error.message || 'No se pudo crear el PIN.', 'error');
+        mensaje('accesoMensaje', errorMensaje(error, 'No se pudo crear el PIN.'), 'error');
       })
       .finally(function () {
         setLoading(button, false);
@@ -148,7 +159,7 @@
         mensaje('accesoMensaje', 'PIN registrado.', 'success');
       })
       .catch(function (error) {
-        mensaje('accesoMensaje', error.message || 'No se pudo revisar el acceso.', 'error');
+        mensaje('accesoMensaje', errorMensaje(error, 'No se pudo revisar el acceso.'), 'error');
       });
   }
 
@@ -176,7 +187,7 @@
         return cargarTitulos(false);
       })
       .catch(function (error) {
-        mensaje('accesoMensaje', error.message || 'No se pudo iniciar sesión.', 'error');
+        mensaje('accesoMensaje', errorMensaje(error, 'No se pudo iniciar sesión.'), 'error');
       })
       .finally(function () {
         setLoading(button, false);
@@ -260,7 +271,7 @@
         revisiones = [];
         revisionesFiltradas = [];
         renderRevisiones();
-        mensaje('reporteRevisionMensaje', error.message || 'No se pudieron cargar tus revisiones.', 'error');
+        mensaje('reporteRevisionMensaje', errorMensaje(error, 'No se pudieron cargar tus revisiones.'), 'error');
       })
       .finally(function () {
         setLoading(button, false);
@@ -359,7 +370,7 @@
 
       mensaje('reporteRevisionMensaje', 'PDF generado: ' + filename, 'success');
     } catch (error) {
-      mensaje('reporteRevisionMensaje', error.message || 'No se pudo generar el PDF.', 'error');
+      mensaje('reporteRevisionMensaje', errorMensaje(error, 'No se pudo generar el PDF.'), 'error');
     }
   }
 
@@ -440,7 +451,7 @@
         titulos = [];
         renderResumen();
         renderCarreras();
-        mensaje('revisionMensaje', error.message || 'No se pudieron cargar los títulos.', 'error');
+        mensaje('revisionMensaje', errorMensaje(error, 'No se pudieron cargar los títulos.'), 'error');
       })
       .finally(function () {
         setLoading(button, false);
@@ -679,7 +690,7 @@
           return cargarTitulos(true);
         })
         .catch(function (error) {
-          mensaje('revisionMensaje', error.message || 'No se pudo guardar la revisión.', 'error');
+          mensaje('revisionMensaje', errorMensaje(error, 'No se pudo guardar la revisión.'), 'error');
           bloquearDecisiones(false);
         })
         .finally(function () {
@@ -808,6 +819,20 @@
       button.textContent = button.dataset.text || button.textContent;
       button.disabled = false;
     }
+  }
+
+  function errorMensaje(error, fallback) {
+    if (!error) return fallback || 'Error desconocido';
+
+    var partes = [];
+    var codigo = error.codigo || error.code || error.name || '';
+
+    if (codigo) partes.push('[' + codigo + ']');
+    if (error.operacion) partes.push(String(error.operacion));
+    if (error.coleccion) partes.push('colección ' + String(error.coleccion));
+    partes.push(error.message || fallback || String(error));
+
+    return partes.join(' · ');
   }
 
   function mensaje(id, text, tipo) {
