@@ -291,6 +291,13 @@
   }
 
   function mensajeError(error) {
-    return error && error.message ? error.message : String(error || 'Error desconocido');
+    if (!error) return 'Error desconocido';
+    var partes = [];
+    var codigo = error.codigo || error.code || error.name || '';
+    if (codigo) partes.push('[' + codigo + ']');
+    if (error.operacion) partes.push(String(error.operacion));
+    if (error.coleccion) partes.push('colección ' + String(error.coleccion));
+    partes.push(error.message || String(error));
+    return partes.join(' · ');
   }
 })();
