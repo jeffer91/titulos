@@ -101,6 +101,27 @@
       });
   }
 
+  function listarRevisadosPorInvestigador(investigador) {
+    if (!investigador) return Promise.reject(new Error('No se identificó al investigador.'));
+
+    var reportService = window.TARevisionReportService;
+    if (!reportService || typeof reportService.normalizarLista !== 'function') {
+      return Promise.reject(new Error('No se cargó el motor de reportes.'));
+    }
+
+    /*
+      Historial propio: NO depende de las carreras asignadas actualmente.
+      Se atribuye por revisionInvestigador para que una reasignación futura
+      no borre del reporte lo que el investigador ya revisó.
+    */
+    return firebaseService.listarDocumentos(config.collections.titulos, { limit: 5000 })
+      .then(function (docs) {
+        return reportService.normalizarLista(docs || []).filter(function (item) {
+          return reportService.coincideInvestigador(item, investigador);
+        });
+      });
+  }
+
   function revisarTitulo(titulo, accion, observacion, investigador) {
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título.'));
     if (!estaHabilitadoPorCoordinador(titulo)) return Promise.reject(new Error('Este título todavía no está habilitado por Coordinación.'));
@@ -384,6 +405,7 @@
     crearPin: crearPin,
     validarAcceso: validarAcceso,
     listarTitulosHabilitados: listarTitulosHabilitados,
+    listarRevisadosPorInvestigador: listarRevisadosPorInvestigador,
     revisarTitulo: revisarTitulo,
     estaHabilitadoPorCoordinador: estaHabilitadoPorCoordinador,
     estaPendienteInvestigacion: estaPendienteInvestigacion
