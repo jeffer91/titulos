@@ -1,5 +1,6 @@
 'use strict';
 // Administración: configurar procesos sin admitir tokens o secretos desde el navegador.
+const {canonico}=require('./periodos-activos');
 const safeFields=new Set([
  'procesoActivo','enviosHabilitados','periodoActivo','periodoActivoId','periodoActivoLabel',
  'periodoActivoIdNormalizado','periodoActivoDesactivado','periodosActivos',
@@ -36,6 +37,11 @@ function validate(body){
   }else if(typeof value!=='string'||value.length>200){
    fail(422,'TEXTO_INVALIDO');
   }
+  if(key==='periodosActivos' && (value.some(v=>!canonico(v)) ||
+     new Set(value.map(canonico)).size!==value.length))fail(422,'PERIODOS_INVALIDOS');
+  if(key==='periodoActivoId' && value!=='' && !canonico(value))fail(422,'PERIODO_INVALIDO');
+  if(key==='periodoActivo' && value!==null && value!=='' &&
+     !canonico(typeof value==='object'?value.id:value))fail(422,'PERIODO_INVALIDO');
   copy[key]=value;
  }
  return copy;

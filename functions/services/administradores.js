@@ -1,5 +1,6 @@
 'use strict';
 const person=require('./admin-personal');
+const periodos=require('./periodos-activos');
 const adminData=require('./admin-data');
 const {publicConfig,validate,safeProvider,fail,text}=require('./admin-config');
 const adminFields=['id','nombreCarrera','codigoCarrera','carrera','nombre','codigo','activo'];
@@ -58,6 +59,9 @@ function crearRutasAdministradores({db,authAdmin,academica}){
   '/investigadores/carrera':{method:'POST',async handle({body,usuario}){
    return person.asignar(db,'investigador',bodyObject(body),usuario);
   }},
+  '/periodos/estado':{method:'POST',async handle({usuario,body}){
+   return periodos.actualizarEstado(db,usuario,bodyObject(body));
+  }},
   '/periodos':{method:'GET',async handle(){
    const [snap,configSnap]=await Promise.all([
     db.collection('periodos').limit(501).get(),
@@ -65,12 +69,16 @@ function crearRutasAdministradores({db,authAdmin,academica}){
    ]);
    if(snap.docs.length>500)fail(409,'PAGINACION_PERIODOS_REQUERIDA');
    const c=documento(configSnap)||{};
-   const activos=new Set(c.periodosActivos||[]);
-   if(c.periodoActivoId)activos.add(c.periodoActivoId);
-   return snap.docs.map(documento).map(d=>({
-    id:d.id,label:text(d.label||d.periodoLabel||d.nombre||d.id),
-    activo:activos.has(d.id)
-   }));
+   const activos=periodos.activos(c),mapa=new Map();
+   for(const d of snap.docs.map(documento)){
+    const id=periodos.canonico(d.periodoId)||periodos.canonico(d.id);
+    if(id)mapa.set(id,{id,label:periodos.etiqueta(id),origen:'periodos',activo:activos.has(id)});
+   }
+   for(const id of activos)if(!mapa.has(id))mapa.set(id,{
+    id,label:periodos.etiqueta(id),origen:'config',activo:true
+   });
+   return [...mapa.values()].sort((a,b)=>a.activo===b.activo?
+    a.id.localeCompare(b.id):a.activo?-1:1);
   }},
   '/carreras':{method:'GET',async handle(){
    const snap=await db.collection('carreras').limit(501).get();

@@ -50,7 +50,11 @@
       return periodo.activo;
     });
 
+    // La vista histórica sigue siendo consultable, pero no se identifica como activa.
     var lista = activos.length ? activos : estado.periodos;
+    if (!lista.some(function(p){return p.id===estado.periodoSeleccionado;})) {
+      estado.periodoSeleccionado = lista.length ? lista[0].id : '';
+    }
 
     if (!estado.periodoSeleccionado && lista.length) {
       estado.periodoSeleccionado = lista[0].id;
@@ -59,7 +63,7 @@
     ui.llenarSelect('#inicioPeriodoSelect', lista.map(function (periodo) {
       return {
         value: periodo.id,
-        label: periodo.label + (periodo.activo ? ' · Activo' : '')
+        label: periodo.label + (periodo.activo ? ' · Activo' : ' · Desactivado (histórico)')
       };
     }), {
       placeholder: false,
@@ -116,7 +120,7 @@
       return periodo.activo;
     });
 
-    var lista = periodosActivos.length ? periodosActivos : estado.periodos;
+    var lista = periodosActivos; // Nunca contabilizar desactivados como pendientes activos.
 
     if (!lista.length) return Promise.resolve([]);
 

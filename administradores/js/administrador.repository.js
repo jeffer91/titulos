@@ -37,10 +37,10 @@
   }
 
   function cargarAppConfig() {
-    if(modoSeguro())return seguro.config().then(function(data){return Object.assign({},config.defaultAppConfig,data||{});});
+    if(modoSeguro())return seguro.config().then(prepararConfigPeriodos);
     return leerDocumento(config.collections.config, config.documents.appConfig)
       .then(function (data) {
-        return Object.assign({}, config.defaultAppConfig, data || {});
+        return prepararConfigPeriodos(data);
       });
   }
 
@@ -92,8 +92,30 @@
     });
   }
 
+  // Los IDs incompletos no son períodos. Se admiten solo rangos de dos fechas.
+  function prepararConfigPeriodos(raw) {
+    var datos = raw || {};
+    var combinado = Object.assign({}, config.defaultAppConfig, datos);
+    if (Array.isArray(datos.periodosActivos)) {
+      combinado.periodosActivos = limpiarUnicos(datos.periodosActivos.map(normalizarPeriodoIdCanonico)).filter(Boolean);
+    } else if (datos.periodoActivoDesactivado === true) {
+      combinado.periodosActivos = [];
+    } else {
+      var principal = normalizarPeriodoIdCanonico(
+        datos.periodoActivoId || datos.periodoActivo && datos.periodoActivo.id || datos.periodoActivo
+      );
+      combinado.periodosActivos = principal ? [principal] : [];
+    }
+    return combinado;
+  }
+
   function listarPeriodos() {
-    if(modoSeguro())return seguro.llamar('periodos');
+    if(modoSeguro())return seguro.llamar('periodos').then(function(items){
+      var mapa={};
+      (items||[]).forEach(function(item){agregarPeriodoMapa(mapa,item.id,item.label,item.origen||'periodos');});
+      var activos = construirSetCanonicamente((items||[]).filter(function(item){return item.activo;}).map(function(item){return item.id;}));
+      return ordenarPeriodos(mapa,activos);
+    });
     return Promise.all([
       cargarAppConfig(),
       listarEstudiantes(),
@@ -106,92 +128,59 @@
       var periodosColeccion = resultados[3];
       var mapa = {};
 
-      agregarPeriodoMapa(mapa, appConfig.periodoActivoId || appConfig.periodoActivo, appConfig.periodoActivoLabel, 'config');
-      agregarPeriodoMapaDesdeObjeto(mapa, appConfig.periodoActivo, 'config');
-
-      (appConfig.periodosActivos || []).forEach(function (periodoId, index) {
-        var label = appConfig.periodosActivosLabels && appConfig.periodosActivosLabels[index]
-          ? appConfig.periodosActivosLabels[index]
-          : '';
-
-        agregarPeriodoMapa(mapa, periodoId, label, 'config');
+      agregarPeriodoMapa(mapa,appConfig.periodoActivoId || appConfig.periodoActivo,appConfig.periodoActivoLabel,'config');
+      agregarPeriodoMapaDesdeObjeto(mapa,appConfig.periodoActivo,'config');
+      (appConfig.periodosActivos||[]).forEach(function(id){
+        agregarPeriodoMapa(mapa,id,'','config');
       });
-
-      estudiantes.forEach(function (estudiante) {
-        agregarPeriodoMapa(mapa, estudiante.periodoId, estudiante.periodoLabel, 'estudiantes');
+      estudiantes.forEach(function(item){
+        agregarPeriodoMapa(mapa,item.periodoId,item.periodoLabel,'estudiantes');
       });
-
-      titulos.forEach(function (titulo) {
-        agregarPeriodoMapa(mapa, titulo.periodoId, titulo.periodoLabel, 'titulos');
+      titulos.forEach(function(item){
+        agregarPeriodoMapa(mapa,item.periodoId,item.periodoLabel,'titulos');
       });
-
-      periodosColeccion.forEach(function (periodo) {
-        agregarPeriodoMapa(mapa, periodo.id || periodo.periodoId, periodo.label || periodo.periodoLabel || periodo.nombre, 'periodos');
+      periodosColeccion.forEach(function(item){
+        agregarPeriodoMapa(mapa,item.periodoId || item.id,item.label || item.nombre,'periodos');
       });
+      return ordenarPeriodos(mapa,construirSetCanonicamente(appConfig.periodosActivos));
+    });
+  }
 
-      var activos = construirSetCanonicamente(appConfig.periodosActivos || []);
-      if (appConfig.periodoActivoId) activos[normalizarPeriodoIdCanonico(appConfig.periodoActivoId)] = true;
-      if (appConfig.periodoActivo && typeof appConfig.periodoActivo === 'string') {
-        activos[normalizarPeriodoIdCanonico(appConfig.periodoActivo)] = true;
-      }
-
-      return Object.keys(mapa).map(function (id) {
-        var item = mapa[id];
-        item.activo = Boolean(activos[id]);
-        item.label = item.label || formatearPeriodoId(id);
-        return item;
-      }).sort(function (a, b) {
-        if (a.activo !== b.activo) return a.activo ? -1 : 1;
-        return a.label.localeCompare(b.label);
-      });
+  function ordenarPeriodos(mapa,activos) {
+    return Object.keys(mapa).map(function(id){
+      var item=mapa[id];
+      item.activo=Boolean(activos[id]);
+      item.label=formatearPeriodoId(id);
+      return item;
+    }).sort(function(a,b){
+      if(a.activo!==b.activo)return a.activo?-1:1;
+      return a.id.localeCompare(b.id);
     });
   }
 
   function actualizarPeriodosActivos(periodosActivosIds) {
-    periodosActivosIds = limpiarUnicos((periodosActivosIds || []).map(normalizarPeriodoIdCanonico)).filter(Boolean);
-
-    return listarPeriodos().then(function (periodos) {
-      var labels = periodosActivosIds.map(function (id) {
-        var encontrado = buscarPorId(periodos, id);
-        return encontrado ? encontrado.label : formatearPeriodoId(id);
-      });
-
-      var principalId = periodosActivosIds[0] || '';
-      var principalLabel = labels[0] || '';
-
-      return guardarAppConfig({
-        periodoActivo: principalId ? { id: principalId, label: principalLabel } : null,
-        periodoActivoId: principalId,
-        periodoActivoLabel: principalLabel,
-        periodoActivoIdNormalizado: principalId ? normalizarPeriodoId(principalId) : '',
-        periodoActivoDesactivado: !principalId,
-        periodosActivos: periodosActivosIds,
-        periodosActivosLabels: labels
-      });
+    var ids=limpiarUnicos((periodosActivosIds||[]).map(normalizarPeriodoIdCanonico)).filter(Boolean);
+    // Operación de reemplazo explícito. Los cambios de estado individuales usan
+    // transacciones por separado y NO esta función.
+    var principal=ids[0]||'';
+    return guardarAppConfig({
+      periodoActivo:principal?{id:principal,label:formatearPeriodoId(principal)}:null,
+      periodoActivoId:principal,
+      periodoActivoLabel:principal?formatearPeriodoId(principal):'',
+      periodoActivoIdNormalizado:principal?normalizarPeriodoId(principal):'',
+      periodoActivoDesactivado:!principal,
+      periodosActivos:ids,
+      periodosActivosLabels:ids.map(formatearPeriodoId)
     });
   }
 
-  function cambiarEstadoPeriodo(periodoId, activo) {
-    return cargarAppConfig().then(function (appConfig) {
-      var activos = limpiarUnicos((appConfig.periodosActivos || []).map(normalizarPeriodoIdCanonico)).filter(Boolean);
-      var canonico = normalizarPeriodoIdCanonico(periodoId);
-
-      if (appConfig.periodoActivoId) {
-        activos = limpiarUnicos(activos.concat([normalizarPeriodoIdCanonico(appConfig.periodoActivoId)]));
-      }
-
-      if (activo && activos.indexOf(canonico) === -1) {
-        activos.push(canonico);
-      }
-
-      if (!activo) {
-        activos = activos.filter(function (id) {
-          return id !== canonico;
-        });
-      }
-
-      return actualizarPeriodosActivos(activos);
-    });
+  function cambiarEstadoPeriodo(periodoId,activo) {
+    var id=normalizarPeriodoIdCanonico(periodoId);
+    if(!id)return Promise.reject(new Error('El período debe tener un ID completo: AAAA-MM__AAAA-MM.'));
+    if(modoSeguro())return seguro.cambiarEstadoPeriodo(id,Boolean(activo));
+    if(!firebaseService || !firebaseService.cambiarPeriodoActivoAtomico)
+      return Promise.reject(new Error('No se cargó el servicio transaccional de períodos.'));
+    return firebaseService.cambiarPeriodoActivoAtomico(id,Boolean(activo));
   }
 
   function obtenerCarreras() {
@@ -1053,27 +1042,12 @@
   }
 
   function agregarPeriodoMapa(mapa, periodoId, label, origen) {
-    var id = normalizarPeriodoIdCanonico(periodoId);
-
-    if (!id) return;
-
-    if (!mapa[id]) {
-      mapa[id] = {
-        id: id,
-        label: limpiarTexto(label) || formatearPeriodoId(id),
-        origen: origen || 'detectado',
-        activo: false
-      };
-      return;
-    }
-
-    if (!mapa[id].label && label) {
-      mapa[id].label = limpiarTexto(label);
-    }
-
-    if (mapa[id].origen.indexOf(origen) === -1) {
-      mapa[id].origen += ', ' + origen;
-    }
+    var id=normalizarPeriodoIdCanonico(periodoId);
+    if(!id)return; // No inventar rangos desde IDs como 2026-02.
+    if(!mapa[id])mapa[id]={
+      id:id,label:formatearPeriodoId(id),origen:origen||'detectado',activo:false
+    };
+    else if(origen && mapa[id].origen.indexOf(origen)===-1)mapa[id].origen+=', '+origen;
   }
 
   function agregarPeriodoMapaDesdeObjeto(mapa, periodo, origen) {
@@ -1082,15 +1056,11 @@
   }
 
   function normalizarPeriodoIdCanonico(periodoId) {
-    var texto = limpiarTexto(periodoId);
-
-    if (!texto || texto === '[object Object]') return '';
-
-    var match = texto.match(/(\d{4})[-_](\d{1,2})\D+(\d{4})[-_](\d{1,2})/);
-
-    if (!match) return texto;
-
-    return match[1] + '-' + completarMes(match[2]) + '__' + match[3] + '-' + completarMes(match[4]);
+    if(periodoId && typeof periodoId==='object')periodoId=periodoId.id || periodoId.periodoId;
+    var texto=limpiarTexto(periodoId);
+    var match=/^(\d{4})[-_](0?[1-9]|1[0-2])(?:__|[-_\s]+)(\d{4})[-_](0?[1-9]|1[0-2])$/.exec(texto);
+    if(!match)return '';
+    return match[1]+'-'+completarMes(match[2])+'__'+match[3]+'-'+completarMes(match[4]);
   }
 
   function formatearPeriodoId(periodoId) {

@@ -102,6 +102,7 @@
   envios:function(){return call('envios');},
   archivar:function(id,motivo){return call('envios/archivar',{method:'POST',body:{tituloId:id,motivo:motivo}});},
   guardarConfig:function(data){return call('configuracion/guardar',{method:'POST',body:data});},
+  cambiarEstadoPeriodo:function(periodoId,activo){return call('periodos/estado',{method:'POST',body:{periodoId:periodoId,activo:activo}});},
   coordinadores:function(){return call('coordinadores');},
   crearCoordinador:function(data){return call('coordinadores/crear',{method:'POST',body:data});},
   coordinadorEstado:function(data){return call('coordinadores/estado',{method:'POST',body:data});},

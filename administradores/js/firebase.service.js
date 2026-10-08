@@ -291,6 +291,63 @@
       throw new Error('Cambio de credenciales rechazado: utiliza el guardado transaccional de PIN.');
   }
 
+
+  function periodoCanonico(id){
+    var m=/^(\d{4})[-_](0?[1-9]|1[0-2])(?:__|[-_\s]+)(\d{4})[-_](0?[1-9]|1[0-2])$/.exec(String(id||'').trim());
+    if(!m)return '';
+    return m[1]+'-'+String(m[2]).padStart(2,'0')+'__'+m[3]+'-'+String(m[4]).padStart(2,'0');
+  }
+  function etiquetaPeriodo(id){
+    var m=/^(\d{4})-(\d{2})__(\d{4})-(\d{2})$/.exec(id);
+    var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    return m?meses[Number(m[2])-1]+' '+m[1]+' a '+meses[Number(m[4])-1]+' '+m[3]:'';
+  }
+  function periodosConfigurados(data){
+    if(Array.isArray(data&&data.periodosActivos))
+      return Array.from(new Set(data.periodosActivos.map(periodoCanonico).filter(Boolean)));
+    if(data&&data.periodoActivoDesactivado===true)return [];
+    var principal=periodoCanonico(data&&(data.periodoActivoId||
+      data.periodoActivo&&data.periodoActivo.id||data.periodoActivo));
+    return principal?[principal]:[];
+  }
+  function cambiarPeriodoActivoAtomico(periodoId,activar){
+    var id=periodoCanonico(periodoId);
+    if(!id||typeof activar!=='boolean')
+      return Promise.reject(new Error('Período inválido: se requiere AAAA-MM__AAAA-MM.'));
+    asegurarEscritura('configuracion');
+    asegurarEscritura('workflow_events');
+    var db=getDb(),ref=db.collection('configuracion').doc('general');
+    var ahora=new Date().toISOString();
+    return db.runTransaction(function(tx){
+      return tx.get(ref).then(function(snapshot){
+        var actual=snapshot.exists?snapshot.data():{};
+        var ids=periodosConfigurados(actual);
+        if(activar&&ids.indexOf(id)===-1)ids.push(id);
+        if(!activar)ids=ids.filter(function(item){return item!==id;});
+        if(ids.length>30)throw new Error('La lista supera el límite de 30 períodos activos.');
+        var principal=ids[0]||'',label=principal?etiquetaPeriodo(principal):'';
+        var data={
+          periodosActivos:ids,periodosActivosLabels:ids.map(etiquetaPeriodo),
+          periodoActivo:principal?{id:principal,label:label}:null,
+          periodoActivoId:principal,periodoActivoLabel:label,
+          periodoActivoIdNormalizado:principal?principal.replace(/[^0-9A-Za-z]+/g,'_').replace(/^_+|_+$/g,''):'',
+          periodoActivoDesactivado:!principal,actualizadoEn:ahora
+        };
+        tx.set(ref,data,{merge:true});
+        tx.set(db.collection('workflow_events').doc(),{
+          tipo:'ADMIN_CAMBIO_PERIODO',modulo:'administradores',
+          entidad:'configuracion',entidadId:'general',periodoId:id,
+          estado:activar?'ACTIVO':'DESACTIVADO',periodosActivos:ids,
+          fechaLocal:ahora,actor:'administrador_legacy',
+          creadoEn:window.firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return {periodoId:id,activo:activar,periodosActivos:ids};
+      });
+    }).catch(function(error){
+      throw crearErrorOperacion('CAMBIAR_PERIODO_TRANSACCIONAL','configuracion',error);
+    });
+  }
+
   function guardarDocumento(collectionName, documentId, data, options) {
     asegurarEscritura(collectionName);
     var merge = typeof options === 'boolean' ? options : (!options || options.merge !== false);
@@ -571,6 +628,7 @@
     leerDocumentoServidor: leerDocumentoServidor,
     listarDocumentosServidor: listarDocumentosServidor,
     guardarPinInvestigador: guardarPinInvestigador,
+    cambiarPeriodoActivoAtomico: cambiarPeriodoActivoAtomico,
     guardarDocumento: guardarDocumento,
     actualizarDocumento: actualizarDocumento,
     eliminarDocumento: eliminarDocumento,

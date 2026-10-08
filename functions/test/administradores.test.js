@@ -194,3 +194,55 @@ test('el handler rechaza llamadas administrativas sin rol aunque haya token de o
  assert.equal(verified,1);
  assert.equal(res.body.codigo,'ROL_NO_AUTORIZADO');
 });
+
+test('listar periodos deduplica IDs, ignora abreviados y usa fechas reales del ID',async()=>{
+ const data=seed();
+ data.configuracion.general={
+  periodosActivos:['2026-02__2026-08'],
+  periodoActivoId:'2025-11__2026-05',
+  periodoActivo:{id:'2025-11__2026-05',label:'Período anterior'}
+ };
+ data.periodos={
+  '2026-02':{label:'Febrero 2026 a Agosto 2026'},
+  '2026-02__2026-08':{label:'Mayo de 2026 (incorrecto)'},
+  '2025-11__2026-05':{label:'Otro período'}
+ };
+ const {rutas}=setup(data);
+ const lista=await rutas['/periodos'].handle({usuario:actor});
+ assert.deepEqual(lista.map(x=>x.id),['2026-02__2026-08','2025-11__2026-05']);
+ assert.deepEqual(lista.map(x=>x.activo),[true,false]);
+ assert.equal(lista[0].label,'Febrero 2026 a Agosto 2026');
+});
+test('activar y desactivar periodos es transaccional y no resucita el principal antiguo',async()=>{
+ const data=seed();
+ data.configuracion.general.periodosActivos=['2026-02__2026-08','2026-05__2026-11'];
+ data.configuracion.general.periodoActivoId='2025-11__2026-05';
+ const {rutas,db}=setup(data);
+ const call=(periodoId,activo)=>rutas['/periodos/estado'].handle({usuario:actor,body:{periodoId,activo}});
+ await call('2026-02__2026-08',false);
+ let config=db.tables.configuracion.get('general');
+ assert.deepEqual(config.periodosActivos,['2026-05__2026-11']);
+ assert.equal(config.periodoActivoId,'2026-05__2026-11');
+ assert.equal(config.periodoActivoLabel,'Mayo 2026 a Noviembre 2026');
+ assert.deepEqual(config.periodosActivosLabels,['Mayo 2026 a Noviembre 2026']);
+ await call('2026-05__2026-11',false);
+ config=db.tables.configuracion.get('general');
+ assert.deepEqual(config.periodosActivos,[]);
+ assert.equal(config.periodoActivoId,'');
+ assert.equal(config.periodoActivoDesactivado,true);
+ assert.equal(db.tables.workflow_events.size,2);
+ await call('2026-02__2026-08',true);
+ assert.deepEqual(db.tables.configuracion.get('general').periodosActivos,['2026-02__2026-08']);
+ assert.equal(db.tables.workflow_events.size,3);
+});
+test('rechazar ID abreviado no modifica Firestore',async()=>{
+ const {rutas,db}=setup();
+ await assert.rejects(()=>rutas['/periodos/estado'].handle({usuario:actor,body:{
+  periodoId:'2026-02',activo:true
+ }}),e=>e.status===422);
+ assert.equal(db.tables.workflow_events.size,0);
+ assert.throws(()=>validate({periodosActivos:['2026-02']}),e=>e.status===422);
+ assert.throws(()=>validate({periodoActivoId:'2026-10'}),e=>e.status===422);
+ assert.deepEqual(validate({periodosActivos:['2026-02__2026-08']}),
+  {periodosActivos:['2026-02__2026-08']});
+});
