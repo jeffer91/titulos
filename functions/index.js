@@ -17,6 +17,6 @@ const geminiSecret=defineSecret('TITULOS_GEMINI_API_KEY');
 exports.estudiantesApi=onRequest({...settings,secrets:[geminiSecret]},require('./modules/estudiantes').crearModulo({
   ...options,operativa:getFirestore(),academica:getFirestore(appAcademica),geminiKey:()=>geminiSecret.value()
 }));
-exports.coordinadoresApi = onRequest(settings,require('./modules/coordinadores').crearModulo(options));
+exports.coordinadoresApi = onRequest(settings,require('./modules/coordinadores').crearModulo({...options,db:getFirestore()}));
 exports.investigadoresApi = onRequest(settings,require('./modules/investigadores').crearModulo(options));
 exports.administradoresApi = onRequest(settings,require('./modules/administradores').crearModulo(options));

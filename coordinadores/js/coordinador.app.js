@@ -30,6 +30,26 @@
     setText('versionTexto', 'v' + config.version);
     conectarEventos();
     setEstado('Conectando…');
+    var seguro = window.TACoordinadorSeguro;
+    if(seguro && seguro.activo && seguro.activo()){
+      setEstado('Autenticando…');
+      seguro.iniciar().then(function(conectado){
+        if(!conectado){
+          setEstado('Sesión requerida');
+          mensaje('Ingresa con la cuenta institucional para ver las carreras autorizadas.', 'info');
+          return;
+        }
+        estado.firebase=true;
+        setEstado('Sesión verificada');
+        return cargarCoordinadores();
+      }).catch(function(error){
+        estado.firebase=false;
+        setEstado('Error de acceso');
+        mensaje('No se pudo iniciar la sesión segura: '+errorMensaje(error),'error');
+        renderDiagnostico(errorMensaje(error));
+      });
+      return;
+    }
     firebaseService.iniciar(config.firebase).then(function (resultado) {
       estado.firebase = Boolean(resultado.ok);
       if (!resultado.ok) {
@@ -88,6 +108,11 @@
     return repository.listarCoordinadores().then(function (items) {
       estado.coordinadores = items;
       llenarCoordinadores(items);
+      if(window.TACoordinadorSeguro&&window.TACoordinadorSeguro.activo&&window.TACoordinadorSeguro.activo()&&items.length){
+        var select=el('coordinadorSelect');
+        if(select){select.value=items[0].id;select.disabled=true;}
+        seleccionarCoordinador();
+      }
       mensaje(items.length ? 'Selecciona un coordinador para ver sus títulos.' : 'No hay coordinadores activos registrados.', items.length ? 'info' : 'warning');
       renderDiagnostico('');
       return items;

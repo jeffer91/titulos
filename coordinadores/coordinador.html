@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coordinadores de titulación</title>
   <link rel="stylesheet" href="css/coordinador.css?v=4.3.0" />
+  <style>
+    #coordLoginSeguro[hidden],#coordLoginForm[hidden],#coordLoginSalir[hidden]{display:none!important}
+    .coord-secure-pending .filters-card,.coord-secure-pending .workspace-card{display:none!important}
+    #coordLoginSeguro .field{margin:12px 0;max-width:440px}
+    #coordLoginSeguro .field input{display:block;width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:9px}
+  </style>
 </head>
 <body>
   <header class="app-header">
@@ -20,6 +26,19 @@
   </header>
 
   <main class="app-container">
+    <section class="card" id="coordLoginSeguro" hidden>
+      <h2>Acceso institucional de Coordinadores</h2>
+      <p>Identifícate con la cuenta autorizada. Solo verás tus carreras asignadas.</p>
+      <form id="coordLoginForm">
+        <div class="field"><label for="coordLoginEmail">Correo institucional</label>
+          <input id="coordLoginEmail" type="email" autocomplete="username" required /></div>
+        <div class="field"><label for="coordLoginPassword">Contraseña</label>
+          <input id="coordLoginPassword" type="password" autocomplete="current-password" required /></div>
+        <button class="btn btn--soft" type="submit">Ingresar</button>
+      </form>
+      <button id="coordLoginSalir" class="btn btn--soft" type="button" hidden>Cerrar sesión</button>
+      <p role="status" id="coordLoginMensaje"></p>
+    </section>
     <section class="card filters-card">
       <div class="filters-row">
         <div class="field field--coordinator">
@@ -120,9 +139,11 @@
   </div>
 
   <script src="js/firebase.config.js?v=4.3.0"></script>
+  <script src="js/secure.config.js?v=4.3.1"></script>
+  <script src="js/secure.service.js?v=4.3.1"></script>
   <script src="js/app.config.js?v=4.3.0"></script>
   <script src="js/firebase.service.js?v=4.3.0"></script>
-  <script src="js/coordinador.repository.js?v=4.3.0"></script>
-  <script src="js/coordinador.app.js?v=4.3.0"></script>
+  <script src="js/coordinador.repository.js?v=4.3.1"></script>
+  <script src="js/coordinador.app.js?v=4.3.1"></script>
 </body>
 </html>

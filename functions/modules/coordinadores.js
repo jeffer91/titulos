@@ -1,6 +1,7 @@
 'use strict';
-const {crearHandler} = require('../shared/http');
-function crearModulo({auth,origins}) {
-  return crearHandler({modulo:'coordinadores',rol:'coordinador',auth,origins});
+const {crearHandler}=require('../shared/http');
+const {crearRutasCoordinadores}=require('../services/coordinadores');
+function crearModulo({auth,origins,db}){
+  return crearHandler({modulo:'coordinadores',rol:'coordinador',auth,origins,routes:crearRutasCoordinadores({db})});
 }
-module.exports = {crearModulo};
+module.exports={crearModulo};

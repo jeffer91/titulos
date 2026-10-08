@@ -4,8 +4,11 @@
 
   var config = window.TA_COORDINADORES_CONFIG;
   var firebaseService = window.TACoordinadorFirebaseService;
+  var seguro = window.TACoordinadorSeguro;
+  function modoSeguro(){return Boolean(seguro&&seguro.activo&&seguro.activo());}
 
   function listarCoordinadores() {
+    if(modoSeguro())return seguro.perfil().then(function(perfil){return [normalizarCoordinador(perfil)];});
     return firebaseService.listarDocumentos(config.collections.coordinadores, { limit: 500 })
       .then(function (docs) {
         return (docs || []).map(normalizarCoordinador).filter(function (item) {
@@ -15,6 +18,10 @@
   }
 
   function listarTitulosParaCoordinador(coordinador) {
+    if(modoSeguro())return seguro.listar().then(function(resultado){
+      if(resultado.truncado)console.warn('[Coordinadores] Hay más resultados; se requiere paginación de servidor.');
+      return (resultado.titulos||[]).map(normalizarTitulo);
+    });
     if (!coordinador || !coordinador.carreras.length) return Promise.resolve([]);
     return firebaseService.listarDocumentos(config.collections.titulos, { limit: 2500 })
       .then(function (docs) {
@@ -25,6 +32,7 @@
   }
 
   function cargarHistorialTitulo(titulo) {
+    if(modoSeguro())return seguro.historial(titulo&&titulo.id);
     if (!titulo || !titulo.id) return Promise.resolve({ proceso: [], archivos: [], logs: [] });
     return Promise.all([
       firebaseService.listarDocumentos(config.collections.titulosHistorial, { where: ['envioId', '==', titulo.id], limit: 100 }).catch(function () {
@@ -41,6 +49,10 @@
   }
 
   function revisarTitulo(titulo, accion, observacion, coordinador, tituloSeleccionadoNumero, tituloCorregidoTexto) {
+    if(modoSeguro())return seguro.revisar({
+      tituloId:titulo&&titulo.id,accion:accion,observacion:observacion,
+      tituloSeleccionadoNumero:tituloSeleccionadoNumero,tituloCorregidoTexto:tituloCorregidoTexto
+    }).then(normalizarTitulo);
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título seleccionado.'));
     if (!coordinador || !coordinador.id) return Promise.reject(new Error('No se encontró el coordinador activo.'));
     if (!perteneceACoordinador(titulo, coordinador)) return Promise.reject(new Error('El título no pertenece a las carreras del coordinador.'));
