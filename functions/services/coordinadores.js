@@ -156,8 +156,8 @@ async function revisar(db,perfil,actor,body) {
   if(!configuracion.exists)rechazo(503,'CONFIGURACION_PERIODOS_NO_DISPONIBLE');
   const titulo=doc(await tx.get(ref));
   if(!titulo)rechazo(404,'TITULO_NO_ENCONTRADO');
-  periodos.validar(titulo,periodos.activos(configuracion.data()));
   if(!permitida(titulo,perfilActual))rechazo(403,'CARRERA_NO_AUTORIZADA');
+  periodos.validar(titulo,periodos.activos(configuracion.data()));
   const estado=clave(titulo.estadoProceso||titulo.estado);
   if(!['PENDIENTE_COORDINADOR','PENDIENTE_REVISION','ENVIADO','PENDIENTE'].includes(estado))
     rechazo(409,'REVISION_NO_DISPONIBLE');
