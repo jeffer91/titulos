@@ -198,6 +198,119 @@
     return consultarColeccionEn(getDbTitulos(), collectionName, fieldName, operator, value, limit);
   }
 
+  // Solo lectura de envíos. El REST usa las mismas reglas públicas de Firestore;
+  // nunca se intenta como alternativa a una denegación de permisos del SDK.
+  function consultarEnviosIdentidadServidor(cedula, notificar, compatible) {
+    var limite = 100;
+    function avisar(ruta, estado, extra) {
+      if (typeof notificar === 'function') notificar(ruta, estado, extra || {});
+    }
+    function verificarLimite(docs) {
+      if (docs.length >= limite) {
+        var error = new Error('La consulta tiene demasiados registros. Administración debe revisar los envíos antes de continuar.');
+        error.codigo = 'CONSULTA_INCOMPLETA';
+        throw error;
+      }
+      return docs;
+    }
+    avisar('TITULOS_SDK', 'CONSULTANDO');
+    return esperaLimitada(function () {
+      asegurarColeccionTitulos('envios');
+      return getDbTitulos().collection('envios').where('cedula', '==', cedula)
+        .limit(limite).get({ source: 'server' })
+        .then(function (snapshot) { return snapshot.docs.map(normalizarDocumento); });
+    }, 2200).then(function (docs) {
+      verificarLimite(docs);
+      avisar('TITULOS_SDK', 'COMPLETADO', { encontrados: docs.length });
+      return docs.some(function (doc) { return !compatible || compatible(doc); }) ? docs : consultaRest();
+    }, function (error) {
+      var codigo = String(error.codigo || error.code || '').toLowerCase();
+      avisar('TITULOS_SDK', 'ERROR', { codigo: codigo, mensaje: error.message });
+      if (!/^(timeout|unavailable|deadline-exceeded|network-request-failed|firestore\/(unavailable|deadline-exceeded))$/.test(codigo)) throw error;
+      return consultaRest();
+    });
+
+    function consultaRest() {
+      avisar('TITULOS_REST_IDENTIDAD', 'CONSULTANDO');
+      var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      return esperaLimitada(function () {
+        var options = appTitulos.options;
+        var url = 'https://firestore.googleapis.com/v1/projects/' + encodeURIComponent(options.projectId) +
+          '/databases/(default)/documents:runQuery?key=' + encodeURIComponent(options.apiKey);
+        var filtros = [];
+        ['cedula', 'numeroIdentificacion'].forEach(function (campo) {
+          [{ stringValue: cedula }, { integerValue: String(Number(cedula)) }].forEach(function (valor) {
+            filtros.push({ fieldFilter: { field: { fieldPath: campo }, op: 'EQUAL', value: valor } });
+          });
+        });
+        return fetch(url, {
+          method: 'POST', mode: 'cors', credentials: 'omit', cache: 'no-store',
+          signal: controller ? controller.signal : undefined,
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ structuredQuery: {
+            from: [{ collectionId: 'envios' }],
+            where: { compositeFilter: { op: 'OR', filters: filtros } }, limit: limite
+          } })
+        }).then(function (response) {
+          return response.json().then(function (body) {
+            if (!response.ok || (body && body.error)) {
+              var error = new Error(body && body.error && body.error.message || 'Firebase de Títulos no respondió correctamente.');
+              error.codigo = body && body.error && body.error.status || 'HTTP_' + response.status;
+              error.httpStatus = response.status;
+              throw error;
+            }
+            if (!Array.isArray(body) || !body.length || body.some(function (item) { return !item || item.error || (!item.document && !item.readTime); })) {
+              throw new Error('Respuesta incompleta de Firebase de Títulos. Intenta nuevamente.');
+            }
+            var docs = body.filter(function (item) { return item.document; }).map(function (item) {
+              var doc = item.document;
+              var data = valorRest({ mapValue: { fields: doc.fields || {} } });
+              data.id = doc.name.split('/').pop();
+              return data;
+            });
+            verificarLimite(docs);
+            avisar('TITULOS_REST_IDENTIDAD', 'COMPLETADO', { encontrados: docs.length });
+            return docs;
+          });
+        });
+      }, 4200, controller).catch(function (error) {
+        avisar('TITULOS_REST_IDENTIDAD', 'ERROR', { codigo: error.codigo || error.code || 'NETWORK_ERROR', mensaje: error.message });
+        throw error;
+      });
+    }
+  }
+
+  function esperaLimitada(ejecutar, ms, controller) {
+    var timer;
+    return Promise.race([
+      Promise.resolve().then(ejecutar),
+      new Promise(function (_, reject) {
+        timer = window.setTimeout(function () {
+          var error = new Error('Firebase de Títulos no respondió dentro del tiempo de espera. Puedes reintentar.');
+          error.codigo = 'TIMEOUT';
+          reject(error);
+          if (controller) controller.abort();
+        }, ms);
+      })
+    ]).finally(function () { window.clearTimeout(timer); });
+  }
+
+  function valorRest(value) {
+    if ('nullValue' in value) return null;
+    if ('stringValue' in value) return value.stringValue;
+    if ('timestampValue' in value) return value.timestampValue;
+    if ('booleanValue' in value) return value.booleanValue;
+    if ('integerValue' in value) return Number(value.integerValue);
+    if ('doubleValue' in value) return value.doubleValue;
+    if ('arrayValue' in value) return (value.arrayValue.values || []).map(valorRest);
+    if ('mapValue' in value) {
+      var result = {};
+      Object.keys(value.mapValue.fields || {}).forEach(function (key) { result[key] = valorRest(value.mapValue.fields[key]); });
+      return result;
+    }
+    return null;
+  }
+
   /* Operaciones académicas: deliberadamente SOLO lectura en utet-4387a. */
   function leerDocumentoAcademico(collectionName, documentId) {
     asegurarColeccionAcademica(collectionName);
@@ -336,6 +449,7 @@
     leerDocumentoServidor: leerDocumentoServidor,
     consultarPrimero: consultarPrimero,
     consultarColeccion: consultarColeccion,
+    consultarEnviosIdentidadServidor: consultarEnviosIdentidadServidor,
     listarColeccion: listarColeccion,
     leerDocumentoAcademico: leerDocumentoAcademico,
     consultarPrimeroAcademico: consultarPrimeroAcademico,

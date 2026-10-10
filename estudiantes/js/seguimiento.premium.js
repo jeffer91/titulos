@@ -20,7 +20,9 @@
       pendiente = true;
       window.requestAnimationFrame(function () {
         pendiente = false;
-        mejorarTodo();
+        observer.disconnect();
+        try { mejorarTodo(); }
+        finally { observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-hidden'] }); }
       });
     });
 
@@ -35,7 +37,7 @@
   }
 
   function mejorarTodo() {
-    document.body.classList.add('ta-premium');
+    if (!document.body.classList.contains('ta-premium')) document.body.classList.add('ta-premium');
 
     var panel = document.querySelector('#seguimientoTituloPanel');
     if (!panel || panel.classList.contains('is-hidden')) return;
@@ -51,7 +53,7 @@
     var badge = head && head.querySelector('.seguimiento-badge');
     var finalCard = panel.querySelector('.seguimiento-section--final, .seguimiento-final-hero');
     var textoEstado = normalizar(badge && badge.textContent);
-    var aprobadoFinal = /APROBACION FINAL|APROBADO FINAL|APROBACION DEFINITIVA/.test(textoEstado);
+    var aprobadoFinal = /^(APROBADO|APROBACION FINAL|APROBADO FINAL|APROBACION DEFINITIVA)$/.test(textoEstado);
 
     panel.classList.toggle('seguimiento-premium--final', aprobadoFinal);
     panel.classList.toggle('seguimiento-premium--en-proceso', !aprobadoFinal);
@@ -83,17 +85,17 @@
           finalCard.insertBefore(icon, finalCard.firstChild);
         }
 
-        eyebrow.textContent = 'APROBACIÓN DEFINITIVA';
-        if (label) label.textContent = 'Título final aprobado';
-        icon.textContent = '✓';
+        if (eyebrow.textContent !== 'APROBACIÓN DEFINITIVA') eyebrow.textContent = 'APROBACIÓN DEFINITIVA';
+        if (label && label.textContent !== 'Título final aprobado') label.textContent = 'Título final aprobado';
+        if (icon.textContent !== '✓') icon.textContent = '✓';
       } else {
         /*
           Mientras el título está en revisión no se muestra un icono decorativo.
           La antigua "T" azul se superponía al texto en títulos largos.
         */
         if (icon && icon.parentNode) icon.parentNode.removeChild(icon);
-        eyebrow.textContent = 'TÍTULO REGISTRADO';
-        if (label) label.textContent = 'Título en proceso de revisión';
+        if (eyebrow.textContent !== 'TÍTULO REGISTRADO') eyebrow.textContent = 'TÍTULO REGISTRADO';
+        if (label && label.textContent !== 'Título en proceso de revisión') label.textContent = 'Título en proceso de revisión';
       }
     }
 
@@ -105,11 +107,11 @@
       badge.classList.toggle('is-premium-pending', !aprobadoFinal && !requiereCorreccion);
 
       if (aprobadoFinal) {
-        badge.textContent = 'Aprobado';
+        if (badge.textContent !== 'Aprobado') badge.textContent = 'Aprobado';
       } else if (requiereCorreccion) {
-        badge.textContent = 'Requiere corrección';
+        if (badge.textContent !== 'Requiere corrección') badge.textContent = 'Requiere corrección';
       } else {
-        badge.textContent = 'En proceso';
+        if (badge.textContent !== 'En proceso') badge.textContent = 'En proceso';
       }
     }
   }

@@ -35,6 +35,7 @@ jobs:
         run: |
           node tests/consulta-estado.test.js
           node tests/estudiante-envio-rapido.test.js
+          node --test tests/estudiante-consulta-recuperacion.test.js
           node tests/arquitectura-estudiantes.test.js
           node tests/arquitectura-coordinadores.test.js
           node tests/arquitectura-investigadores.test.js

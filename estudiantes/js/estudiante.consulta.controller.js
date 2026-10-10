@@ -21,6 +21,8 @@
   var diagnosticoListenerConectado = false;
   var diagnosticoLentoTimer = null;
   var consultaInteractivaActiva = false;
+  var diagnosticoActual = {};
+  var diagnosticoInicio = 0;
 
   function manejarConsulta(event, opciones) {
     var ui = window.TAEstudianteUI;
@@ -41,6 +43,10 @@
     };
 
     opciones = opciones || {};
+    if (consultaInteractivaActiva) {
+      if (event && event.preventDefault) event.preventDefault();
+      return Promise.resolve(null);
+    }
 
     if (event && event.preventDefault) event.preventDefault();
 
@@ -107,13 +113,9 @@
         actualizarBloqueProceso(3, 'trabajando', 'Consultando estado del título', 'Consultando tu envío en la base de Títulos para el período ' + (estudiante.periodoLabel || estudiante.periodoId || '') + '.');
         iniciarDiagnosticoPaso3(estudiante);
 
-        /*
-          Ruta normal: lectura exacta por periodo__cedula mediante Firestore SDK.
-          El repository usa compatibilidad histórica únicamente si el documento
-          canónico no existe o si hay un fallo transitorio del transporte.
-        */
+        // El watchdog se instala antes de ejecutar el repositorio.
         return conTimeout(
-          consultarEstadoTituloRapido(estudiante, repository),
+          Promise.resolve().then(function () { return consultarEstadoTituloRapido(estudiante, repository); }),
           TIMEOUT_TITULOS_MS,
           'No pudimos completar la consulta del estado del título. Intenta nuevamente.'
         );
@@ -128,6 +130,7 @@
         contexto.envio = envio;
         contexto.diagnosticoTitulos = resultadoTitulo.diagnostico || null;
         contexto.titulosConsultados = true;
+        detenerDiagnosticoLento();
 
         actualizarBloqueProceso(
           3,
@@ -214,8 +217,9 @@
         return null;
       })
       .finally(function () {
-        ui.setLoading(button, false);
+        detenerDiagnosticoLento();
         desactivarInterfazConsultaLibre();
+        ui.setLoading(button, false);
       });
   }
 
@@ -486,6 +490,7 @@
     var porcentaje = Math.max(8, Math.min(100, Number(paso || 1) * 25));
 
     prepararBloqueProceso();
+    bloque.querySelector('.consulta-bloque__spinner').hidden = estado === 'completado' && paso === 4;
 
     Array.prototype.forEach.call(pasos, function (item, index) {
       var numero = index + 1;
@@ -510,6 +515,7 @@
 
     prepararBloqueProceso();
     detenerDiagnosticoLento();
+    bloque.querySelector('.consulta-bloque__spinner').hidden = true;
     bloque.querySelector('[data-proceso-titulo]').textContent = 'No se pudo completar este bloque';
     bloque.querySelector('[data-proceso-detalle]').textContent = mensaje;
 
@@ -572,7 +578,7 @@
       '<details class="consulta-bloque__diagnostico is-hidden" data-proceso-diagnostico>',
         '<summary>Diagnóstico técnico de la consulta</summary>',
         '<div class="consulta-bloque__diagnostico-toolbar">',
-          '<span data-diagnostico-build>Build: 20261008-52</span>',
+          '<span data-diagnostico-build>Build: 20261010-55</span>',
           '<button type="button" class="consulta-bloque__copy" data-diagnostico-copy>Copiar diagnóstico</button>',
         '</div>',
         '<pre data-diagnostico-texto></pre>',
@@ -614,6 +620,7 @@
       '.consulta-bloque__kicker{display:block;font-size:.7rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#426686;margin-bottom:4px}',
       '.consulta-bloque__cabecera h3{margin:0;color:#071b34;font-size:1.08rem}',
       '.consulta-bloque__cabecera p{margin:5px 0 0;color:#60758c;font-size:.88rem}',
+      '.consulta-bloque__spinner[hidden]{display:none}',
       '.consulta-bloque__spinner{width:28px;height:28px;flex:0 0 28px;border:4px solid #dce8f5;border-top-color:#0b5da7;border-radius:50%;animation:taBloqueSpin .75s linear infinite}',
       '@keyframes taBloqueSpin{to{transform:rotate(360deg)}}',
       '.consulta-bloque__barra{height:7px;margin:14px 0;background:#dce8f5;border-radius:999px;overflow:hidden}',
@@ -651,7 +658,11 @@
     var details = bloque.querySelector('[data-proceso-diagnostico]');
     var pre = bloque.querySelector('[data-diagnostico-texto]');
     var build = bloque.querySelector('[data-diagnostico-build]');
-    var info = diagnostico || {};
+    var info = Object.assign({}, diagnosticoActual, diagnostico || {});
+    info.cedula = cedula || (estudiante && estudiante.cedula) || info.cedula || '';
+    info.periodoCanonico = info.periodoCanonico || (estudiante && estudiante.periodoId) || '';
+    if (diagnosticoInicio) info.duracionMs = Date.now() - diagnosticoInicio;
+    diagnosticoActual = info;
     var rutas = Array.isArray(info.rutasDetalle) && info.rutasDetalle.length
       ? info.rutasDetalle
       : diagnosticoRutasLive.slice();
@@ -661,7 +672,7 @@
       'Estrategia: ' + (info.estrategia || 'CEDULA_MAS_PERIODO'),
       'Base: ' + (info.base || 'titulos-ec2fa'),
       'Colección: ' + (info.coleccion || 'envios'),
-      'Cédula: ' + String(cedula || (estudiante && estudiante.cedula) || ''),
+      'Cédula: ' + String(info.cedula),
       'Período: ' + String(info.periodoCanonico || (estudiante && estudiante.periodoId) || ''),
       'Resultado: ' + String(resultado || 'SIN_RESULTADO'),
       'Consulta: ' + String(info.ruta || 'TITULOS_CEDULA'),
@@ -771,7 +782,7 @@
     diagnosticoListenerConectado = true;
 
     window.addEventListener('ta:consulta-titulo-ruta', function (event) {
-      if (consultaInteractivaActiva) activarInterfazConsultaLibre();
+      if (!consultaInteractivaActiva) return;
       var detail = event && event.detail || {};
       actualizarRutaLive(detail);
 
@@ -779,10 +790,10 @@
       if (!bloque || bloque.classList.contains('is-hidden')) return;
 
       mostrarDiagnosticoTitulos({
-        motor: 'RESOLVER_FLEXIBLE',
-        estrategia: 'RUTAS_PARALELAS',
+        motor: 'CONSULTA_CEDULA',
+        estrategia: 'CEDULA_MAS_PERIODO',
         rutasDetalle: diagnosticoRutasLive.slice()
-      }, null, '', 'EN_PROCESO');
+      }, null, '', detail.estado === 'ERROR' || detail.estado === 'TIMEOUT' ? detail.estado : 'EN_PROCESO');
 
       if (detail.estado === 'ERROR' || detail.estado === 'TIMEOUT') {
         var details = bloque.querySelector('[data-proceso-diagnostico]');
@@ -819,6 +830,11 @@
   function iniciarDiagnosticoPaso3(estudiante) {
     detenerDiagnosticoLento();
     diagnosticoRutasLive = [];
+    diagnosticoInicio = Date.now();
+    diagnosticoActual = {
+      cedula: estudiante.cedula || estudiante.numeroIdentificacion || '',
+      periodoCanonico: estudiante.periodoId || ''
+    };
 
     var bloque = obtenerBloqueProceso();
     var details = bloque.querySelector('[data-proceso-diagnostico]');
@@ -843,19 +859,18 @@
       rutasDetalle: []
     }, estudiante, estudiante && estudiante.cedula || '', 'INICIANDO');
 
-    diagnosticoLentoTimer = window.setTimeout(function () {
-      var current = document.querySelector('#consultaProcesoBloque');
-      if (!current || current.classList.contains('is-hidden')) return;
-      var diag = current.querySelector('[data-proceso-diagnostico]');
-      if (diag) diag.open = true;
-    }, 2000);
+    function actualizarReloj() {
+      mostrarDiagnosticoTitulos(diagnosticoActual, null, '', 'EN_PROCESO');
+      diagnosticoLentoTimer = window.setTimeout(actualizarReloj, 250);
+    }
+    diagnosticoLentoTimer = window.setTimeout(actualizarReloj, 250);
   }
 
   function detenerDiagnosticoLento() {
-    if (diagnosticoLentoTimer) {
-      window.clearTimeout(diagnosticoLentoTimer);
-      diagnosticoLentoTimer = null;
-    }
+    if (diagnosticoLentoTimer) window.clearTimeout(diagnosticoLentoTimer);
+    diagnosticoLentoTimer = null;
+    if (diagnosticoInicio) diagnosticoActual.duracionMs = Date.now() - diagnosticoInicio;
+    diagnosticoInicio = 0;
   }
 
   function actualizarRutaLive(detail) {
@@ -925,7 +940,6 @@
       estrategia: existente.estrategia || 'CEDULA_MAS_PERIODO',
       base: existente.base || 'titulos-ec2fa',
       coleccion: existente.coleccion || 'envios',
-      cedula: cedula || (contexto.estudiante && contexto.estudiante.cedula) || '',
       periodoCanonico: existente.periodoCanonico || (contexto.estudiante && contexto.estudiante.periodoId) || '',
       cedula: existente.cedula || ((contexto.estudiante && contexto.estudiante.cedula) || cedula || ''),
       rutasDetalle: diagnosticoRutasLive.slice(),
@@ -971,7 +985,7 @@
   function obtenerBuildActual() {
     return (window.TAEstudianteApp && window.TAEstudianteApp.build) ||
       (window.TAEstudianteDiagnostico && window.TAEstudianteDiagnostico.build) ||
-      '20261008-52';
+      '20261010-55';
   }
 
   function limpiarDiagnosticoTitulos() {

@@ -58,7 +58,7 @@
 
     Array.prototype.forEach.call(panel.querySelectorAll('.seguimiento-step__number.is-success'), function (circle) {
       if (!circle.dataset.originalNumber) circle.dataset.originalNumber = circle.textContent;
-      circle.textContent = '✓';
+      if (circle.textContent !== '✓') circle.textContent = '✓';
     });
 
     Array.prototype.forEach.call(panel.querySelectorAll('.seguimiento-propuesta'), function (card) {

@@ -55,6 +55,10 @@ function loadRepository(options) {
     }
   };
 
+  firebaseService.consultarEnviosIdentidadServidor = function (cedula) {
+    return firebaseService.consultarColeccion('envios', 'cedula', '==', cedula, 100);
+  };
+
   const context = {
     console,
     Promise,

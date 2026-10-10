@@ -203,21 +203,14 @@
       periodo: periodo
     });
 
-    /*
-      Consulta única en Firebase de Títulos:
-      envios where cedula == "<cédula>"
-      El período NO forma parte de la consulta remota; ya viene de la matrícula.
-      Luego se filtra localmente por periodoId / periodoCanonicoId.
-    */
+    // Un solo servicio del módulo: servidor SDK y compatibilidad REST acotada.
     return conTimeoutRepo(
-      firebaseService.consultarColeccion(
-        config.collections.titulos,
-        'cedula',
-        '==',
-        cedula,
-        100
-      ),
-      5000,
+      Promise.resolve().then(function () {
+        return firebaseService.consultarEnviosIdentidadServidor(cedula, function (ruta, estado, extra) {
+          registrarRutaSimple(ruta, estado, Object.assign({ cedula: cedula, periodo: periodo, ms: Date.now() - inicio }, extra));
+        }, function (doc) { return periodoCoincide(doc, periodo); });
+      }),
+      7000,
       'TITULOS_CEDULA'
     )
       .then(function (docs) {
@@ -251,7 +244,7 @@
           documentoId: elegido && (elegido.id || elegido._docId) || '',
           encontradosCedula: docs.length,
           encontradosPeriodo: compatibles.length,
-          rutasProbadas: ['TITULOS_CEDULA'],
+          rutasProbadas: trazaEnvioActual.map(function (item) { return item.ruta; }),
           rutasDetalle: trazaEnvioActual.slice(),
           status: elegido ? 200 : 404,
           duracionMs: Date.now() - inicio
@@ -281,7 +274,7 @@
           cedula: cedula,
           periodoCanonico: periodo,
           ruta: 'TITULOS_CEDULA',
-          rutasProbadas: ['TITULOS_CEDULA'],
+          rutasProbadas: trazaEnvioActual.map(function (item) { return item.ruta; }),
           rutasDetalle: trazaEnvioActual.slice(),
           duracionMs: Date.now() - inicio
         });
@@ -293,7 +286,7 @@
   function periodoCoincide(doc, periodoEsperado) {
     var esperado = normalizarPeriodoSimple(periodoEsperado);
     var periodoDoc = normalizarPeriodoSimple(
-      doc && (doc.periodoId || doc.periodoCanonicoId || doc.periodoNombre || doc.periodoLabel)
+      doc && (doc.periodoCanonicoId || doc.periodoId || doc.periodoNombre || doc.periodoLabel)
     );
 
     return Boolean(esperado && periodoDoc && esperado === periodoDoc);
@@ -352,7 +345,7 @@
       item[key] = extra[key];
     });
 
-    trazaEnvioActual = [item];
+    trazaEnvioActual.push(item);
 
     try {
       if (window.TAEstudianteDiagnostico && typeof window.TAEstudianteDiagnostico.registrar === 'function') {
