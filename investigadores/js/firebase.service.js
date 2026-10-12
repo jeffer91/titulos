@@ -269,7 +269,7 @@
       query = query.limit(Number(opts.limit));
     }
 
-    return query.get()
+    return query.get(opts.server ? { source: 'server' } : undefined)
       .then(function (snapshot) {
         var docs = [];
         snapshot.forEach(function (doc) {

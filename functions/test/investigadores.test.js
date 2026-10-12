@@ -11,6 +11,10 @@ function firestore(seed){
  function campo(doc,path){return path.split('.').reduce((value,key)=>value&&value[key],doc);}
  function collection(nombre){
   return {
+   orderBy(){return {limit(max){let cursor='';return {
+    startAfter(s){cursor=s.id;return this;},
+    async get(){return {docs:[...tabla(nombre).keys()].sort().filter(id=>id>cursor).slice(0,max).map(id=>snap(nombre,id))};}
+   };}};},
    doc(id){const key=id||'auto-'+(++n);return {nombre,id:key,get:async()=>snap(nombre,key)};},
    where(key,op,value){
     assert.equal(op,'==');queries.push({nombre,key,value});
@@ -57,11 +61,11 @@ function datos(){
  };
 }
 function setup(raw=datos()){const db=firestore(raw);return {db,rutas:crearRutasInvestigadores({db})};}
-test('carreras no conceden permisos por substrings ni comodines',()=>{
+test('investigador activo accede a todas las carreras, incluso sin asignaciones',()=>{
  assert.deepEqual(carreras({carrerasNombres:['Educación Básica','Educación Básica']}),['Educación Básica']);
- assert.equal(permitida({carreraNombre:'Educación Inicial'},{carreras:['Educación']}),false);
- assert.equal(permitida({carreraNombre:'Educación Básica'},{carreras:['*']}),false);
- assert.equal(permitida({carreraNombre:'EDUCACION BASICA'},{carreras:['Educación Básica']}),true);
+ assert.equal(permitida({carreraNombre:'Educación Inicial'},{activo:true,pinActivo:true,carreras:[]}),true);
+ assert.equal(permitida({carreraNombre:'Educación Inicial'},{activo:false,pinActivo:true}),false);
+ assert.equal(permitida({carreraNombre:'Educación Inicial'},{activo:true,pinActivo:false}),false);
 });
 test('se exige sesión vinculada y no se devuelve pinHash',async()=>{
  const {rutas}=setup();
@@ -82,26 +86,24 @@ test('PIN desactivado administrativamente bloquea API incluso con Auth',async()=
  const {rutas}=setup(base);
  await assert.rejects(()=>rutas['/cola'].handle({usuario:actor}),e=>e.code==='INVESTIGADOR_DESACTIVADO');
 });
-test('cola multiperiodo FIFO sin leer envios completos ni carreras ajenas',async()=>{
+test('cola institucional multiperiodo FIFO para todas las carreras',async()=>{
  const {rutas,db}=setup();
  const data=await rutas['/cola'].handle({usuario:actor});
- assert.deepEqual(data.titulos.map(x=>x.id),['b1','b2']);
+ assert.deepEqual(data.titulos.map(x=>x.id),['vecino','b1','b2']);
  assert.equal(data.truncado,false);
  assert.equal(db.queries.some(q=>q.nombre==='envios'&&q.key==='periodoId'),false);
- assert.equal(db.queries.some(q=>q.nombre==='envios'&&q.key==='carreraNombre'),true);
+ assert.equal(db.queries.some(q=>q.nombre==='envios'&&q.key==='carreraNombre'),false);
  assert.equal(pendiente(datos().envios.aprobado),false);
 });
-test('revisión ajena y doble revisión rechazadas',async()=>{
+test('revisión de otra carrera permitida y doble revisión rechazada',async()=>{
  const {rutas,db}=setup();
- await assert.rejects(()=>rutas['/revision'].handle({usuario:actor,body:{
-  tituloId:'vecino',accion:'APROBAR'
- }}),e=>e.code==='CARRERA_NO_AUTORIZADA');
- assert.equal(db.tablas.workflow_events.size,0);
+ await rutas['/revision'].handle({usuario:actor,body:{tituloId:'vecino',accion:'APROBAR'}});
+ assert.equal(db.tablas.workflow_events.size,1);
  await rutas['/revision'].handle({usuario:actor,body:{tituloId:'b1',accion:'APROBAR'}});
  await assert.rejects(()=>rutas['/revision'].handle({usuario:actor,body:{
   tituloId:'b1',accion:'APROBAR'
  }}),e=>e.code==='REVISION_NO_DISPONIBLE');
- assert.equal(db.tablas.workflow_events.size,1);
+ assert.equal(db.tablas.workflow_events.size,2);
 });
 test('aprobación conserva título escogido y crea auditoría en misma transacción',async()=>{
  const {rutas,db}=setup();
@@ -136,9 +138,9 @@ test('devolver exige motivo, registra reenvío autorizado y evento',async()=>{
  assert.equal(d.puedeReenviar,true);
  assert.equal(db.tablas.workflow_events.size,1);
 });
-test('revocar asignación después de autenticar bloquea modificación',async()=>{
+test('revocar acceso después de autenticar bloquea modificación',async()=>{
  const {rutas,db}=setup();
- const obj=db.tablas.investigadores.get('i1');obj.carrerasNombres=['Educación Inicial'];
+ const obj=db.tablas.investigadores.get('i1');obj.activo=false;
  await assert.rejects(()=>rutas['/revision'].handle({usuario:actor,body:{
   tituloId:'b1',accion:'APROBAR'
  }}),e=>e.status===403);
@@ -154,4 +156,20 @@ test('mis revisiones no devuelve datos de otro investigador ni depende de carrer
  const result=await rutas['/revisados'].handle({usuario:actor});
  assert.deepEqual(result.titulos.map(x=>x.id),['aprobado']);
  assert.equal(result.titulos[0].pinHash,undefined);
+});
+
+test('perfil sin carreras puede cargar cola, revisar y conservar historial propio',async()=>{
+ const base=datos();base.investigadores.i1.carrerasNombres=[];
+ const {rutas}=setup(base);
+ assert.equal((await rutas['/cola'].handle({usuario:actor})).titulos.length,3);
+ await rutas['/revision'].handle({usuario:actor,body:{tituloId:'vecino',accion:'APROBAR'}});
+ assert.equal((await rutas['/cola'].handle({usuario:actor})).titulos.length,2);
+ assert.deepEqual((await rutas['/revisados'].handle({usuario:actor})).titulos.map(t=>t.id),['vecino']);
+});
+test('paginación conserva pendientes después de más de 2500 expedientes cerrados',async()=>{
+ const base=datos();base.envios={};
+ for(let i=0;i<2501;i++)base.envios['a'+String(i).padStart(4,'0')]={...titulo('a','Carrera','p','2026-01-01'),estado:'APROBADO_FINAL'};
+ base.envios.z= titulo('z','Otra carrera','p','2026-01-02');
+ const {rutas}=setup(base);
+ assert.deepEqual((await rutas['/cola'].handle({usuario:actor})).titulos.map(t=>t.id),['z']);
 });

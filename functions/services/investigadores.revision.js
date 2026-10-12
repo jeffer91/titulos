@@ -23,7 +23,7 @@ async function revisar(db,perfil,actor,body,h){
  const ref=db.collection('envios').doc(id),ahora=new Date().toISOString();
  const result=await db.runTransaction(async tx=>{
   const actual=doc(await tx.get(db.collection('investigadores').doc(perfil.id)));
-  if(!h.activo(actual)||!h.carreras(actual).length)fail(403,'PERFIL_REVOCADO');
+  if(!h.activo(actual))fail(403,'PERFIL_REVOCADO');
   if(actual.authUid&&actual.authUid!==actor.uid)fail(403,'CUENTA_NO_COINCIDE');
   if(!actual.authUid&&(!actor.emailVerified||!actor.email||
     str(actual.email||actual.correo).toLowerCase()!==actor.email))fail(403,'VINCULO_CORREO_REVOCADO');

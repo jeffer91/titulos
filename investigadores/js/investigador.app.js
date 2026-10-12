@@ -469,7 +469,7 @@
       .catch(function (error) {
         titulos = [];
         renderResumen();
-        renderCarreras();
+        renderCarreras(error);
         mensaje('revisionMensaje', errorMensaje(error, 'No se pudieron cargar los títulos.'), 'error');
       })
       .finally(function () {
@@ -487,7 +487,7 @@
     setText('totalRevisados', revisados);
   }
 
-  function renderCarreras() {
+  function renderCarreras(error) {
     var body = el('carrerasPendientesBody');
     if (!body) return;
 
@@ -504,7 +504,8 @@
     if (!grupos.length) {
       body.innerHTML =
         '<tr><td colspan="3" class="queue-empty">' +
-        '<strong>Todo al día</strong><span>No hay carreras con expedientes pendientes.</span>' +
+        (error ? '<strong>No se pudo cargar la cola</strong><span>Vuelve a intentarlo con Actualizar.</span>' :
+        '<strong>Todo al día</strong><span>No hay carreras con expedientes pendientes.</span>') +
         '</td></tr>';
       return;
     }

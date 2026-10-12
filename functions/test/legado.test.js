@@ -8,7 +8,8 @@ test('PIN desactivado no se reactiva desde el navegador',()=>{
   assert.match(src,/if\s*\(!actual\.pinActivo\)/);
   assert.doesNotMatch(src,/pinActivadoPor: 'validacion_pin'/);
 });
-test('sin carreras asignadas no se obtienen títulos',()=>{
-  assert.match(src,/if \(!carreras\.length\) return false;/);
-  assert.match(src,/if \(!perteneceAlInvestigador\(titulo, investigador\)\)/);
+test('cola institucional exige acceso activo y no asignaciones por carrera',()=>{
+  assert.match(src,/investigador\.activo === false/);
+  assert.match(src,/!investigador\.pinActivo/);
+  assert.doesNotMatch(src,/perteneceAlInvestigador/);
 });

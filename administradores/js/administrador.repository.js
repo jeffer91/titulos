@@ -664,7 +664,7 @@
       titulo.validadoCoordinacion === true ||
       titulo.coordinadorRevisado === true ||
       estadoCoord === 'VALIDADO' ||
-      estadoCoord === 'APROBADO';
+      estadoCoord === 'APROBADO' || estadoCoord === 'APROBADO_CON_OBSERVACION';
     var invRevisado = titulo.investigacionRevisada === true ||
       estadoInv === 'APROBADO' ||
       estadoInv === 'APROBADO_CON_OBSERVACION' ||
@@ -677,12 +677,12 @@
       proceso === 'DEVUELTO' ||
       estado === 'ARCHIVADO' ||
       proceso === 'ARCHIVADO' ||
-      estado === 'BORRADOR_REINICIADO'
+      estado === 'BORRADOR_REINICIADO' || proceso === 'BORRADOR_REINICIADO'
     ) {
       return '';
     }
 
-    if (invRevisado) {
+    if (invRevisado || estadoCoord === 'DEVUELTO' || (estadoInv && estadoInv !== 'PENDIENTE')) {
       return '';
     }
 
@@ -855,7 +855,7 @@
   }
 
   function normalizarTitulo(data) {
-    var carreraOriginal = limpiarTexto(data.carrera || data.nombreCarrera || '');
+    var carreraOriginal = limpiarTexto(data.carreraNombre || data.carrera || data.nombreCarrera || '');
     var periodoId = normalizarPeriodoIdCanonico(data.periodoId || '');
 
     return Object.assign({}, data, {

@@ -61,11 +61,12 @@
       Un expediente entra a esta cola cuando Coordinación lo habilita,
       aunque pertenezca a un período académico anterior o simultáneo.
     */
-    return firebaseService.listarDocumentos(config.collections.titulos, { limit: 2500 })
+    if (!investigador || investigador.activo === false || !investigador.pinActivo)
+      return Promise.reject(new Error('El acceso del investigador no está activo.'));
+    return firebaseService.listarDocumentos(config.collections.titulos, { server: true })
       .then(function (docs) {
         return (docs || []).map(normalizarTitulo)
-          .filter(estaHabilitadoPorCoordinador)
-          .filter(function (titulo) { return perteneceAlInvestigador(titulo, investigador); })
+          .filter(estaPendienteInvestigacion)
           .sort(function (a, b) {
             var fechaA = Number(a.fechaColaMs || Number.MAX_SAFE_INTEGER);
             var fechaB = Number(b.fechaColaMs || Number.MAX_SAFE_INTEGER);
@@ -105,9 +106,8 @@
   function revisarTitulo(titulo, accion, observacion, investigador) {
     if(modoSeguro())return seguro.revisar({tituloId:titulo&&titulo.id,accion:accion,observacion:observacion}).then(normalizarTitulo);
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título.'));
-    if (!estaHabilitadoPorCoordinador(titulo)) return Promise.reject(new Error('Este título todavía no está habilitado por Coordinación.'));
-    if (!investigador || !investigador.pinActivo) return Promise.reject(new Error('El acceso del investigador no está activo.'));
-    if (!perteneceAlInvestigador(titulo, investigador)) return Promise.reject(new Error('El título no pertenece a tus carreras asignadas.'));
+    if (!estaPendienteInvestigacion(titulo)) return Promise.reject(new Error('Este título ya no está pendiente de Investigación.'));
+    if (!investigador || investigador.activo === false || !investigador.pinActivo) return Promise.reject(new Error('El acceso del investigador no está activo.'));
 
     var estadoRevision = estadoDesdeAccion(accion);
     var comentario = limpiar(observacion);
@@ -185,37 +185,29 @@
           fechaLocal: ahora
         }).catch(function () { return null; });
       })
-      .then(function () { return Object.assign({}, titulo, payload); });
+      .then(function () { return normalizarTitulo(Object.assign({}, titulo.raw || titulo, payload)); });
   }
 
   function estaHabilitadoPorCoordinador(titulo) {
-    var estado = String(titulo.estado || '').toUpperCase();
-    var proceso = String(titulo.estadoProceso || '').toUpperCase();
-    var estadoCoord = String(titulo.estadoCoordinador || '').toUpperCase();
-    var validado = Boolean(titulo.validadoCoordinador || titulo.coordinadorRevisado || titulo.revisionCoordinador);
-
-    if (estado === 'APROBADO_FINAL' || proceso === 'APROBADO_FINAL') return true;
-    if (estado === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR') return true;
-    return validado && config.estadosCoordinadorHabilitados.indexOf(estadoCoord) !== -1;
+    if (!titulo) return false;
+    var t = titulo.raw || titulo;
+    var estado = normalizarTexto(t.estado), proceso = normalizarTexto(t.estadoProceso);
+    var coord = normalizarTexto(t.estadoCoordinador || (t.revisionCoordinador && t.revisionCoordinador.estado));
+    return estado === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR' ||
+      t.validadoCoordinador === true || t.validadoCoordinacion === true || t.coordinadorRevisado === true ||
+      coord === 'VALIDADO' || coord === 'APROBADO' || coord === 'APROBADO_CON_OBSERVACION';
   }
 
   function estaPendienteInvestigacion(titulo) {
     if (!titulo || !estaHabilitadoPorCoordinador(titulo)) return false;
-
-    var estado = String(titulo.estado || '').toUpperCase();
-    var proceso = String(titulo.estadoProceso || '').toUpperCase();
-    var estadoInvestigador = String(titulo.estadoInvestigador || '').toUpperCase();
-    var revision = titulo.revisionInvestigador || {};
-
-    if (estado === 'APROBADO_FINAL' || proceso === 'APROBADO_FINAL') return false;
-    if (estado === 'DEVUELTO' || proceso === 'DEVUELTO') return false;
-    if (titulo.raw && titulo.raw.investigacionRevisada === true) return false;
-    if (revision && revision.estado && String(revision.estado).toUpperCase() !== 'PENDIENTE') return false;
-    if (estadoInvestigador && estadoInvestigador !== 'PENDIENTE') return false;
-
-    return estado === 'PENDIENTE_INVESTIGADOR' ||
-      proceso === 'PENDIENTE_INVESTIGADOR' ||
-      titulo.estadoCoordinador === 'VALIDADO';
+    var t = titulo.raw || titulo;
+    var estado = normalizarTexto(t.estado), proceso = normalizarTexto(t.estadoProceso);
+    var coord = normalizarTexto(t.estadoCoordinador || (t.revisionCoordinador && t.revisionCoordinador.estado));
+    var inv = normalizarTexto(t.estadoInvestigador || (t.revisionInvestigador && t.revisionInvestigador.estado));
+    var cerrados = ['APROBADO_FINAL', 'DEVUELTO', 'ARCHIVADO', 'BORRADOR_REINICIADO'];
+    if (cerrados.indexOf(estado) !== -1 || cerrados.indexOf(proceso) !== -1 || coord === 'DEVUELTO') return false;
+    if (t.investigacionRevisada === true || (inv && inv !== 'PENDIENTE')) return false;
+    return Array.isArray(t.titulosEnviados) && t.titulosEnviados.length > 0;
   }
 
   function fechaIso(valor) {
@@ -235,18 +227,6 @@
     if (!iso) return Number.MAX_SAFE_INTEGER;
     var ms = new Date(iso).getTime();
     return isNaN(ms) ? Number.MAX_SAFE_INTEGER : ms;
-  }
-
-  function perteneceAlInvestigador(titulo, investigador) {
-    var carreras = investigador && investigador.carreras || [];
-    if (!carreras.length) return false;
-    var carrera = normalizarTexto(titulo.carrera);
-    var codigo = normalizarTexto(titulo.codigoCarrera);
-    return carreras.some(function (item) {
-      var valor = normalizarTexto(item);
-      return valor === '*' || valor === 'TODAS' || valor === carrera || valor === codigo ||
-        (carrera && carrera.indexOf(valor) !== -1) || (carrera && valor.indexOf(carrera) !== -1);
-    });
   }
 
   function normalizarInvestigador(data) {
