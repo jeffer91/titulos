@@ -42,7 +42,7 @@
       if(!actual.pinCreado||!actual.pinHash)
         throw new Error('Tu acceso todavía no tiene un PIN asignado.');
       return hashPin(actual.cedula,pin).then(function(hash){
-        if(!compararSeguro(hash,actual.pinHash))
+        if(!compararSeguro(hash,String(actual.pinHash || '').trim().toLowerCase()))
           throw new Error('PIN incorrecto para el registro guardado en Firebase. Solicita comprobarlo en Administración.');
         if(!actual.pinActivo)
           throw new Error('Tu acceso está desactivado. Solicita activación a Administración.');
@@ -243,7 +243,7 @@
       activo: data.activo !== false && String(data.estado || 'ACTIVO').toUpperCase() !== 'INACTIVO',
       pinCreado: Boolean(data.pinCreado || data.pinHash),
       pinActivo: Boolean(data.pinActivo),
-      pinHash: String(data.pinHash || ''),
+      pinHash: String(data.pinHash || '').trim(),
       raw: data
     };
   }

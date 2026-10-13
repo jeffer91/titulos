@@ -144,7 +144,7 @@
     var nombre=limpiar(ui.value('#investigadorNombreInput'));
     var email=limpiar(ui.value('#investigadorEmailInput')).toLowerCase();
     var uid=limpiar(ui.value('#investigadorUidSeguro'));
-    var pin=soloNumeros(ui.value('#investigadorPinCrear'));
+    var pin=String(ui.value('#investigadorPinCrear') || '').trim();
     var button=ui.qs('#btnCrearInvestigador');
     if(cedula.length!==10||!nombre){
       ui.showStatus('#crearInvestigadorMensaje','Ingresa una cédula de 10 dígitos y nombres completos.','error');
@@ -258,7 +258,7 @@
         ui.showStatus('#modalPinInvestigadorMensaje','No hay PIN registrado para esta cédula. Usa Guardar y verificar para asignarlo.','warning');
         return false;
       }
-      if(String(doc.pinHash).toLowerCase()!==esperado){
+      if(String(doc.pinHash).trim().toLowerCase()!==esperado){
         ui.showStatus('#modalPinInvestigadorMensaje',
           'El PIN ingresado NO coincide con el guardado en Firebase. Usa Guardar y verificar para restablecerlo.', 'warning');
         return false;
@@ -288,7 +288,7 @@
       return;
     }
 
-    var pin = soloNumeros(ui.value('#investigadorNuevoPin'));
+    var pin = String(ui.value('#investigadorNuevoPin') || '').trim();
     var button = ui.qs('#btnGuardarPinInvestigador');
     var investigador = investigadorPinActual;
 
@@ -449,7 +449,7 @@
     return firebaseService.leerDocumentoServidor(config.collections.investigadores, docId)
       .then(function(doc){
         if(!doc)throw new Error('Firebase no devolvió el PIN después del guardado.');
-        if(String(doc.pinHash||'').toLowerCase()!==String(hashEsperado||'').toLowerCase())
+        if(String(doc.pinHash||'').trim().toLowerCase()!==String(hashEsperado||'').trim().toLowerCase())
           throw new Error('El hash del PIN cambió en Firebase. No se confirmó el acceso.');
         if(Number(doc.pinRevision)!==Number(revisionEsperada))
           throw new Error('Otra operación modificó el PIN después de guardarlo. Actualiza el registro.');

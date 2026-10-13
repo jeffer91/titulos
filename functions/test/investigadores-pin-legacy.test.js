@@ -156,6 +156,24 @@ test('Administración puede restablecer PIN y Investigadores lo valida con mismo
  assert.equal(acceso.cedula,CEDULA);
  await assert.rejects(()=>login.validarAcceso(profile,DISTINTO),/PIN incorrecto/);
 });
+test('Investigadores acepta hash SHA-256 legado en mayúsculas sin debilitar la comparación',async()=>{
+ const login=repo({id:CEDULA,cedula:CEDULA,activo:true,pinActivo:true,pinCreado:true,
+  pinHash:HASH(CEDULA,CORRECTO).toUpperCase()});
+ const investigador=await login.buscarInvestigador(CEDULA);
+ const acceso=await login.validarAcceso(investigador,CORRECTO);
+ assert.equal(acceso.cedula,CEDULA);
+ await assert.rejects(()=>login.validarAcceso(investigador,DISTINTO),/PIN incorrecto/);
+});
+test('Administrador nunca transforma silenciosamente letras en un PIN válido',async()=>{
+ const env=mock();env.window.TAAdminInvestigadores.iniciar();
+ await env.window.TAAdminInvestigadores.cargar();
+ const actions=env.elements['#investigadoresTableBody'].children[0].children[5].children[0].children;
+ actions.find(el=>el.textContent==='Cambiar PIN').handlers.click();
+ env.elements['#investigadorNuevoPin'].value='24x68';
+ env.elements['#formCambiarPinInvestigador'].handlers.submit({preventDefault(){}});
+ assert.equal(env.updates(),0);
+ assert.ok(env.reports.some(e=>e.message.includes('exactamente 4 dígitos')));
+});
 test('investigador con documento de otra cédula falla de forma explícita',async()=>{
  const doc={id:CEDULA,cedula:'1722222222',activo:true,pinActivo:true,pinHash:HASH(CEDULA,CORRECTO)};
  const login=repo(doc);
