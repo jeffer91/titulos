@@ -43,7 +43,7 @@
         throw new Error('Tu acceso todavía no tiene un PIN asignado.');
       return hashPin(actual.cedula,pin).then(function(hash){
         if(!compararSeguro(hash,String(actual.pinHash || '').trim().toLowerCase()))
-          throw new Error('PIN incorrecto para el registro guardado en Firebase. Solicita comprobarlo en Administración.');
+          throw new Error('PIN incorrecto para el registro de Firebase. Administración puede comprobar y restablecer el acceso desde Investigadores → Conciliar PINs.');
         if(!actual.pinActivo)
           throw new Error('Tu acceso está desactivado. Solicita activación a Administración.');
         return actual;

@@ -13,7 +13,8 @@
     .admin-modo-seguro .admin-secure-only{display:block!important}
     .admin-modo-seguro #investigadorPinCrear,
     .admin-modo-seguro #btnGenerarPinCrear,
-    .admin-modo-seguro #modalPinInvestigador{display:none!important}
+    .admin-modo-seguro #modalPinInvestigador,
+    .admin-modo-seguro #pinConciliacionPanel{display:none!important}
   </style>
 </head>
 <body>
@@ -478,6 +479,30 @@
         </div>
       </section>
       <div class="status-message" id="investigadoresMensaje" role="status" aria-live="polite"></div>
+
+      <section class="card" id="pinConciliacionPanel" aria-labelledby="pinConciliacionTitulo">
+        <h3 id="pinConciliacionTitulo">Conciliar PINs con Firebase</h3>
+        <p class="muted">Pega las filas de tu tabla (nombre, apellido, cédula y PIN) o líneas «cédula;PIN».
+          Primero se comprobarán los registros sin modificarlos. Solo se cambia un PIN al pulsar
+          «Restablecer» y confirmar para ese investigador. No se envían PINs al repositorio.</p>
+        <div class="field field--full">
+          <label for="pinConciliacionEntrada">Datos temporales para la comprobación</label>
+          <textarea id="pinConciliacionEntrada" rows="5" autocomplete="off" spellcheck="false"
+            placeholder="Cédula;PIN (una persona por línea o tabla copiada)"></textarea>
+          <small>El texto se borra al iniciar la comprobación. No se guarda en archivos, almacenamiento local ni registros.</small>
+        </div>
+        <div class="toolbar" style="margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn--primary" id="btnAuditarPinesInvestigadores" type="button">Comprobar PINs</button>
+          <button class="btn btn--secondary" id="btnLimpiarAuditoriaPines" type="button">Limpiar resultados</button>
+        </div>
+        <div id="pinConciliacionMensaje" class="status-message" role="status" aria-live="polite"></div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Cédula</th><th>Investigador</th><th>Resultado</th><th class="text-right">Acción</th></tr></thead>
+            <tbody id="pinConciliacionBody"><tr><td colspan="4" class="empty-cell">Sin comprobaciones.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
     </section>
 
     <section class="admin-panel is-hidden" id="panelEstudiantes" data-admin-panel="estudiantes" aria-labelledby="tituloEstudiantes">
@@ -964,7 +989,7 @@
         </div>
 
         <div class="pin-verify-note">
-          Guardar el PIN activa el acceso inmediatamente. La aplicación verificará que quedó correctamente registrado.
+          Guardar y verificar actualiza el PIN sin reactivar cuentas desactivadas. La aplicación comprobará el registro en Firebase.
         </div>
 
         <div class="status-message" id="modalPinInvestigadorMensaje" role="status" aria-live="polite"></div>
@@ -1040,7 +1065,7 @@
   <script src="js/reportes.revisiones.admin.js?v=20261008-admin4"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js?v=20261013-colas-carreras"></script>
-  <script src="js/investigadores.admin.js?v=20261013-pin-formato"></script>
+  <script src="js/investigadores.admin.js?v=20261013-conciliar-pines-v2"></script>
   <script src="js/estudiantes.admin.js"></script>
   <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>
