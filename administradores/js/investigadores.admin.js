@@ -126,7 +126,7 @@
         boton.type = 'button';
         boton.className = 'btn btn--small btn--secondary';
         boton.textContent = 'Restablecer';
-        boton.addEventListener('click', function () { restablecerPinConciliado(item, boton); });
+        boton.addEventListener('click', function () { return restablecerPinConciliado(item, boton); });
         tr.children[3].appendChild(boton);
       }
       tabla.appendChild(tr);
