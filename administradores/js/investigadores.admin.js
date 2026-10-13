@@ -84,7 +84,8 @@
         resolverDocumentoInvestigador(fila.cedula)
       ]).then(function (resultados) {
         var hash = resultados[0], encontrado = resultados[1].existente;
-        if (!encontrado) return { cedula: fila.cedula, nombre: 'No registrado', resultado: 'No encontrado', hash: null };
+        if (!encontrado || soloNumeros(encontrado.cedula || encontrado.identificacion || encontrado.numeroIdentificacion || encontrado.id) !== fila.cedula)
+          return { cedula: fila.cedula, nombre: 'No registrado', resultado: 'No encontrado', hash: null };
         var almacenado = String(encontrado.pinHash || '').trim().toLowerCase();
         var coincide = Boolean(almacenado && almacenado === hash);
         return {
