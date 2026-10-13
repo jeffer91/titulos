@@ -11,6 +11,163 @@
   var investigadores = [];
   var investigadorPinActual = null;
 
+  // La conciliación no almacena PINs legibles: únicamente hashes temporales en memoria.
+  // Ningún cambio se realiza durante la comprobación. Cada escritura requiere confirmación.
+  var conciliacionesPin = [];
+  var versionConciliacionPin = 0;
+
+  function interpretarFilasPin(texto) {
+    var lineas = String(texto || '').split(/\r?\n/);
+    var vistos = Object.create(null);
+    var filas = [];
+    if (lineas.length > 100) throw new Error('Se admiten como máximo 25 investigadores por comprobación.');
+    lineas.forEach(function (linea, indice) {
+      var valor = linea.trim();
+      if (!valor || !/\d/.test(valor)) return; // Encabezados y separadores de tablas.
+      var columnas = valor.indexOf('|') !== -1 ? valor.split('|') :
+        valor.indexOf('\t') !== -1 ? valor.split('\t') :
+          valor.indexOf(';') !== -1 ? valor.split(';') : valor.split(',');
+      columnas = columnas.map(function (item) { return item.trim(); }).filter(Boolean);
+      if (columnas.length < 2) columnas = valor.split(/\s+/);
+      var cedula = columnas[columnas.length - 2] || '';
+      var pin = columnas[columnas.length - 1] || '';
+      if (!/^\d{10}$/.test(cedula) || !/^\d{4}$/.test(pin))
+        throw new Error('Formato incorrecto en la fila ' + (indice + 1) + '. Usa cédula y PIN de cuatro dígitos.');
+      if (vistos[cedula]) throw new Error('Hay una cédula repetida en la fila ' + (indice + 1) + '.');
+      vistos[cedula] = true;
+      filas.push({ cedula: cedula, pin: pin });
+      if (filas.length > 25) throw new Error('Se admiten como máximo 25 investigadores.');
+    });
+    if (!filas.length) throw new Error('Pega al menos una fila válida con cédula y PIN.');
+    return filas;
+  }
+
+  function limpiarAuditoriaPines() {
+    versionConciliacionPin += 1;
+    conciliacionesPin.forEach(function (item) { item.hash = null; });
+    conciliacionesPin = [];
+    ui.setValue('#pinConciliacionEntrada', '');
+    var tabla = ui.qs('#pinConciliacionBody');
+    if (tabla) {
+      tabla.innerHTML = '';
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="4" class="empty-cell">Sin comprobaciones.</td>';
+      tabla.appendChild(tr);
+    }
+    ui.showStatus('#pinConciliacionMensaje', 'Resultados temporales eliminados.', 'info');
+  }
+
+  function auditarPines() {
+    if (modoSeguro()) return Promise.reject(new Error('En modo seguro se usa Firebase Authentication, no PINs heredados.'));
+    var campo = ui.qs('#pinConciliacionEntrada');
+    var texto = campo ? campo.value : '';
+    var filas;
+    try {
+      filas = interpretarFilasPin(texto);
+    } catch (error) {
+      ui.showStatus('#pinConciliacionMensaje', mensaje(error, 'Formato inválido.'), 'error');
+      return Promise.resolve([]);
+    } finally {
+      // No dejar PINs en el DOM después de interpretar el formulario.
+      if (campo) campo.value = '';
+    }
+    versionConciliacionPin += 1;
+    var version = versionConciliacionPin;
+    conciliacionesPin.forEach(function (item) { item.hash = null; });
+    conciliacionesPin = [];
+    var boton = ui.qs('#btnAuditarPinesInvestigadores');
+    ui.setLoading(boton, true, 'Comprobando...');
+    ui.showStatus('#pinConciliacionMensaje', 'Consultando registros vigentes de Firebase sin modificarlos...', 'info');
+    return Promise.all(filas.map(function (fila) {
+      return Promise.all([
+        hashPin(fila.cedula, fila.pin),
+        resolverDocumentoInvestigador(fila.cedula)
+      ]).then(function (resultados) {
+        var hash = resultados[0], encontrado = resultados[1].existente;
+        if (!encontrado) return { cedula: fila.cedula, nombre: 'No registrado', resultado: 'No encontrado', hash: null };
+        var almacenado = String(encontrado.pinHash || '').trim().toLowerCase();
+        var coincide = Boolean(almacenado && almacenado === hash);
+        return {
+          cedula: fila.cedula, id: resultados[1].docId,
+          nombre: limpiar(encontrado.nombres || encontrado.nombre || encontrado.nombreCompleto) || 'Investigador',
+          resultado: coincide ? 'PIN coincide' : (almacenado ? 'PIN diferente' : 'Sin PIN'),
+          hash: coincide ? null : hash,
+          revision: Number(encontrado.pinRevision || 0),
+          activo: encontrado.activo !== false && encontrado.pinActivo === true
+        };
+      }).catch(function (error) {
+        return { cedula: fila.cedula, nombre: 'No comprobado', resultado: mensaje(error, 'Error de consulta'), hash: null };
+      });
+    })).then(function (items) {
+      if (version !== versionConciliacionPin) return [];
+      conciliacionesPin = items;
+      renderConciliacionesPin();
+      var iguales = items.filter(function (item) { return item.resultado === 'PIN coincide'; }).length;
+      var diferencias = items.filter(function (item) { return item.hash; }).length;
+      ui.showStatus('#pinConciliacionMensaje',
+        'Comprobados: ' + items.length + ' · Coinciden: ' + iguales + ' · Requieren restablecimiento: ' +
+        diferencias + '. Los cambios se aplican individualmente y solo después de confirmar.', 'info');
+      return items;
+    }).finally(function () { ui.setLoading(boton, false); });
+  }
+
+  function renderConciliacionesPin() {
+    var tabla = ui.qs('#pinConciliacionBody');
+    if (!tabla) return;
+    tabla.innerHTML = '';
+    conciliacionesPin.forEach(function (item) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td><strong>' + ui.escapeHtml(item.cedula) + '</strong></td>' +
+        '<td>' + ui.escapeHtml(item.nombre || '') + '</td>' +
+        '<td>' + ui.escapeHtml(item.resultado || '') + '</td><td class="text-right"></td>';
+      if (item.hash && item.id) {
+        var boton = document.createElement('button');
+        boton.type = 'button';
+        boton.className = 'btn btn--small btn--secondary';
+        boton.textContent = 'Restablecer';
+        boton.addEventListener('click', function () { restablecerPinConciliado(item, boton); });
+        tr.children[3].appendChild(boton);
+      }
+      tabla.appendChild(tr);
+    });
+  }
+
+  function restablecerPinConciliado(item, boton) {
+    if (modoSeguro() || !item || !item.hash || !item.id) return Promise.resolve(false);
+    if (!window.confirm('¿Restablecer el PIN de ' + item.nombre + ' (' + item.cedula +
+        ') en Firebase? Esta operación quedará auditada y no cambiará sus revisiones ni su estado de acceso.'))
+      return Promise.resolve(false);
+    var hash = item.hash;
+    // Evita una escritura si la cédula se duplicó o cambió de documento tras la auditoría.
+    ui.setLoading(boton, true, 'Guardando...');
+    return resolverDocumentoInvestigador(item.cedula).then(function (resultado) {
+      if (!resultado.existente || resultado.docId !== item.id)
+        throw new Error('El registro cambió desde la comprobación. Vuelve a comprobar.');
+      return firebaseService.guardarPinInvestigador({
+        docId: item.id, cedula: item.cedula, hash: hash,
+        crear: false, revisionEsperada: item.revision
+      });
+    }).then(function (guardado) {
+      return verificarPinGuardado(item.id, hash, guardado.revision, false);
+    }).then(function (doc) {
+      item.hash = null;
+      item.resultado = doc.activo === false || doc.pinActivo !== true
+        ? 'PIN actualizado · Acceso inactivo' : 'PIN actualizado y verificado';
+      renderConciliacionesPin();
+      ui.showStatus('#pinConciliacionMensaje',
+        'Credencial actualizada y confirmada en Firebase. Los demás investigadores no fueron modificados.', 'success');
+      return true;
+    }).catch(function (error) {
+      item.hash = null; // No reutilizar un hash después de un error o cambio concurrente.
+      item.resultado = 'No actualizado · ' + mensaje(error, 'Vuelve a comprobar.');
+      renderConciliacionesPin();
+      ui.showStatus('#pinConciliacionMensaje', 'No se confirmó el cambio. Comprueba de nuevo antes de reintentar.', 'error');
+      return false;
+    }).finally(function () { ui.setLoading(boton, false); });
+  }
+
+
+
   function iniciar() {
     if(modoSeguro()){
       var pin=document.getElementById('investigadorPinCrear');
@@ -46,6 +203,10 @@
     var copiarCambio = ui.qs('#btnCopiarPinCambiado');
     var comprobarPin = ui.qs('#btnComprobarPinInvestigador');
     if(comprobarPin)comprobarPin.addEventListener('click',verificarPinIngresado);
+    var auditar = ui.qs('#btnAuditarPinesInvestigadores');
+    var limpiarAuditoria = ui.qs('#btnLimpiarAuditoriaPines');
+    if (auditar) auditar.addEventListener('click', auditarPines);
+    if (limpiarAuditoria) limpiarAuditoria.addEventListener('click', limpiarAuditoriaPines);
 
     if (generarCrear) generarCrear.addEventListener('click', function () {
       ui.setValue('#investigadorPinCrear', generarPin4());
@@ -548,6 +709,9 @@
 
   window.TAAdminInvestigadores = Object.freeze({
     iniciar: iniciar,
-    cargar: cargar
+    cargar: cargar,
+    interpretarFilasPin: interpretarFilasPin,
+    auditarPines: auditarPines,
+    limpiarAuditoriaPines: limpiarAuditoriaPines
   });
 })();

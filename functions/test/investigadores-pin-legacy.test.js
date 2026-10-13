@@ -21,7 +21,9 @@ function mock(){
  const elements={};
  for(const id of ['#btnComprobarPinInvestigador','#formCambiarPinInvestigador','#investigadorNuevoPin',
   '#btnGuardarPinInvestigador','#investigadoresTableBody','#modalPinInvestigador',
-  '#modalPinInvestigadorMensaje','#investigadoresMensaje'])
+  '#modalPinInvestigadorMensaje','#investigadoresMensaje',
+  '#pinConciliacionEntrada','#btnAuditarPinesInvestigadores','#btnLimpiarAuditoriaPines',
+  '#pinConciliacionBody','#pinConciliacionMensaje'])
   elements[id]=elemento();
  let db={id:CEDULA,cedula:CEDULA,nombres:'PERSONA DE PRUEBA',email:'demo@example.edu',
   activo:true,pinHash:HASH(CEDULA,DISTINTO),pinCreado:true,pinActivo:true};
@@ -83,7 +85,7 @@ function mock(){
  const window={
   TAAdminUI:ui,TAAdminFirebaseService:firebase,TA_ADMINISTRADORES_CONFIG:{collections:{investigadores:'investigadores'}},
   TAAdministradorSeguro:{activo(){return false;}},
-  crypto:webcrypto,TextEncoder,setTimeout(){return 0;}
+  crypto:webcrypto,TextEncoder,setTimeout(){return 0;},confirm(){return true;}
  };
  const document={addEventListener(){},createElement(tag){
   const el=elemento();if(tag==='tr')el.children=Array.from({length:6},elemento);return el;
@@ -173,6 +175,46 @@ test('Administrador nunca transforma silenciosamente letras en un PIN válido',a
  env.elements['#formCambiarPinInvestigador'].handlers.submit({preventDefault(){}});
  assert.equal(env.updates(),0);
  assert.ok(env.reports.some(e=>e.message.includes('exactamente 4 dígitos')));
+});
+
+test('conciliación acepta tabla institucional y rechaza duplicados sin exponer PIN',()=>{
+ const env=mock();
+ const leer=env.window.TAAdminInvestigadores.interpretarFilasPin;
+ const filas=leer('| Nombres | Apellidos | Cédula | PIN |\n| --- | --- | --- | --- |\n| Prueba | Uno | 1712345678 | 2468 |');
+ assert.equal(filas.length,1);
+ assert.equal(filas[0].cedula,CEDULA);
+ assert.equal(filas[0].pin,CORRECTO);
+ assert.throws(()=>leer('1712345678;2468\n1712345678;1357'),/repetida/);
+ assert.throws(()=>leer('1712345678;24x8'),/Formato incorrecto/);
+});
+test('conciliación comprueba sin escribir y requiere confirmación individual',async()=>{
+ const env=mock();env.window.TAAdminInvestigadores.iniciar();
+ env.elements['#pinConciliacionEntrada'].value=CEDULA+';'+CORRECTO;
+ const resultado=await env.window.TAAdminInvestigadores.auditarPines();
+ assert.equal(resultado.length,1);
+ assert.equal(resultado[0].resultado,'PIN diferente');
+ assert.equal(env.updates(),0);
+ assert.equal(env.elements['#pinConciliacionEntrada'].value,'');
+ assert.ok(!env.elements['#pinConciliacionMensaje'].textContent.includes(CORRECTO));
+ const fila=env.elements['#pinConciliacionBody'].children[0];
+ const accion=fila.children[3].children[0];
+ assert.equal(accion.textContent,'Restablecer');
+ assert.equal(await accion.handlers.click(),true);
+ assert.equal(env.updates(),1);
+ assert.equal(env.latest().pinHash,HASH(CEDULA,CORRECTO));
+ assert.equal(env.latest().pinActivo,true);
+ assert.equal(resultado[0].hash,null);
+});
+test('conciliación nunca modifica investigadores no encontrados y elimina resultados temporales',async()=>{
+ const env=mock();env.window.TAAdminInvestigadores.iniciar();
+ env.elements['#pinConciliacionEntrada'].value='1711111111;2468';
+ // El simulador retorna otra cédula: comprobar esa condición y no permitir escritura.
+ const resultado=await env.window.TAAdminInvestigadores.auditarPines();
+ assert.equal(resultado.length,1);
+ assert.equal(resultado[0].hash,null);
+ assert.equal(env.updates(),0);
+ env.window.TAAdminInvestigadores.limpiarAuditoriaPines();
+ assert.equal(env.elements['#pinConciliacionEntrada'].value,'');
 });
 test('investigador con documento de otra cédula falla de forma explícita',async()=>{
  const doc={id:CEDULA,cedula:'1722222222',activo:true,pinActivo:true,pinHash:HASH(CEDULA,CORRECTO)};
