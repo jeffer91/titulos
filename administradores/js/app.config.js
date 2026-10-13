@@ -86,7 +86,7 @@
     }),
 
     normalizacion: Object.freeze({
-      agruparOnlineVista: true,
+      agruparOnlineVista: false,
       corregirFirebaseAutomatico: false,
       guardarOriginalOnline: false,
       idEstudiante: 'cedula_periodo',

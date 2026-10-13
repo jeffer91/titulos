@@ -2,6 +2,60 @@
 (function () {
   'use strict';
 
+  // BEGIN REGLAS_REVISION_COMUNES — mantener idénticas en ambos módulos.
+  function resolverRevision(titulo) {
+    var d = titulo && (titulo.raw || titulo) || {};
+    function key(v) { return String(v || '').trim().toUpperCase(); }
+    var estado = key(d.estado), proceso = key(d.estadoProceso);
+    var coord = key(d.estadoCoordinador || (d.revisionCoordinador && d.revisionCoordinador.estado));
+    var inv = key(d.estadoInvestigador || (d.revisionInvestigador && d.revisionInvestigador.estado));
+    var global = [estado, proceso];
+    if (global.some(function(v) { return /^(ARCHIVADO|ARCHIVADO_ADMIN|BORRADOR_REINICIADO|SIN_ENVIO|SIN_ENVIAR)$/.test(v); })) return 'SIN_ENVIO';
+    if (global.indexOf('APROBADO_FINAL') !== -1 || d.procesoCerrado === true) return 'APROBADOS';
+    var propuestas = [d.titulosEnviados, d.propuestas, d.propuestasDetalle].some(function(v) { return Array.isArray(v) && v.length; }) || d.titulo1 || d.titulo2 || d.titulo3;
+    if (!propuestas) return 'SIN_ENVIO';
+    // El reenvío explícito inicia una nueva revisión aunque conserve metadatos anteriores.
+    if (/^(PENDIENTE_COORDINADOR|COORDINACION_PENDIENTE)$/.test(proceso)) return 'POR_REVISAR';
+    if (/^APROBADO(?:_CON_OBSERVACION)?$/.test(inv)) return 'APROBADOS';
+    if (global.some(function(v) { return /^DEVUELTO(?:_.*)?$/.test(v); }) || coord === 'DEVUELTO' || inv === 'DEVUELTO') return 'DEVUELTOS';
+    if (d.investigacionRevisada === true) return 'REVISADOS';
+    if (global.some(function(v) { return /^(PENDIENTE_INVESTIGADOR|INVESTIGACION_PENDIENTE|VALIDADO)$/.test(v); }) ||
+        /^(VALIDADO|APROBADO|APROBADO_CON_OBSERVACION)$/.test(coord) || d.validadoCoordinador === true || d.validadoCoordinacion === true || d.coordinadorRevisado === true) return 'VALIDADOS';
+    return propuestas ? 'POR_REVISAR' : 'SIN_ENVIO';
+  }
+
+  function asignacionesCoordinador(data) {
+    data = data || {};
+    var nombres = [], codigos = [];
+    function add(v, codigo) {
+      if (Array.isArray(v)) { v.forEach(function(x) { add(x, codigo); }); return; }
+      if (v && typeof v === 'object') {
+        add(v.nombreCarrera || v.carrera || v.nombre, false);
+        add(v.codigoCarrera || v.carreraCodigo || v.codigo || v.id, true);
+        return;
+      }
+      String(v || '').split(/[,;|]/).forEach(function(x) {
+        x = x.replace(/\s+/g, ' ').trim();
+        if (!x) return;
+        var list = codigo || /^(carrera_|[0-9]+[a-z0-9]*_)/i.test(x) ? codigos : nombres;
+        if (!list.some(function(y) { return claveCarrera(y) === claveCarrera(x); })) list.push(x);
+      });
+    }
+    // Los campos editables por Administración son la fuente vigente, incluso vacíos.
+    if (Array.isArray(data.carreras) || Array.isArray(data.carrerasAsignadas)) {
+      add(data.carreras, false);
+      add(data.carrerasAsignadas, false);
+    } else {
+      add(data.carrerasNombres, false); add(data.carrerasIds, true); add(data.carrera, false);
+    }
+    return { nombres: nombres, codigos: codigos };
+  }
+
+  function claveCarrera(v) {
+    return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  }
+  // END REGLAS_REVISION_COMUNES
+
   var config = window.TA_ADMINISTRADORES_CONFIG;
   var firebaseService = window.TAAdminFirebaseService;
   var seguro = window.TAAdministradorSeguro;
@@ -259,6 +313,7 @@
       activo: false,
       carreras: [],
       carrerasAsignadas: [],
+      carrerasNombres: [], carrerasIds: [], carrera: '',
       eliminadoEn: ahoraIso(),
       actualizadoEn: ahoraIso()
     });
@@ -266,39 +321,40 @@
 
   function asignarCarreraACoordinador(nombreCarrera, coordinadorId) {
     if(modoSeguro())return seguro.coordinadorCarrera({id:coordinadorId,carrera:nombreCarrera,asignar:true});
-    var carreraLimpia = normalizarCarreraVista(nombreCarrera);
-    var carreraKey = normalizarTexto(carreraLimpia);
-
-    if (!carreraLimpia || carreraKey === 'SIN CARRERA') {
-      return Promise.reject(new Error('No se pudo identificar la carrera.'));
-    }
-
-    return listarCoordinadores().then(function (coordinadores) {
-      var operaciones = coordinadores.map(function (coordinador) {
-        var carreras = (coordinador.carreras || []).filter(function (carrera) {
-          return normalizarTexto(normalizarCarreraVista(carrera)) !== carreraKey;
-        });
-
-        var carrerasAsignadas = (coordinador.carrerasAsignadas || []).filter(function (item) {
-          return normalizarTexto(normalizarCarreraVista(item.nombreCarrera || item)) !== carreraKey;
-        });
-
-        if (coordinador.id === coordinadorId) {
-          carreras.push(carreraLimpia);
-          carrerasAsignadas.push({
-            codigoCarrera: '',
-            nombreCarrera: carreraLimpia
-          });
-        }
-
-        return actualizarDocumento(config.collections.coordinadores, coordinador.id, {
-          carreras: limpiarUnicos(carreras.map(normalizarCarreraVista)),
-          carrerasAsignadas: limpiarCarrerasAsignadas(carrerasAsignadas),
-          actualizadoEn: ahoraIso()
+    var nombre = limpiarTexto(nombreCarrera), key = claveCarrera(nombre);
+    if (!key || key === 'SIN CARRERA') return Promise.reject(new Error('No se pudo identificar la carrera.'));
+    return Promise.all([listarCoordinadores(), obtenerCarreras()]).then(function(resultados) {
+      var coordinadores = resultados[0], catalogo = resultados[1];
+      if (coordinadorId && !coordinadores.some(function(c) { return c.id === coordinadorId && c.activo; })) throw new Error('El coordinador seleccionado no está activo.');
+      var codigosCarrera = [];
+      catalogo.forEach(function(c) {
+        if (claveCarrera(c.nombreCarrera) === key && c.codigoCarrera) codigosCarrera.push(claveCarrera(c.codigoCarrera));
+      });
+      coordinadores.forEach(function(c) {
+        (c.raw.carrerasAsignadas || []).forEach(function(a) {
+          if (a && claveCarrera(a.nombreCarrera) === key && a.codigoCarrera) codigosCarrera.push(claveCarrera(a.codigoCarrera));
         });
       });
-
-      return Promise.all(operaciones);
+      var cambios = coordinadores.map(function(c) {
+        var actual = asignacionesCoordinador(c.raw);
+        var nombres = actual.nombres.filter(function(n) { return claveCarrera(n) !== key; });
+        var codigos = actual.codigos.filter(function(id) { return codigosCarrera.indexOf(claveCarrera(id)) === -1; });
+        var esDestino = c.id === coordinadorId;
+        if (!esDestino && nombres.length === actual.nombres.length && codigos.length === actual.codigos.length) return null;
+        if (esDestino) {
+          nombres.push(nombre);
+          codigos = limpiarUnicos(codigos.concat(codigosCarrera));
+        }
+        var asignadas = nombres.map(function(n) { return {nombreCarrera:n,codigoCarrera:''}; });
+        codigos.forEach(function(id) { asignadas.push({codigoCarrera:id}); });
+        // Todos los formatos legados reflejan la misma asignación después de guardar.
+        return {id:c.id, data:{
+          carreras: nombres, carrerasNombres: nombres, carrerasAsignadas: asignadas,
+          carrerasIds: codigos, carrera: nombres.join(', '), actualizadoEn: ahoraIso()
+        }};
+      }).filter(Boolean);
+      if (!firebaseService.guardarAsignacionesCoordinadores) throw new Error('Actualiza la aplicación para guardar asignaciones de forma atómica.');
+      return firebaseService.guardarAsignacionesCoordinadores(cambios);
     });
   }
 
@@ -652,58 +708,8 @@
   }
 
   function obtenerEtapaRevision(titulo) {
-    titulo = titulo || {};
-
-    if (!tituloActivo(titulo)) return '';
-
-    var estado = normalizarTexto(titulo.estado);
-    var proceso = normalizarTexto(titulo.estadoProceso);
-    var estadoCoord = normalizarTexto(titulo.estadoCoordinador || (titulo.revisionCoordinador && titulo.revisionCoordinador.estado));
-    var estadoInv = normalizarTexto(titulo.estadoInvestigador || (titulo.revisionInvestigador && titulo.revisionInvestigador.estado));
-    var coordValidado = titulo.validadoCoordinador === true ||
-      titulo.validadoCoordinacion === true ||
-      titulo.coordinadorRevisado === true ||
-      estadoCoord === 'VALIDADO' ||
-      estadoCoord === 'APROBADO' || estadoCoord === 'APROBADO_CON_OBSERVACION';
-    var invRevisado = titulo.investigacionRevisada === true ||
-      estadoInv === 'APROBADO' ||
-      estadoInv === 'APROBADO_CON_OBSERVACION' ||
-      estadoInv === 'DEVUELTO';
-
-    if (
-      estado === 'APROBADO_FINAL' ||
-      proceso === 'APROBADO_FINAL' ||
-      estado === 'DEVUELTO' ||
-      proceso === 'DEVUELTO' ||
-      estado === 'ARCHIVADO' ||
-      proceso === 'ARCHIVADO' ||
-      estado === 'BORRADOR_REINICIADO' || proceso === 'BORRADOR_REINICIADO'
-    ) {
-      return '';
-    }
-
-    if (invRevisado || estadoCoord === 'DEVUELTO' || (estadoInv && estadoInv !== 'PENDIENTE')) {
-      return '';
-    }
-
-    if (
-      proceso === 'PENDIENTE_INVESTIGADOR' ||
-      estado === 'PENDIENTE_INVESTIGADOR' ||
-      (coordValidado && (!estadoInv || estadoInv === 'PENDIENTE'))
-    ) {
-      return 'INVESTIGACION';
-    }
-
-    if (
-      proceso === 'PENDIENTE_COORDINADOR' ||
-      estado === 'PENDIENTE_COORDINADOR' ||
-      estado === 'PENDIENTE_REVISION' ||
-      (!coordValidado && (!estadoCoord || estadoCoord === 'PENDIENTE'))
-    ) {
-      return 'COORDINACION';
-    }
-
-    return '';
+    var vista = resolverRevision(titulo);
+    return vista === 'POR_REVISAR' ? 'COORDINACION' : vista === 'VALIDADOS' ? 'INVESTIGACION' : '';
   }
 
   function obtenerFaltantesRevision(periodoId) {
@@ -856,7 +862,7 @@
 
   function normalizarTitulo(data) {
     var carreraOriginal = limpiarTexto(data.carreraNombre || data.carrera || data.nombreCarrera || '');
-    var periodoId = normalizarPeriodoIdCanonico(data.periodoId || '');
+    var periodoId = normalizarPeriodoIdCanonico(data.periodoCanonicoId) || normalizarPeriodoIdCanonico(data.periodoId) || normalizarPeriodoIdCanonico(data.periodo);
 
     return Object.assign({}, data, {
       id: data.id || data._docId || '',
@@ -870,22 +876,18 @@
   }
 
   function normalizarCoordinador(data) {
-    var carreras = Array.isArray(data.carreras) ? data.carreras.map(normalizarCarreraVista) : [];
-    var carrerasAsignadas = Array.isArray(data.carrerasAsignadas) ? data.carrerasAsignadas.map(function (item) {
-      return {
-        codigoCarrera: item.codigoCarrera || '',
-        nombreCarrera: normalizarCarreraVista(item.nombreCarrera || item)
-      };
-    }) : [];
-
+    var asignadas = asignacionesCoordinador(data);
+    var carreras = asignadas.nombres;
+    var carrerasAsignadas = carreras.map(function(nombre) { return {nombreCarrera: nombre, codigoCarrera: ''}; });
     return {
       id: data.id || data._docId || '',
       _docId: data._docId || data.id || '',
       nombre: limpiarTexto(data.nombre || data.Nombres || data.id || ''),
-      activo: data.activo !== false,
+      activo: data.activo !== false && String(data.estado || 'ACTIVO').toUpperCase() !== 'INACTIVO',
       telegram: limpiarTexto(data.telegram || data.Telegram || data.contactoTelegram || ''),
       contactoTelegram: limpiarTexto(data.contactoTelegram || data.telegram || data.Telegram || ''),
       carreras: limpiarUnicos(carreras),
+      carrerasIds: asignadas.codigos,
       carrerasAsignadas: limpiarCarrerasAsignadas(carrerasAsignadas),
       raw: data
     };

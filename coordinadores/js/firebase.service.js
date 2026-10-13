@@ -218,6 +218,19 @@
       query = query.orderBy(opts.orderBy, opts.direction || 'asc');
     }
 
+    if (opts.all) {
+      var docs = [];
+      function pagina(cursor) {
+        var page = query.limit(500);
+        if (cursor) page = page.startAfter(cursor);
+        return page.get({ source: 'server' }).then(function(snapshot) {
+          snapshot.forEach(function(doc) { docs.push(normalizarDocumento(doc)); });
+          if (snapshot.size === 500) return pagina(snapshot.docs[snapshot.docs.length - 1]);
+          return docs;
+        });
+      }
+      return pagina(null);
+    }
     if (opts.limit) {
       query = query.limit(Number(opts.limit));
     }

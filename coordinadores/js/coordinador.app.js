@@ -12,6 +12,7 @@
     titulos: [],
     tab: 'POR_REVISAR',
     tipo: 'TODOS',
+    periodo: '',
     busqueda: '',
     tituloModal: null,
     tituloSeleccionado: 0,
@@ -104,6 +105,10 @@
       estado.tipo = valor('tipoTrabajoSelect') || 'TODOS';
       renderTabla();
       mensajeResumen(estado.titulos);
+    });
+    on('periodoRevisionSelect', 'change', function () {
+      estado.periodo = valor('periodoRevisionSelect');
+      renderTabla(); mensajeResumen(estado.titulos);
     });
     on('buscarInput', 'input', function () {
       estado.busqueda = normalizarBusqueda(valor('buscarInput'));
@@ -199,6 +204,17 @@
     return repository.listarTitulosParaCoordinador(estado.coordinador).then(function (items) {
       if (version !== estado.versionConsulta) return [];
       estado.titulos = items;
+      var selectPeriodo = el('periodoRevisionSelect');
+      if (selectPeriodo) {
+        var periodos = {};
+        items.forEach(function(t) { periodos[t.periodoId] = periodoVisible(t); });
+        if (!periodos[estado.periodo]) estado.periodo = '';
+        selectPeriodo.innerHTML = '<option value="">Todos los períodos activos</option>';
+        Object.keys(periodos).sort().forEach(function(id) {
+          var option = document.createElement('option'); option.value = id; option.textContent = periodos[id]; selectPeriodo.appendChild(option);
+        });
+        selectPeriodo.value = estado.periodo;
+      }
       renderTabla();
       mensajeResumen(items);
       renderDiagnostico('');
@@ -275,7 +291,7 @@
   }
 
   function filtrarTipo(titulo) {
-    return estado.tipo === 'TODOS' || titulo.tipoTrabajo.id === estado.tipo;
+    return (!estado.periodo || titulo.periodoId === estado.periodo) && (estado.tipo === 'TODOS' || titulo.tipoTrabajo.id === estado.tipo);
   }
 
   function filtrarBusqueda(titulo) {
