@@ -493,6 +493,17 @@
     }, Promise.resolve()).then(function () { return { total: total }; });
   }
 
+  function guardarAsignacionesCoordinadores(cambios) {
+    asegurarEscritura('coordinadores');
+    if (cambios.length > BATCH_LIMIT) return Promise.reject(new Error('Demasiadas asignaciones para una operación atómica.'));
+    if (!cambios.length) return Promise.resolve();
+    var db = getDb(), batch = db.batch();
+    cambios.forEach(function(cambio) {
+      batch.set(db.collection('coordinadores').doc(cambio.id), cambio.data, {merge:true});
+    });
+    return batch.commit();
+  }
+
   function listarDocumentos(collectionName, options) {
     asegurarLectura(collectionName);
     if (collectionName === 'Estudiante') return listarEstudiantesAcademicos(options);
@@ -503,7 +514,7 @@
   }
 
   function listarColeccion(collectionName) {
-    return listarDocumentos(collectionName, { limit: 5000 });
+    return listarDocumentos(collectionName, collectionName === 'envios' ? { all: true } : { limit: 5000 });
   }
 
   function obtenerColeccion(collectionName) { return listarColeccion(collectionName); }
@@ -595,6 +606,19 @@
     var opts = options || {};
     if (opts.where && opts.where.length === 3) query = query.where(opts.where[0], opts.where[1], opts.where[2]);
     if (opts.orderBy) query = query.orderBy(opts.orderBy, opts.direction || 'asc');
+    if (opts.all) {
+      var docs = [];
+      function pagina(cursor) {
+        var page = query.limit(500);
+        if (cursor) page = page.startAfter(cursor);
+        return page.get({ source: 'server' }).then(function(snapshot) {
+          snapshot.forEach(function(doc) { docs.push(normalizarDocumento(doc)); });
+          if (snapshot.size === 500) return pagina(snapshot.docs[snapshot.docs.length - 1]);
+          return docs;
+        });
+      }
+      return pagina(null);
+    }
     if (opts.limit) query = query.limit(Number(opts.limit));
     return query.get().then(function (snapshot) {
       var docs = [];
@@ -628,17 +652,13 @@
         titulosEnviados: propuestas,
         tituloPreferidoTexto: data.tituloPreferidoTexto || data.tituloElegido || data.tituloCoordinador || preferida.tituloFinal || '',
         telegramUser: data.telegramUser || data.telegram || '',
-        estadoCoordinador: data.estadoCoordinador || (data.validadoCoordinador ? 'VALIDADO' : (data.estado === 'DEVUELTO' && data.devueltoPor === 'COORDINADOR' ? 'DEVUELTO' : '')),
+        estadoCoordinador: data.estadoCoordinador || (data.revisionCoordinador && data.revisionCoordinador.estado) || (data.validadoCoordinador ? 'VALIDADO' : (data.estado === 'DEVUELTO' && data.devueltoPor === 'COORDINADOR' ? 'DEVUELTO' : '')),
         estadoInvestigador: data.estadoInvestigador || (data.estado === 'APROBADO_FINAL' ? 'APROBADO' : '')
       });
     }
 
     if (collectionName === 'coordinadores') {
-      var carreras = data.carreras;
-      if (!Array.isArray(carreras) || !carreras.length) carreras = data.carrerasNombres || data.carrerasIds || [];
       return Object.assign({}, data, {
-        carreras: carreras,
-        carrerasAsignadas: data.carrerasAsignadas || (Array.isArray(carreras) ? carreras.map(function (c) { return { nombreCarrera: c, codigoCarrera: '' }; }) : []),
         activo: data.activo !== false && String(data.estado || 'ACTIVO').toUpperCase() !== 'INACTIVO'
       });
     }
@@ -711,6 +731,7 @@
     agregarDocumento: agregarDocumento,
     guardarLote: guardarLote,
     eliminarLote: eliminarLote,
+    guardarAsignacionesCoordinadores: guardarAsignacionesCoordinadores,
     listarDocumentos: listarDocumentos,
     listarColeccion: listarColeccion,
     obtenerColeccion: obtenerColeccion,

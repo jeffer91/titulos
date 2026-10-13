@@ -239,6 +239,7 @@
 
     for (var i = 0; i < estado.coordinadores.length; i += 1) {
       var coordinador = estado.coordinadores[i];
+      if (!coordinador.activo) continue;
       var carreras = coordinador.carreras || [];
       var carrerasAsignadas = coordinador.carrerasAsignadas || [];
 

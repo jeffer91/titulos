@@ -64,7 +64,7 @@ button { cursor: pointer; }
 .app-container { width: min(1180px, calc(100% - 48px)); margin: 18px auto 30px; }
 .card { border: 1px solid var(--line); background: var(--card); border-radius: 16px; }
 .filters-card { padding: 18px; }
-.filters-row { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(260px, 1.1fr) auto; gap: 12px; align-items: end; }
+.filters-row { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(210px, 1fr) minmax(210px, 1fr) auto; gap: 12px; align-items: end; }
 .field label, .search-field label { display: block; margin: 0 0 6px; font-weight: 800; font-size: .83rem; }
 select, input[type="search"], textarea {
   width: 100%;

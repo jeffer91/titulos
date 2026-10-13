@@ -112,7 +112,7 @@ assert(
 );
 
 assert(
-  config.includes("version: '4.3.0-backend-coordinadores-aislado'"),
+  config.includes("version: '4.4.0-colas-carreras'"),
   'Debe quedar registrada la versión de aislamiento de Coordinadores.'
 );
 

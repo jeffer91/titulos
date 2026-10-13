@@ -4,7 +4,7 @@
 
   window.TA_COORDINADORES_CONFIG = Object.freeze({
     modulo: 'coordinadores',
-    version: '4.3.0-backend-coordinadores-aislado',
+    version: '4.4.0-colas-carreras',
     firebase: window.TA_COORDINADORES_FIREBASE_CONFIG || Object.freeze({}),
     collections: Object.freeze({
       titulos: 'envios',

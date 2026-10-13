@@ -2,6 +2,60 @@
 (function () {
   'use strict';
 
+  // BEGIN REGLAS_REVISION_COMUNES — mantener idénticas en ambos módulos.
+  function resolverRevision(titulo) {
+    var d = titulo && (titulo.raw || titulo) || {};
+    function key(v) { return String(v || '').trim().toUpperCase(); }
+    var estado = key(d.estado), proceso = key(d.estadoProceso);
+    var coord = key(d.estadoCoordinador || (d.revisionCoordinador && d.revisionCoordinador.estado));
+    var inv = key(d.estadoInvestigador || (d.revisionInvestigador && d.revisionInvestigador.estado));
+    var global = [estado, proceso];
+    if (global.some(function(v) { return /^(ARCHIVADO|ARCHIVADO_ADMIN|BORRADOR_REINICIADO|SIN_ENVIO|SIN_ENVIAR)$/.test(v); })) return 'SIN_ENVIO';
+    if (global.indexOf('APROBADO_FINAL') !== -1 || d.procesoCerrado === true) return 'APROBADOS';
+    var propuestas = [d.titulosEnviados, d.propuestas, d.propuestasDetalle].some(function(v) { return Array.isArray(v) && v.length; }) || d.titulo1 || d.titulo2 || d.titulo3;
+    if (!propuestas) return 'SIN_ENVIO';
+    // El reenvío explícito inicia una nueva revisión aunque conserve metadatos anteriores.
+    if (/^(PENDIENTE_COORDINADOR|COORDINACION_PENDIENTE)$/.test(proceso)) return 'POR_REVISAR';
+    if (/^APROBADO(?:_CON_OBSERVACION)?$/.test(inv)) return 'APROBADOS';
+    if (global.some(function(v) { return /^DEVUELTO(?:_.*)?$/.test(v); }) || coord === 'DEVUELTO' || inv === 'DEVUELTO') return 'DEVUELTOS';
+    if (d.investigacionRevisada === true) return 'REVISADOS';
+    if (global.some(function(v) { return /^(PENDIENTE_INVESTIGADOR|INVESTIGACION_PENDIENTE|VALIDADO)$/.test(v); }) ||
+        /^(VALIDADO|APROBADO|APROBADO_CON_OBSERVACION)$/.test(coord) || d.validadoCoordinador === true || d.validadoCoordinacion === true || d.coordinadorRevisado === true) return 'VALIDADOS';
+    return propuestas ? 'POR_REVISAR' : 'SIN_ENVIO';
+  }
+
+  function asignacionesCoordinador(data) {
+    data = data || {};
+    var nombres = [], codigos = [];
+    function add(v, codigo) {
+      if (Array.isArray(v)) { v.forEach(function(x) { add(x, codigo); }); return; }
+      if (v && typeof v === 'object') {
+        add(v.nombreCarrera || v.carrera || v.nombre, false);
+        add(v.codigoCarrera || v.carreraCodigo || v.codigo || v.id, true);
+        return;
+      }
+      String(v || '').split(/[,;|]/).forEach(function(x) {
+        x = x.replace(/\s+/g, ' ').trim();
+        if (!x) return;
+        var list = codigo || /^(carrera_|[0-9]+[a-z0-9]*_)/i.test(x) ? codigos : nombres;
+        if (!list.some(function(y) { return claveCarrera(y) === claveCarrera(x); })) list.push(x);
+      });
+    }
+    // Los campos editables por Administración son la fuente vigente, incluso vacíos.
+    if (Array.isArray(data.carreras) || Array.isArray(data.carrerasAsignadas)) {
+      add(data.carreras, false);
+      add(data.carrerasAsignadas, false);
+    } else {
+      add(data.carrerasNombres, false); add(data.carrerasIds, true); add(data.carrera, false);
+    }
+    return { nombres: nombres, codigos: codigos };
+  }
+
+  function claveCarrera(v) {
+    return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  }
+  // END REGLAS_REVISION_COMUNES
+
   var config = window.TA_COORDINADORES_CONFIG;
   var firebaseService = window.TACoordinadorFirebaseService;
   var seguro = window.TACoordinadorSeguro;
@@ -70,11 +124,11 @@
       if(resultado.truncado)console.warn('[Coordinadores] Hay más resultados; se requiere paginación de servidor.');
       return (resultado.titulos||[]).map(normalizarTitulo);
     });
-    if (!coordinador || !coordinador.carreras.length) return Promise.resolve([]);
+    if (!coordinador || !(coordinador.carreras || []).concat(coordinador.carrerasIds || []).length) return Promise.resolve([]);
     // Leer PRIMERO los períodos activos; una consulta fallida nunca muestra todos.
     return cargarPeriodosActivos().then(function(activos) {
       if (!activos.size) return [];
-      return firebaseService.listarDocumentos(config.collections.titulos, { limit: 2500 })
+      return firebaseService.listarDocumentos(config.collections.titulos, { all: true })
         .then(function (docs) {
           return (docs || []).map(normalizarTitulo).filter(function (titulo) {
             return perteneceACoordinador(titulo, coordinador) &&
@@ -296,29 +350,20 @@
   }
 
   function perteneceACoordinador(titulo, coordinador) {
-    var carreraTitulo = normalizarComparacion(titulo.carrera);
-    var codigoTitulo = normalizarComparacion(titulo.codigoCarrera);
-    if (!carreraTitulo && !codigoTitulo) return false;
-    return (coordinador.carreras || []).some(function (carrera) {
-      var valor = normalizarComparacion(carrera);
-      if (!valor) return false;
-      if (valor === '*' || valor === 'TODAS' || valor === 'TODOS' || valor === 'ALL') return true;
-      return valor === carreraTitulo || valor === codigoTitulo ||
-        (carreraTitulo && carreraTitulo.indexOf(valor) !== -1) ||
-        (carreraTitulo && valor.indexOf(carreraTitulo) !== -1);
-    });
+    if (!coordinador || coordinador.activo === false) return false;
+    var asignadas = (coordinador.carreras || []).concat(coordinador.carrerasIds || []);
+    var nombres = [titulo.carrera, titulo.codigoCarrera].map(claveCarrera).filter(Boolean);
+    return asignadas.some(function(c) { return nombres.indexOf(claveCarrera(c)) !== -1; });
   }
 
   function normalizarCoordinador(data) {
-    var carreras = [];
-    [data.carrerasNombres, data.carreras, data.carrerasAsignadas, data.carrerasIds, data.carrera].forEach(function (valor) {
-      carreras = carreras.concat(normalizarCarreras(valor));
-    });
+    var asignadas = asignacionesCoordinador(data);
     return {
       id: data.id || data._docId || limpiar(data.email || data.correo || data.nombre || data.nombres),
       nombre: limpiar(data.nombre || data.nombres || data.nombreCompleto || data.email || data.correo),
       email: limpiar(data.email || data.correo || '').toLowerCase(),
-      carreras: limpiarUnicos(carreras),
+      carreras: asignadas.nombres,
+      carrerasIds: asignadas.codigos,
       activo: data.activo !== false && String(data.estado || 'ACTIVO').toUpperCase() !== 'INACTIVO',
       raw: data
     };
@@ -343,8 +388,8 @@
       cedula: soloNumeros(data.cedula || data.numeroIdentificacion),
       nombres: limpiar(data.nombres || data.nombreCompleto || data.nombre || 'Sin nombre'),
       carrera: limpiar(data.carreraNombre || data.carrera || data.nombreCarrera || ''),
-      codigoCarrera: limpiar(data.carreraCodigo || data.codigoCarrera || ''),
-      periodoId: limpiar(data.periodoId || data.periodoCanonicoId || data.periodo || ''),
+      codigoCarrera: limpiar(data.carreraCodigo || data.codigoCarrera || data.carreraId || ''),
+      periodoId: periodoCanonico(data.periodoCanonicoId) || periodoCanonico(data.periodoId) || periodoCanonico(data.periodo && data.periodo.id || data.periodo),
       periodoLabel: limpiar(data.periodoNombre || data.periodoLabel || data.periodoId || ''),
       tipoTrabajo: normalizarTipoTrabajo(data.tipoTrabajo || data.tipoTrabajoLabel || data.modalidadTitulacion || data.modalidad || data.tipo || ''),
       estado: estadoGeneral,
@@ -378,23 +423,7 @@
     }).filter(Boolean);
   }
 
-  function clasificarTitulo(titulo) {
-    var finalExplicito = titulo.estado === 'APROBADO_FINAL' || titulo.estadoProceso === 'APROBADO_FINAL';
-    var coordAprobado = titulo.estadoCoordinador === 'VALIDADO' ||
-      titulo.estadoCoordinador === 'APROBADO' ||
-      titulo.estado === 'PENDIENTE_INVESTIGADOR' ||
-      titulo.estadoProceso === 'PENDIENTE_INVESTIGADOR';
-    var invAprobado = titulo.estadoInvestigador === 'APROBADO' ||
-      titulo.estadoInvestigador === 'APROBADO_CON_OBSERVACION';
-    var coordDevuelto = titulo.estadoCoordinador === 'DEVUELTO' ||
-      (titulo.estado === 'DEVUELTO' && String(titulo.raw && titulo.raw.devueltoPor || '').toUpperCase() === 'COORDINADOR');
-
-    if (finalExplicito) return 'APROBADOS';
-    if (coordDevuelto) return 'DEVUELTOS';
-    if (coordAprobado && invAprobado) return 'APROBADOS';
-    if (coordAprobado) return 'VALIDADOS';
-    return 'POR_REVISAR';
-  }
+  function clasificarTitulo(titulo) { return resolverRevision(titulo); }
 
   function normalizarTipoTrabajo(value) {
     var original = value;
