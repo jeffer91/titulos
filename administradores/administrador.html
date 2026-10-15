@@ -484,7 +484,8 @@
         <h3 id="pinConciliacionTitulo">Conciliar PINs con Firebase</h3>
         <p class="muted">Pega las filas de tu tabla (nombre, apellido, cédula y PIN) o líneas «cédula;PIN».
           Primero se comprobarán los registros sin modificarlos. Solo se cambia un PIN al pulsar
-          «Restablecer» y confirmar para ese investigador. No se envían PINs al repositorio.</p>
+          «Restablecer» y confirmar para ese investigador. Si el PIN coincide pero el acceso está inactivo,
+          aparece «Reactivar» con una confirmación independiente. No se envían PINs al repositorio.</p>
         <div class="field field--full">
           <label for="pinConciliacionEntrada">Datos temporales para la comprobación</label>
           <textarea id="pinConciliacionEntrada" rows="5" autocomplete="off" spellcheck="false"
@@ -1065,7 +1066,7 @@
   <script src="js/reportes.revisiones.admin.js?v=20261008-admin4"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js?v=20261013-colas-carreras"></script>
-  <script src="js/investigadores.admin.js?v=20261013-conciliar-pines-v2"></script>
+  <script src="js/investigadores.admin.js?v=20261015-conciliar-pines-v3"></script>
   <script src="js/estudiantes.admin.js"></script>
   <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>
