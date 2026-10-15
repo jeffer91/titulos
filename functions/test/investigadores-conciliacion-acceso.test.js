@@ -57,7 +57,9 @@ function preparar(hashAlmacenado, habilitado) {
   const documento = {
     createElement(etiqueta) {
       const e = {
-        textContent: '', children: etiqueta === 'tr' ? Array.from({ length: 4 }, () => ({})) : [],
+        textContent: '', children: etiqueta === 'tr' ? Array.from({ length: 4 }, () => ({
+          children: [], appendChild(nodo) { this.children.push(nodo); }
+        })) : [],
         handlers: {},
         appendChild(nodo) { this.children.push(nodo); },
         addEventListener(evento, callback) { this.handlers[evento] = callback; }
