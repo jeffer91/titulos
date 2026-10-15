@@ -331,6 +331,7 @@
     var id=String(data&&data.docId||'');
     var cedula=String(data&&data.cedula||'');
     var activar=data&&data.activo;
+    var revisionEsperada=data&&data.revisionEsperada;
     if(!id || id.indexOf('/')!==-1 || !/^\d{10}$/.test(cedula) || typeof activar!=='boolean')
       return Promise.reject(new Error('Datos de activación de investigador incorrectos.'));
     asegurarEscritura('investigadores');
@@ -343,6 +344,9 @@
         var actual=snap.data();
         var enBase=String(actual.cedula||actual.identificacion||actual.numeroIdentificacion||snap.id||'').replace(/\D/g,'');
         if(enBase!==cedula)throw new Error('La cédula del documento cambió. Acceso no modificado.');
+        if(revisionEsperada!==undefined && revisionEsperada!==null &&
+           Number(revisionEsperada)!==Number(actual.pinRevision||0))
+          throw new Error('El PIN cambió desde la comprobación. Revisa la credencial antes de reactivar.');
         if(activar && (!actual.pinCreado || !actual.pinHash))
           throw new Error('No puede activar un investigador sin PIN registrado.');
         var patch={activo:activar,pinActivo:activar,
