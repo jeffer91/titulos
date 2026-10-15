@@ -91,8 +91,12 @@
         return {
           cedula: fila.cedula, id: resultados[1].docId,
           nombre: limpiar(encontrado.nombres || encontrado.nombre || encontrado.nombreCompleto) || 'Investigador',
-          resultado: coincide ? 'PIN coincide' : (almacenado ? 'PIN diferente' : 'Sin PIN'),
+          resultado: coincide
+            ? (encontrado.activo !== false && encontrado.pinActivo === true
+              ? 'PIN coincide · Acceso activo' : 'PIN coincide · Acceso inactivo')
+            : (almacenado ? 'PIN diferente' : 'Sin PIN'),
           hash: coincide ? null : hash,
+          pinCoincide: coincide,
           revision: Number(encontrado.pinRevision || 0),
           activo: encontrado.activo !== false && encontrado.pinActivo === true
         };
@@ -103,11 +107,15 @@
       if (version !== versionConciliacionPin) return [];
       conciliacionesPin = items;
       renderConciliacionesPin();
-      var iguales = items.filter(function (item) { return item.resultado === 'PIN coincide'; }).length;
-      var diferencias = items.filter(function (item) { return item.hash; }).length;
+      var iguales = items.filter(function (item) { return item.pinCoincide === true; }).length;
+      var diferencias = items.filter(function (item) { return Boolean(item.hash && item.id); }).length;
+      var inactivos = items.filter(function (item) { return item.pinCoincide === true && item.activo === false; }).length;
+      var sinComprobar = items.length - iguales - diferencias;
       ui.showStatus('#pinConciliacionMensaje',
-        'Comprobados: ' + items.length + ' · Coinciden: ' + iguales + ' · Requieren restablecimiento: ' +
-        diferencias + '. Los cambios se aplican individualmente y solo después de confirmar.', 'info');
+        'Comprobados: ' + (iguales + diferencias) + '/' + items.length +
+        ' · PIN coincidente: ' + iguales + ' · PIN diferente o ausente: ' + diferencias +
+        ' · Accesos inactivos: ' + inactivos + ' · Sin comprobar: ' + sinComprobar +
+        '. Cada cambio requiere confirmación individual.', 'info');
       return items;
     }).finally(function () { ui.setLoading(boton, false); });
   }
@@ -128,9 +136,51 @@
         boton.textContent = 'Restablecer';
         boton.addEventListener('click', function () { return restablecerPinConciliado(item, boton); });
         tr.children[3].appendChild(boton);
+      } else if (item.pinCoincide === true && item.activo === false && item.id) {
+        var activar = document.createElement('button');
+        activar.type = 'button';
+        activar.className = 'btn btn--small btn--primary';
+        activar.textContent = 'Reactivar';
+        activar.addEventListener('click', function () { return reactivarInvestigadorConciliado(item, activar); });
+        tr.children[3].appendChild(activar);
       }
       tabla.appendChild(tr);
     });
+  }
+
+  function reactivarInvestigadorConciliado(item, boton) {
+    if (modoSeguro() || !item || !item.id || item.pinCoincide !== true || item.activo !== false)
+      return Promise.resolve(false);
+    if (!window.confirm('¿Reactivar el acceso de ' + item.nombre + ' (' + item.cedula +
+        ')? Confirma que esta persona está autorizada. No se cambiará su PIN.'))
+      return Promise.resolve(false);
+    ui.setLoading(boton, true, 'Reactivando...');
+    return resolverDocumentoInvestigador(item.cedula).then(function (resultado) {
+      if (!resultado.existente || resultado.docId !== item.id)
+        throw new Error('El registro cambió desde la comprobación. Vuelve a comprobar.');
+      if (Number(resultado.existente.pinRevision || 0) !== Number(item.revision))
+        throw new Error('El PIN fue modificado después de la comprobación. Vuelve a comprobar.');
+      return firebaseService.cambiarAccesoInvestigador({
+        docId: item.id, cedula: item.cedula, activo: true, revisionEsperada: item.revision
+      });
+    }).then(function () {
+      return firebaseService.leerDocumentoServidor(config.collections.investigadores, item.id);
+    }).then(function (doc) {
+      if (!doc || doc.activo === false || doc.pinActivo !== true)
+        throw new Error('Firebase no confirmó la reactivación. Vuelve a comprobar.');
+      item.activo = true;
+      item.resultado = 'PIN coincide · Acceso activo';
+      renderConciliacionesPin();
+      ui.showStatus('#pinConciliacionMensaje',
+        'Acceso reactivado y comprobado en Firebase, sin cambiar el PIN ni las revisiones.', 'success');
+      return true;
+    }).catch(function (error) {
+      item.pinCoincide = false; // No permitir otro intento sin una comprobación actualizada.
+      item.resultado = 'Reactivación no confirmada · ' + mensaje(error, 'Vuelve a comprobar.');
+      renderConciliacionesPin();
+      ui.showStatus('#pinConciliacionMensaje', 'No se confirmó la reactivación. Comprueba otra vez.', 'error');
+      return false;
+    }).finally(function () { ui.setLoading(boton, false); });
   }
 
   function restablecerPinConciliado(item, boton) {
@@ -152,14 +202,18 @@
       return verificarPinGuardado(item.id, hash, guardado.revision, false);
     }).then(function (doc) {
       item.hash = null;
-      item.resultado = doc.activo === false || doc.pinActivo !== true
-        ? 'PIN actualizado · Acceso inactivo' : 'PIN actualizado y verificado';
+      item.pinCoincide = true;
+      item.revision = Number(doc.pinRevision || 0);
+      item.activo = doc.activo !== false && doc.pinActivo === true;
+      item.resultado = item.activo
+        ? 'PIN actualizado y verificado' : 'PIN actualizado · Acceso inactivo';
       renderConciliacionesPin();
       ui.showStatus('#pinConciliacionMensaje',
         'Credencial actualizada y confirmada en Firebase. Los demás investigadores no fueron modificados.', 'success');
       return true;
     }).catch(function (error) {
       item.hash = null; // No reutilizar un hash después de un error o cambio concurrente.
+      item.pinCoincide = false;
       item.resultado = 'No actualizado · ' + mensaje(error, 'Vuelve a comprobar.');
       renderConciliacionesPin();
       ui.showStatus('#pinConciliacionMensaje', 'No se confirmó el cambio. Comprueba de nuevo antes de reintentar.', 'error');
