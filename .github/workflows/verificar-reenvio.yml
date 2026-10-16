@@ -1,0 +1,32 @@
+name: Verificar correcciones de reenvío
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar sintaxis JS
+        run: |
+          find . -type f -name '*.js' -not -path './node_modules/*' -not -path './.git/*' -print0 | xargs -0 -n1 node --check
+      - name: Probar flujo de estudiantes y reenvíos
+        run: |
+          node --test tests/estudiante-reenvio.test.js
+          node --test functions/test/*.test.js
+          node tests/consulta-estado.test.js
+          node tests/estudiante-envio-rapido.test.js
+          node --test tests/estudiante-consulta-recuperacion.test.js
+          node tests/arquitectura-estudiantes.test.js
+          node tests/arquitectura-coordinadores.test.js
+          node tests/arquitectura-investigadores.test.js
+          node tests/arquitectura-administrador.test.js
+          node tests/investigacion-cola.test.js
+          node tests/auditoria-e2e.test.js
+          node --test tests/coordinacion-consistencia.test.js
+          node tests/administrador-faltantes.test.js
+          node tests/reportes-revisiones.test.js
