@@ -61,12 +61,17 @@
       return;
     }
 
-    if (
-      datos.envioExistente &&
-      datos.forzarReenvio === true &&
-      !(datos.envioExistente.puedeReenviar === true || datos.envioExistente.permitirReenvio === true)
-    ) {
-      return;
+    if (datos.envioExistente && datos.forzarReenvio === true) {
+      var repository = window.TAEstudianteRepository;
+      var permiso = repository && typeof repository.evaluarReenvio === 'function'
+        ? repository.evaluarReenvio(datos.envioExistente)
+        : { habilitado: false };
+      if (!permiso.habilitado) {
+        if (typeof ui.showAlert === 'function') {
+          ui.showAlert('La devolución aún no está habilitada para reenvío. Comunícate con Coordinación.', '');
+        }
+        return;
+      }
     }
 
     limpiarFormularioVisual();
