@@ -105,3 +105,48 @@ test('sin secreto de servidor no se ofrecen claves de IA',async()=>{
   assert.deepEqual(await rutas['/proveedores'].handle({usuario}),[]);
   await assert.rejects(()=>rutas['/ia'].handle({usuario,body:{prompt:'Texto académico de prueba suficientemente extenso.'}}),e=>e.code==='IA_NO_CONFIGURADA');
 });
+
+test('devolución antigua coherente habilita reenvío, conserva ID y reinicia las dos revisiones',async()=>{
+  const previo={
+    ...propuesta,id:'expediente-legado',estado:'DEVUELTO',estadoProceso:'DEVUELTO',
+    requiereAccionDe:'ESTUDIANTE',devueltoPor:'COORDINADOR',estadoCoordinador:'DEVUELTO',
+    revisionCoordinador:{estado:'DEVUELTO',observacion:'Reformular objetivos',fechaLocal:'2026-10-14T12:00:00Z'},
+    permitirReenvio:false,puedeReenviar:false,
+    validadoCoordinacion:true,validadoCoordinador:true,tituloCoordinador:'Título anterior',
+    tituloCoordinadorNumero:2,procesoCerrado:false,numeroEnvios:1,versionActual:1,
+    historialProceso:[{tipo:'ENVIO_ESTUDIANTE',version:1}]
+  };
+  const {rutas,operativa}=montar({envios:{'expediente-legado':previo}});
+  const expediente=await rutas['/expediente'].handle({usuario,query:{cedula,periodoId:periodo}});
+  assert.equal(expediente.envio.puedeReenviar,true);
+  const res=await rutas['/envio'].handle({usuario,body:propuesta});
+  assert.equal(res.id,'expediente-legado');
+  assert.equal(operativa.collections.envios.size,1);
+  assert.equal(res.data.numeroEnvios,2);
+  assert.equal(res.data.numeroReenvios,1);
+  assert.equal(res.data.permitirReenvio,false);
+  assert.equal(res.data.validadoCoordinacion,false);
+  assert.equal(res.data.tituloCoordinador,null);
+  assert.equal(res.data.tituloCoordinadorNumero,null);
+  assert.equal(res.data.revisionCoordinador,null);
+  assert.equal(res.data.revisionInvestigador,null);
+  assert.equal(res.data.procesoCerrado,false);
+  assert.equal(res.data.estadoProceso,'PENDIENTE_COORDINADOR');
+  assert.equal(res.data.historialProceso.length,2);
+  assert.equal(res.data.historialProceso[1].revisionCoordinador.observacion,'Reformular objetivos');
+  await assert.rejects(()=>rutas['/envio'].handle({usuario,body:propuesta}),e=>e.code==='REENVIO_NO_AUTORIZADO');
+});
+test('el estado DEVUELTO sin devolución válida no habilita reenvío',async()=>{
+ const previo={...propuesta,id:periodo+'__'+cedula,estado:'DEVUELTO',
+   estadoProceso:'DEVUELTO',permitirReenvio:false,puedeReenviar:false};
+ const {rutas}=montar({envios:{[periodo+'__'+cedula]:previo}});
+ const expediente=await rutas['/expediente'].handle({usuario,query:{cedula,periodoId:periodo}});
+ assert.equal(expediente.envio.puedeReenviar,false);
+ await assert.rejects(()=>rutas['/envio'].handle({usuario,body:propuesta}),e=>e.code==='REENVIO_NO_AUTORIZADO');
+});
+test('permiso aislado no permite reenvío de título finalizado',async()=>{
+ const previo={...propuesta,id:periodo+'__'+cedula,
+   estado:'APROBADO_FINAL',estadoProceso:'APROBADO_FINAL',permitirReenvio:true};
+ const {rutas}=montar({envios:{[periodo+'__'+cedula]:previo}});
+ await assert.rejects(()=>rutas['/envio'].handle({usuario,body:propuesta}),e=>e.code==='REENVIO_NO_AUTORIZADO');
+});

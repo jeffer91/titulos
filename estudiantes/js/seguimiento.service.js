@@ -257,7 +257,10 @@
       : '';
     var tituloFinal = obtenerTituloFinal(envio, tituloCoord, estados);
     var historial = construirHistorial(seguimiento, envio);
-    var puedeReenviar = envio.puedeReenviar === true || envio.permitirReenvio === true;
+    var permiso = repositoryOriginal && typeof repositoryOriginal.evaluarReenvio === 'function'
+      ? repositoryOriginal.evaluarReenvio(envio)
+      : { habilitado: false, devuelto: estados.coordinacionDevuelta || estados.investigacionDevuelta };
+    var puedeReenviar = permiso.habilitado;
 
     return [
       '<div class="seguimiento-head">',
@@ -307,7 +310,7 @@
         '</section>'
       ].join('') : ''),
 
-      renderObservaciones(envio, revisionCoord, revisionInv),
+      renderObservaciones(envio, revisionCoord, revisionInv, estados),
 
       '<section class="seguimiento-section seguimiento-section--history">',
         '<div class="seguimiento-section__head"><div><span>Proceso</span><h3>Historial</h3></div><small>' + historial.length + '</small></div>',
@@ -552,7 +555,9 @@
     if (estados && estados.finalAprobado) {
       detalle = 'Tu proceso de revisión terminó y ya cuentas con una aprobación final.';
     } else if (tipo === 'danger') {
-      detalle = 'Revisa la observación y corrige tus títulos para reenviarlos.';
+      detalle = puedeReenviar
+        ? 'Lee las observaciones y selecciona Corregir mis títulos para enviarlos nuevamente.'
+        : 'La revisión está devuelta, pero el reenvío aún no está habilitado. Comunícate con Coordinación para regularizarlo.';
     } else if (estados && estados.coordinacionAprobada) {
       detalle = 'La revisión inicial ya terminó. Tu título continúa con la revisión de Investigación.';
     }
@@ -621,7 +626,7 @@
     ].join('');
   }
 
-  function renderObservaciones(envio, coord, inv) {
+  function renderObservaciones(envio, coord, inv, estados) {
     var items = [];
     var obsCoord = limpiar(coord.observacion || envio.comentarioCoordinador || '');
     var obsInv = limpiar(inv.observacion || envio.observacionInvestigacion || '');
@@ -633,6 +638,9 @@
       items.push({ titulo: 'Motivo de devolución', texto: devolucion });
     }
 
+    if (!items.length && estados && (estados.coordinacionDevuelta || estados.investigacionDevuelta)) {
+      items.push({ titulo: 'Observación pendiente', texto: 'No consta el motivo de devolución en este registro. Solicita a Coordinación que lo complete antes de corregir tus títulos.' });
+    }
     if (!items.length) return '';
 
     return [
@@ -694,6 +702,17 @@
       });
     }
 
+    var canonico = resolverEstadoCanonico(envio);
+    if (canonico === 'DEVUELTO_COORDINACION' || canonico === 'DEVUELTO_INVESTIGACION') {
+      var rev = canonico === 'DEVUELTO_COORDINACION'
+        ? (envio.revisionCoordinador || {}) : (envio.revisionInvestigador || {});
+      agregarHistorialCompacto(salida, vistos, {
+        titulo: 'Devuelto',
+        fecha: rev.fechaLocal || rev.fecha || envio.fechaResolucionInvestigacion || envio.fechaResolucion || '',
+        estado: 'DEVUELTO',
+        observacion: limpiar(rev.observacion || envio.observacionDevolucion || '')
+      });
+    }
     salida.sort(function (a, b) { return fechaMs(b.fecha) - fechaMs(a.fecha); });
     return salida.slice(0, 12);
   }
@@ -815,7 +834,10 @@
           forzarReenvio: true
         };
 
-        if (!(envio.puedeReenviar === true || envio.permitirReenvio === true)) return;
+        var permiso = repositoryOriginal && typeof repositoryOriginal.evaluarReenvio === 'function'
+          ? repositoryOriginal.evaluarReenvio(envio)
+          : { habilitado: false };
+        if (!permiso.habilitado) return;
 
         /*
           El reenvío debe abrir directamente el formulario editable con los títulos
