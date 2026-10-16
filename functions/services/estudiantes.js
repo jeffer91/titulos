@@ -126,7 +126,30 @@ function infoPublica(academicaData,cedula){
   puedeEnviarTitulo:true
  };
 }
-function safeEnvio(data) {return data?campos(data,FIELDS_ENVIO):null;}
+// Política conservadora: una devolución requiere estado verificable y permiso
+// explícito, o evidencias coincidentes de la revisión y acción pendiente del estudiante.
+function evaluarReenvio(envio) {
+ const e=envio||{};
+ const clave=v=>limpio(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+ const estado=clave(e.estado),proceso=clave(e.estadoProceso);
+ const devuelto=['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].includes(estado)||
+  ['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].includes(proceso);
+ if(!devuelto||estado==='APROBADO_FINAL'||proceso==='APROBADO_FINAL'||e.procesoCerrado===true)return false;
+ const por=clave(e.devueltoPor);
+ const coord=clave(e.estadoCoordinador||(e.revisionCoordinador&&e.revisionCoordinador.estado));
+ const inv=clave(e.estadoInvestigador||(e.revisionInvestigador&&e.revisionInvestigador.estado));
+ const origen=((por==='COORDINADOR'||por==='COORDINACION')&&coord==='DEVUELTO')||
+  ((por==='INVESTIGACION'||por==='INVESTIGADOR')&&inv==='DEVUELTO');
+ return e.puedeReenviar===true||e.permitirReenvio===true||
+  (clave(e.requiereAccionDe)==='ESTUDIANTE'&&origen);
+}
+function safeEnvio(data) {
+ if(!data)return null;
+ const salida=campos(data,FIELDS_ENVIO);
+ salida.puedeReenviar=evaluarReenvio(data);
+ salida.permitirReenvio=salida.puedeReenviar;
+ return salida;
+}
 function safeVersion(d){return campos(d,FIELDS_VERSION);}
 function safeEvento(d){return campos(d,FIELDS_EVENTO);}
 
@@ -175,14 +198,16 @@ function crearRutasEstudiantes({operativa,academica,geminiKey}) {
       const academic=await informacionAcademica(academica,cedula,config,body.periodoId);
       if(body.periodoId&&periodoValor(body.periodoId)!==academic.periodoId)falla(403,'PERIODO_AJENO_NO_AUTORIZADO');
       const {propuestas,preferido}=validarTitulos(body);
-      const periodo=academic.periodoId,id=periodo+'__'+cedula;
+      const periodo=academic.periodoId;
       const historico=await envioExistente(operativa,cedula,periodo);
-      if(historico&&historico.id!==id)falla(409,'ENVIO_HISTORICO_DUPLICADO');
+      // Un expediente legado conserva su identificador original: no se crean copias.
+      const id=historico&&historico.id?historico.id:periodo+'__'+cedula;
       const ref=operativa.collection('envios').doc(id);
       const ahora=new Date().toISOString();
       const resultado=await operativa.runTransaction(async tx=>{
         const prev=datos(await tx.get(ref));
-        if(prev&&!((prev.permitirReenvio===true)||(prev.puedeReenviar===true)))falla(409,'ENVIO_YA_REGISTRADO');
+        if(historico&&!prev)falla(409,'EXPEDIENTE_ACTUALIZADO');
+        if(prev&&!evaluarReenvio(prev))falla(409,'REENVIO_NO_AUTORIZADO');
         const version=Number(prev&&prev.versionActual||0)+1;
         const numeroEnvios=Number(prev&&(prev.numeroEnvios||prev.intentosUsados)||0)+1;
         const info=infoPublica(academic,cedula);
@@ -196,10 +221,18 @@ function crearRutasEstudiantes({operativa,academica,geminiKey}) {
           telegram:limpio(body.telegramUser||body.telegram||'').slice(0,60),
           estado:'PENDIENTE_REVISION',estadoProceso:'PENDIENTE_COORDINADOR',requiereAccionDe:'COORDINACION',
           requiereRevision:true,permitirReenvio:false,puedeReenviar:false,devueltoPor:'',
-          observacionDevolucion:'',validadoCoordinador:false,coordinadorRevisado:false,
+          observacionDevolucion:'',observacion:'',validadoCoordinacion:false,
+          validadoCoordinador:false,coordinadorRevisado:false,revision:null,
           revisionCoordinador:null,revisionInvestigador:null,estadoCoordinador:'PENDIENTE',
-          estadoInvestigador:'',investigacionRevisada:false,resultadoCoordinador:null,
-          tituloCoordinador:null,resultadoInvestigacion:null,tituloFinalInvestigacion:null,tituloFinal:null,
+          estadoInvestigador:'',investigacionRevisada:false,investigacionRevisadaEn:null,
+          resultadoCoordinador:null,tituloCoordinador:null,tituloCoordinadorNumero:null,
+          tituloCoordinadorAntes:'',tituloCoordinadorCorregido:'',
+          tituloSeleccionadoNumero:null,tituloSeleccionadoTexto:'',comentarioCoordinador:'',
+          fechaValidacionCoordinador:null,resultadoInvestigacion:null,
+          observacionInvestigacion:'',tituloFinalInvestigacion:null,tituloFinal:null,
+          fechaResolucionInvestigacion:null,fechaResolucion:null,procesoCerrado:false,
+          revisadoPor:'',revisadoPorNombre:'',revisadoEnLocal:null,
+          tituloVisible:propuestas[preferido-1].tituloFinal,
           numeroEnvios,numeroReenvios:prev?Number(prev.numeroReenvios||0)+1:0,
           intentosUsados:numeroEnvios,versionActual:version,
           versionActualId:id+'__v'+String(version).padStart(3,'0'),
@@ -207,6 +240,17 @@ function crearRutasEstudiantes({operativa,academica,geminiKey}) {
           origenCaptura:'estudiantes-api-segura'
         };
         if(!prev)datosEnvio.creadoEn=ahora;
+        const historial=Array.isArray(prev&&prev.historialProceso)?prev.historialProceso.slice(-98):[];
+        if(prev)historial.push({
+          tipo:'VERSION_ANTERIOR',version:Math.max(1,Number(prev.versionActual||1)),
+          fechaEnvio:prev.fechaEnvio||'',fechaArchivo:ahora,estado:prev.estado||'',
+          titulosEnviados:Array.isArray(prev.titulosEnviados)?prev.titulosEnviados:[],
+          tituloPreferidoNumero:Number(prev.tituloPreferidoNumero||0),
+          revisionCoordinador:prev.revisionCoordinador||null,
+          revisionInvestigador:prev.revisionInvestigador||null,
+          observacionDevolucion:prev.observacionDevolucion||''
+        });
+        datosEnvio.historialProceso=historial;
         tx.set(ref,datosEnvio,{merge:!!prev});
         const versionRef=operativa.collection('versiones_envio').doc(datosEnvio.versionActualId);
         tx.set(versionRef,{
