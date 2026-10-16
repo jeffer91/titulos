@@ -385,6 +385,35 @@
   }
 
 
+  // Autoriza devoluciones actuales y expedientes antiguos coherentes.
+  // Una etiqueta "DEVUELTO" por sí sola nunca concede permiso de escritura.
+  function evaluarReenvio(envio) {
+    envio = envio || {};
+    function clave(value) {
+      return limpiarTexto(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+    }
+    var general = clave(envio.estado);
+    var proceso = clave(envio.estadoProceso);
+    var devuelto = (general === 'DEVUELTO' || general === 'DEVUELTO_COORDINACION' ||
+      general === 'DEVUELTO_INVESTIGACION' || proceso === 'DEVUELTO' ||
+      proceso === 'DEVUELTO_COORDINACION' || proceso === 'DEVUELTO_INVESTIGACION');
+    var finalizado = general === 'APROBADO_FINAL' || proceso === 'APROBADO_FINAL' ||
+      envio.procesoCerrado === true;
+    var por = clave(envio.devueltoPor);
+    var accion = clave(envio.requiereAccionDe);
+    var coordinacion = clave(envio.estadoCoordinador || (envio.revisionCoordinador && envio.revisionCoordinador.estado));
+    var investigacion = clave(envio.estadoInvestigador || (envio.revisionInvestigador && envio.revisionInvestigador.estado));
+    var origenCoherente = ((por === 'COORDINADOR' || por === 'COORDINACION') && coordinacion === 'DEVUELTO') ||
+      ((por === 'INVESTIGACION' || por === 'INVESTIGADOR') && investigacion === 'DEVUELTO');
+    var permisoExplicito = envio.puedeReenviar === true || envio.permitirReenvio === true;
+    var devolucionLegada = accion === 'ESTUDIANTE' && origenCoherente;
+    return {
+      devuelto: devuelto && !finalizado,
+      habilitado: devuelto && !finalizado && (permisoExplicito || devolucionLegada),
+      legado: devuelto && !finalizado && !permisoExplicito && devolucionLegada
+    };
+  }
+
   function normalizarEnvioExistente(data) {
     if (!data) return null;
     var propuestas = Array.isArray(data.titulosEnviados) && data.titulosEnviados.length
@@ -418,7 +447,8 @@
         })
       ),
       intentosUsados: Number(data.intentosUsados || data.numeroEnvios || 1),
-      puedeReenviar: data.puedeReenviar === true || data.permitirReenvio === true
+      puedeReenviar: evaluarReenvio(data).habilitado,
+      permitirReenvio: evaluarReenvio(data).habilitado
     });
   }
 
@@ -431,7 +461,7 @@
 
     var maxIntentos = Number(appConfig.maxIntentos || config.defaultAppConfig.maxIntentos || 1);
     var intentosUsados = Number(envioExistente && (envioExistente.numeroEnvios || envioExistente.intentosUsados) || 0);
-    var reenvioPermitido = Boolean(envioExistente && (envioExistente.permitirReenvio === true || envioExistente.puedeReenviar === true));
+    var reenvioPermitido = Boolean(envioExistente && evaluarReenvio(envioExistente).habilitado);
 
     if (envioExistente && !reenvioPermitido) {
       return error('Ya existe un envío registrado para esta cédula. Si necesitas cambios, comunícate con coordinación.');
@@ -470,70 +500,133 @@
     if (modoSeguro()) return seguro.enviar(payload);
     if (!payload || !payload.cedula) return Promise.reject(new Error('No se puede guardar porque falta la cédula.'));
     payload.periodoId = obtenerPeriodoIdDesdeValor(payload.periodoId || 'SIN_PERIODO');
-    var tituloId = construirTituloId(payload.periodoId, payload.cedula);
 
+    // El control debe ejecutarse al guardar, no solo al dibujar el botón.
+    // Se verifica el documento nuevamente DENTRO de una transacción Firestore.
     return consultarEnvio(payload.periodoId, payload.cedula).then(function (existente) {
-      var propuestas = Array.isArray(payload.titulosEnviados) ? payload.titulosEnviados : [];
-      var numeroEnvios = Number(existente && (existente.numeroEnvios || existente.intentosUsados) || 0) + 1;
-      var numeroReenvios = Number(existente && existente.numeroReenvios || 0) + (existente ? 1 : 0);
-      var versionActual = Number(existente && existente.versionActual || 0) + 1;
-      var ahora = new Date().toISOString();
-      var preferido = obtenerTituloPreferidoTexto(payload);
+      var db = firebaseService.getDbTitulos && firebaseService.getDbTitulos();
+      if (!db || typeof db.runTransaction !== 'function') {
+        var errorBackend = new Error('No se pudo verificar el reenvío de manera segura. Intenta nuevamente.');
+        errorBackend.codigo = 'TRANSACCION_NO_DISPONIBLE';
+        throw errorBackend;
+      }
+      var tituloId = existente && existente.id
+        ? String(existente.id)
+        : construirTituloId(payload.periodoId, payload.cedula);
+      var ref = db.collection(config.collections.titulos).doc(tituloId);
 
-      var payloadFinal = Object.assign({}, payload, {
-        id: tituloId,
-        numeroIdentificacion: payload.numeroIdentificacion || payload.cedula,
-        carreraNombre: payload.carrera || payload.nombreCarrera || '',
-        carreraCodigo: payload.codigoCarrera || '',
-        periodoNombre: payload.periodoLabel || formatearPeriodoId(payload.periodoId),
-        periodoCanonicoId: payload.periodoId,
-        telegram: payload.telegramUser || (payload.contacto && payload.contacto.telegram) || '',
-        titulo1: tituloPorNumero(propuestas, 1),
-        titulo2: tituloPorNumero(propuestas, 2),
-        titulo3: tituloPorNumero(propuestas, 3),
-        propuestasDetalle: propuestas,
-        tituloElegido: preferido,
-        tituloPreferidoTexto: preferido,
-        estado: 'PENDIENTE_REVISION',
-        estadoProceso: 'PENDIENTE_COORDINADOR',
-        requiereAccionDe: 'COORDINACION',
-        requiereRevision: true,
-        permitirReenvio: false,
-        puedeReenviar: false,
-        devueltoPor: '',
-        observacionDevolucion: '',
-        validadoCoordinador: false,
-        resultadoCoordinador: null,
-        tituloCoordinador: null,
-        comentarioCoordinador: null,
-        fechaValidacionCoordinador: null,
-        resultadoInvestigacion: null,
-        tituloFinalInvestigacion: null,
-        fechaResolucionInvestigacion: null,
-        tituloFinal: null,
-        estadoCoordinador: 'PENDIENTE',
-        coordinadorRevisado: false,
-        revisionCoordinador: null,
-        estadoInvestigador: '',
-        revisionInvestigador: null,
-        investigacionRevisada: false,
-        numeroEnvios: numeroEnvios,
-        numeroReenvios: numeroReenvios,
-        intentosUsados: numeroEnvios,
-        versionActual: versionActual,
-        versionActualId: tituloId + '__v' + completarNumero(versionActual, 3) + '__' + Date.now(),
-        fechaEnvio: ahora,
-        actualizadoEnLocal: ahora,
-        origenCaptura: payload.origenCaptura || 'estudiantes-web'
-      });
+      return db.runTransaction(function (tx) {
+        return tx.get(ref).then(function (snapshot) {
+          var actual = snapshot.exists ? Object.assign({ id: tituloId }, snapshot.data() || {}) : null;
+          if (existente && !actual) {
+            var ausente = new Error('El expediente cambió durante la consulta. Consulta nuevamente.');
+            ausente.codigo = 'EXPEDIENTE_ACTUALIZADO';
+            throw ausente;
+          }
+          if (actual && !evaluarReenvio(actual).habilitado) {
+            var bloqueado = new Error('Este expediente no tiene un reenvío autorizado. Consulta nuevamente o comunícate con Coordinación.');
+            bloqueado.codigo = 'REENVIO_NO_AUTORIZADO';
+            throw bloqueado;
+          }
+          var propuestas = Array.isArray(payload.titulosEnviados) ? payload.titulosEnviados : [];
+          var numeroEnvios = Number(actual && (actual.numeroEnvios || actual.intentosUsados) || 0) + 1;
+          var numeroReenvios = Number(actual && actual.numeroReenvios || 0) + (actual ? 1 : 0);
+          var versionActual = Number(actual && actual.versionActual || 0) + 1;
+          var ahora = new Date().toISOString();
+          var preferido = obtenerTituloPreferidoTexto(payload);
+          var historial = Array.isArray(actual && actual.historialProceso) ? actual.historialProceso.slice(-98) : [];
 
-      return firebaseService.guardarDocumento(config.collections.titulos, tituloId, payloadFinal, { merge: true })
-        .then(function () {
-          return registrarLogEnvio(tituloId, payloadFinal, existente ? 'REENVIO_ESTUDIANTE' : 'ENVIO_ESTUDIANTE');
-        })
-        .then(function () {
+          if (actual) {
+            historial.push({
+              tipo: 'VERSION_ANTERIOR',
+              version: Math.max(1, Number(actual.versionActual || 1)),
+              fechaEnvio: actual.fechaEnvio || '',
+              fechaArchivo: ahora,
+              estado: actual.estado || '',
+              titulosEnviados: Array.isArray(actual.titulosEnviados) ? actual.titulosEnviados : [],
+              tituloPreferidoNumero: Number(actual.tituloPreferidoNumero || 0),
+              revisionCoordinador: actual.revisionCoordinador || null,
+              revisionInvestigador: actual.revisionInvestigador || null,
+              observacionDevolucion: actual.observacionDevolucion || ''
+            });
+          }
+
+          var payloadFinal = Object.assign({}, payload, {
+            id: tituloId,
+            numeroIdentificacion: payload.numeroIdentificacion || payload.cedula,
+            carreraNombre: payload.carrera || payload.nombreCarrera || '',
+            carreraCodigo: payload.codigoCarrera || '',
+            periodoNombre: payload.periodoLabel || formatearPeriodoId(payload.periodoId),
+            periodoCanonicoId: payload.periodoId,
+            telegram: payload.telegramUser || (payload.contacto && payload.contacto.telegram) || '',
+            titulo1: tituloPorNumero(propuestas, 1),
+            titulo2: tituloPorNumero(propuestas, 2),
+            titulo3: tituloPorNumero(propuestas, 3),
+            propuestasDetalle: propuestas,
+            tituloElegido: preferido,
+            tituloPreferidoTexto: preferido,
+            tituloVisible: preferido,
+            estado: 'PENDIENTE_REVISION',
+            estadoProceso: 'PENDIENTE_COORDINADOR',
+            requiereAccionDe: 'COORDINACION',
+            requiereRevision: true,
+            permitirReenvio: false,
+            puedeReenviar: false,
+            devueltoPor: '',
+            observacionDevolucion: '',
+            observacion: '',
+            validadoCoordinacion: false,
+            validadoCoordinador: false,
+            coordinadorRevisado: false,
+            revisadoPor: '',
+            revisadoPorNombre: '',
+            revisadoEnLocal: null,
+            revision: null,
+            revisionCoordinador: null,
+            resultadoCoordinador: null,
+            tituloCoordinador: null,
+            tituloCoordinadorNumero: null,
+            tituloCoordinadorAntes: '',
+            tituloCoordinadorCorregido: '',
+            tituloSeleccionadoNumero: null,
+            tituloSeleccionadoTexto: '',
+            comentarioCoordinador: '',
+            fechaValidacionCoordinador: null,
+            resultadoInvestigacion: null,
+            revisionInvestigador: null,
+            investigacionRevisada: false,
+            investigacionRevisadaEn: null,
+            estadoInvestigador: '',
+            observacionInvestigacion: '',
+            tituloFinalInvestigacion: null,
+            fechaResolucionInvestigacion: null,
+            fechaResolucion: null,
+            tituloFinal: null,
+            procesoCerrado: false,
+            estadoCoordinador: 'PENDIENTE',
+            numeroEnvios: numeroEnvios,
+            numeroReenvios: numeroReenvios,
+            intentosUsados: numeroEnvios,
+            versionActual: versionActual,
+            versionActualId: tituloId + '__v' + completarNumero(versionActual, 3) + '__' + Date.now(),
+            fechaEnvio: ahora,
+            actualizadoEnLocal: ahora,
+            historialProceso: historial,
+            origenCaptura: payload.origenCaptura || 'estudiantes-web'
+          });
+
+          tx.set(ref, payloadFinal, { merge: true });
           return { ok: true, id: tituloId, data: payloadFinal, mensaje: 'Envío registrado correctamente.' };
         });
+      }).then(function (respuesta) {
+        // El expediente y su historial ya quedaron guardados en la misma transacción.
+        // El log secundario no debe convertir un envío exitoso en un error visual.
+        return registrarLogEnvio(tituloId, respuesta.data,
+          existente ? 'REENVIO_ESTUDIANTE' : 'ENVIO_ESTUDIANTE')
+          .catch(function (errorLog) {
+            console.warn('[Estudiantes] Expediente guardado; no se pudo registrar el evento secundario:', errorLog);
+          }).then(function () { return respuesta; });
+      });
     });
   }
 
@@ -716,6 +809,7 @@
     obtenerDiagnosticoEnvio: obtenerDiagnosticoEnvio,
     consultarEstudianteCompleto: consultarEstudianteCompleto,
     guardarEnvioFinal: guardarEnvioFinal,
+    evaluarReenvio: evaluarReenvio,
     actualizarRespaldoSheets: actualizarRespaldoSheets,
     registrarLogEnvio: registrarLogEnvio,
     construirTituloId: construirTituloId,
