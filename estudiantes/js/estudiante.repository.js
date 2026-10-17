@@ -48,6 +48,7 @@
   function normalizarAppConfig(doc, origen) {
     var data = Object.assign({}, config.defaultAppConfig, doc || {});
     data.origen = origen || 'firebase-titulos';
+    data.periodosListaExplicita = Boolean(doc && Array.isArray(doc.periodosActivos));
     data.procesoActivo = doc && doc.procesoActivo !== undefined
       ? doc.procesoActivo !== false
       : !(doc && doc.enviosHabilitados === false);
@@ -140,6 +141,15 @@
       });
       return salida;
     });
+  }
+
+  function periodoHabilitado(periodoId, appConfig) {
+    var p=obtenerPeriodoIdDesdeValor(periodoId);
+    if(!p||!appConfig)return false;
+    if(appConfig.periodosListaExplicita===true)
+      return (appConfig.periodosActivos||[]).some(function(id){return obtenerPeriodoIdDesdeValor(id)===p;});
+    if(appConfig.periodoActivoDesactivado===true)return false;
+    return obtenerPeriodoIdDesdeValor(appConfig.periodoActivoId||appConfig.periodoActivo&&appConfig.periodoActivo.id||appConfig.periodoActivo)===p;
   }
 
   function seleccionarMatricula(matriculas, appConfig) {
@@ -511,7 +521,17 @@
       var ref = db.collection(config.collections.titulos).doc(tituloId);
 
       return db.runTransaction(function (tx) {
-        return tx.get(ref).then(function (snapshot) {
+        // Comprobar el período dentro de la transacción evita guardar después
+        // de que Administración lo haya desactivado.
+        return tx.get(db.collection(config.collections.config).doc(config.documents.appConfig))
+          .then(function(cfg) {
+            if(!cfg.exists || !periodoHabilitado(payload.periodoId,normalizarAppConfig(cfg.data(),'firebase-titulos'))) {
+              var errorPeriodo=new Error('El período académico está desactivado.');
+              errorPeriodo.codigo='PERIODO_DESACTIVADO';
+              throw errorPeriodo;
+            }
+            return tx.get(ref);
+          }).then(function (snapshot) {
           var actual = snapshot.exists ? Object.assign({ id: tituloId }, snapshot.data() || {}) : null;
           if (existente && !actual) {
             var ausente = new Error('El expediente cambió durante la consulta. Consulta nuevamente.');
@@ -805,6 +825,7 @@
     consultarEstudianteCompleto: consultarEstudianteCompleto,
     guardarEnvioFinal: guardarEnvioFinal,
     evaluarReenvio: evaluarReenvio,
+    periodoHabilitado: periodoHabilitado,
     actualizarRespaldoSheets: actualizarRespaldoSheets,
     registrarLogEnvio: registrarLogEnvio,
     construirTituloId: construirTituloId,
