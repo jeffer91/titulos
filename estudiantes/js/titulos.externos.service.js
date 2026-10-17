@@ -46,7 +46,7 @@
         '</div>',
         '<article class="titulo-externo-card titulo-externo-card--principal">',
         '  <label for="p' + numero + 'Titulo">Pega el título que elegiste</label>',
-        '  <textarea id="p' + numero + 'Titulo" name="p' + numero + 'Titulo" rows="3" maxlength="360" placeholder="Pega aquí tu título elegido."></textarea>',
+        '  <textarea id="p' + numero + 'Titulo" name="p' + numero + 'Titulo" rows="3" maxlength="260" placeholder="Pega aquí tu título elegido."></textarea>',
         '  <div class="titulo-externo-card__footer">',
         '    <span class="titulo-externo-card__contador" id="p' + numero + 'Contador">0 palabras</span>',
         '    <span class="titulo-externo-card__estado" id="p' + numero + 'Estado">Pega un título para continuar.</span>',
@@ -360,6 +360,9 @@
 
     if (!titulo) {
       return fallo('Pega el Título ' + numero + ' que elegiste en la Ronda ' + numero + ' para continuar.', selector);
+    }
+    if (titulo.length < 20 || titulo.length > 260) {
+      return fallo('El Título ' + numero + ' debe tener entre 20 y 260 caracteres.', selector);
     }
 
     return {
