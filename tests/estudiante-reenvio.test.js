@@ -22,13 +22,17 @@ function cargarRepositorio(inicial){
  let actual=inicial?{...inicial}:null, eventos=[],writes=0;
  const db={
    collection(name){
-     assert.equal(name,'envios');
-     return {doc(documentId){return {id:documentId};}};
+     assert.ok(name==='envios'||name==='configuracion');
+     return {doc(documentId){return {id:documentId,collection:name};}};
    },
    async runTransaction(fn){
      const cambios=[];
      const tx={
-       async get(ref){return {exists:!!actual,data:()=>({...actual})};},
+       async get(ref){
+          if(ref.collection==='configuracion')return {exists:true,
+            data:()=>({periodosActivos:[periodo],procesoActivo:true})};
+          return {exists:!!actual,data:()=>({...actual})};
+        },
        set(ref,data,options){cambios.push({ref,data,options});}
      };
      const result=await fn(tx);
