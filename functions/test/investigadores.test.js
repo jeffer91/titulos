@@ -168,6 +168,18 @@ test('historial de investigador muestra devolución de un expediente reenviado',
  assert.match(result.titulos[0].id,/b1__revision__/);
  assert.equal(result.titulos[0].revisionInvestigador.observacion,'Delimitar problema');
 });
+test('historial propio recupera una revisión sin evento externo',async()=>{
+ const base=datos();
+ base.envios.b1.historialProceso=[{version:1,revisionInvestigador:{
+  estado:'DEVUELTO',investigadorId:'i1',investigadorCedula:'1700000000',
+  investigadorEmail:actor.email,observacion:'Corregir alcance',
+  fechaLocal:'2026-10-09T10:00:00Z'
+ }}];
+ const {rutas}=setup(base);
+ const result=await rutas['/revisados'].handle({usuario:actor});
+ assert.equal(result.titulos.length,1);
+ assert.equal(result.titulos[0].revisionInvestigador.observacion,'Corregir alcance');
+});
 test('mis revisiones no devuelve datos de otro investigador ni depende de carrera actual',async()=>{
  const base=datos();
  base.envios.aprobado.revisionInvestigador={estado:'APROBADO',investigadorId:'i1',
