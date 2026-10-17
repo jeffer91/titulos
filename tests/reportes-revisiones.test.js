@@ -105,6 +105,24 @@ const docs = [
   }
 ];
 
+const historico={
+ id:'expediente-con-historial',cedula:'4444444444',nombres:'PRUEBA HISTORICA',
+ carrera:'MARKETING',periodoId:'2026-04__2026-09',estadoInvestigador:'',
+ investigacionRevisada:false,revisionInvestigador:null,
+ historialProceso:[{version:1,revisionInvestigador:{
+   estado:'DEVUELTO',investigadorId:'INV-2',investigadorNombre:'INVESTIGADOR DOS',
+   observacion:'Delimitar',fechaLocal:'2026-10-05T12:00:00Z'
+ }}]
+};
+const historicoRecuperado=service.normalizarLista([historico]);
+assert.strictEqual(historicoRecuperado.length,1,'Debe recuperarse la revisión archivada.');
+assert.strictEqual(historicoRecuperado[0].observacion,'Delimitar');
+assert.strictEqual(historicoRecuperado[0].tituloId,'expediente-con-historial');
+const sinDuplicar=service.normalizarLista([{
+ ...historico,revisionInvestigador:historico.historialProceso[0].revisionInvestigador,
+ estadoInvestigador:'DEVUELTO',investigacionRevisada:true
+}]);
+assert.strictEqual(sinDuplicar.length,1,'Una revisión idéntica no debe contarse dos veces.');
 const normalized = service.normalizarLista(docs);
 assert.strictEqual(normalized.length, 2, 'Solo deben entrar revisiones resueltas.');
 
