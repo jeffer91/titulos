@@ -57,6 +57,7 @@ function datos(){
    aprobado:{...titulo('ap','Educación Básica','2026-04__2026-09','2026-10-07T08:00:00Z'),
     estado:'APROBADO_FINAL',estadoProceso:'APROBADO_FINAL',investigacionRevisada:true}
   },
+  configuracion:{general:{periodosActivos:['2026-04__2026-09','2026-05__2026-11']}},
   workflow_events:{}
  };
 }
@@ -145,6 +146,27 @@ test('revocar acceso después de autenticar bloquea modificación',async()=>{
   tituloId:'b1',accion:'APROBAR'
  }}),e=>e.status===403);
  assert.equal(db.tablas.workflow_events.size,0);
+});
+test('Investigación excluye períodos desactivados de la cola y su revisión',async()=>{
+ const data=datos();data.configuracion.general.periodosActivos=['2026-05__2026-11'];
+ const {rutas}=setup(data);
+ assert.deepEqual((await rutas['/cola'].handle({usuario:actor})).titulos.map(t=>t.id),['b2']);
+ await assert.rejects(()=>rutas['/revision'].handle({usuario:actor,body:{
+  tituloId:'b1',accion:'APROBAR'
+ }}),e=>e.status===409&&e.code==='PERIODO_DESACTIVADO');
+});
+test('historial de investigador muestra devolución de un expediente reenviado',async()=>{
+ const data=datos();data.workflow_events.hist={
+  tituloId:'b1',entidadId:'b1',modulo:'investigadores',cedula:'1700000000',
+  periodoId:'2026-04__2026-09',
+  revision:{estado:'DEVUELTO',investigadorId:'i1',investigadorCedula:'1700000000',
+   investigadorNombre:'Docente Revisor',investigadorEmail:actor.email,
+   observacion:'Delimitar problema',fechaLocal:'2026-10-12T09:00:00Z'}};
+ const {rutas}=setup(data);
+ const result=await rutas['/revisados'].handle({usuario:actor});
+ assert.equal(result.titulos.length,1);
+ assert.match(result.titulos[0].id,/b1__revision__/);
+ assert.equal(result.titulos[0].revisionInvestigador.observacion,'Delimitar problema');
 });
 test('mis revisiones no devuelve datos de otro investigador ni depende de carrera actual',async()=>{
  const base=datos();
