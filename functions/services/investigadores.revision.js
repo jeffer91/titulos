@@ -1,4 +1,5 @@
 'use strict';
+const periodos=require('./periodos-activos');
 // Operación atómica de segunda revisión: expediente y auditoría.
 function fail(status,code){const e=new Error(code);e.status=status;e.code=code;throw e;}
 const str=v=>String(v===undefined||v===null?'':v).replace(/\s+/g,' ').trim();
@@ -29,6 +30,9 @@ async function revisar(db,perfil,actor,body,h){
     str(actual.email||actual.correo).toLowerCase()!==actor.email))fail(403,'VINCULO_CORREO_REVOCADO');
   const titulo=doc(await tx.get(ref));
   if(!titulo)fail(404,'EXPEDIENTE_NO_ENCONTRADO');
+   const configSnap=await tx.get(db.collection('configuracion').doc('general'));
+   if(!configSnap.exists)fail(503,'CONFIGURACION_PERIODOS_NO_DISPONIBLE');
+   periodos.validar(titulo,periodos.activos(configSnap.data()));
   if(!h.permitida(titulo,actual))fail(403,'CARRERA_NO_AUTORIZADA');
   if(!h.pendiente(titulo))fail(409,'REVISION_NO_DISPONIBLE');
   const final=tituloSeleccionado(titulo);
