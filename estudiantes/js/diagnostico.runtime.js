@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261017-59';
+  var BUILD = '20261017-60';
   var eventos = [];
   var MAX_EVENTOS = 80;
 
