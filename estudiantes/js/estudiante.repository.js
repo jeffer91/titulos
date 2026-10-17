@@ -392,6 +392,9 @@
     envio = envio || {};
     function clave(valor) { return limpiarTexto(valor).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(); }
     var general=clave(envio.estado),proceso=clave(envio.estadoProceso);
+    if((general==='BORRADOR_REINICIADO'||proceso==='BORRADOR_REINICIADO')&&
+       envio.reiniciadoPorAdmin===true&&!envio.procesoCerrado)
+      return {devuelto:false,habilitado:true,legado:false,reinicioAdministrativo:true};
     var devuelto=['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].indexOf(general)!==-1 ||
       ['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].indexOf(proceso)!==-1;
     var coord=clave(envio.estadoCoordinador || (envio.revisionCoordinador && envio.revisionCoordinador.estado));
