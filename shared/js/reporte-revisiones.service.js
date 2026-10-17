@@ -5,11 +5,36 @@
   var ESTADOS_RESUELTOS = ['APROBADO', 'APROBADO_CON_OBSERVACION', 'DEVUELTO'];
 
   function normalizarLista(docs) {
-    return (docs || []).map(normalizarRevision).filter(function (item) {
-      return item && item.revisado;
-    }).sort(function (a, b) {
-      return fechaMs(b.fechaRevision) - fechaMs(a.fechaRevision);
+    var registros=[];
+    (docs||[]).forEach(function(doc) {
+      if(!doc)return;
+      registros.push(doc);
+      var baseId=limpiar(doc._expedienteOrigenId||doc.id||doc._docId||'');
+      (Array.isArray(doc.historialProceso)?doc.historialProceso:[]).forEach(function(h,i){
+        var rev=h&&h.revisionInvestigador;
+        if(!rev||ESTADOS_RESUELTOS.indexOf(normalizarEstado(rev.estado))===-1)return;
+        var historicoId=baseId+'__historico__'+String(h.version||h.numeroVersion||i);
+        registros.push(Object.assign({},doc,h,{
+          id:historicoId,_docId:historicoId,_expedienteOrigenId:baseId,
+          revisionInvestigador:rev,estadoInvestigador:rev.estado,investigacionRevisada:true,
+          fechaResolucionInvestigacion:rev.fechaLocal||rev.fecha||h.fechaArchivo||'',
+          observacionInvestigacion:rev.observacion||'',
+          estado:'REVISION_HISTORICA',estadoProceso:'REVISION_HISTORICA',
+          historialProceso:[]
+        }));
+      });
     });
+    var vistos={};
+    return registros.map(normalizarRevision).filter(function(item) {
+      if(!item||!item.revisado)return false;
+      var original=limpiar(item.raw&&item.raw._expedienteOrigenId||item.tituloId);
+      var firma=[original,limpiar(item.fechaRevision),item.estadoRevision,
+        limpiar(item.investigadorId||item.investigadorCedula||item.investigadorEmail),
+        limpiar(item.observacion)].join('|');
+      if(item.fechaRevision&&vistos[firma])return false;
+      if(item.fechaRevision)vistos[firma]=true;
+      return true;
+    }).sort(function(a,b){return fechaMs(b.fechaRevision)-fechaMs(a.fechaRevision);});
   }
 
   function normalizarRevision(data) {
@@ -42,7 +67,7 @@
 
     return {
       id: limpiar(data.id || data._docId || ''),
-      tituloId: limpiar(data.id || data._docId || ''),
+      tituloId: limpiar(data._expedienteOrigenId || data.id || data._docId || ''),
       cedula: soloNumeros(data.cedula || data.numeroIdentificacion || ''),
       nombres: limpiar(data.nombres || data.nombreCompleto || data.nombre || ''),
       carrera: limpiar(data.carreraNombre || data.carrera || data.nombreCarrera || 'Sin carrera'),
