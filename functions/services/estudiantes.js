@@ -131,6 +131,8 @@ function infoPublica(academicaData,cedula){
 function evaluarReenvio(envio) {
  const e=envio||{},clave=v=>limpio(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
  const estado=clave(e.estado),proceso=clave(e.estadoProceso);
+ if((estado==='BORRADOR_REINICIADO'||proceso==='BORRADOR_REINICIADO')&&
+   e.reiniciadoPorAdmin===true&&!e.procesoCerrado)return true;
  const devuelto=['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].includes(estado)||
   ['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].includes(proceso);
  const coord=clave(e.estadoCoordinador||(e.revisionCoordinador&&e.revisionCoordinador.estado));
