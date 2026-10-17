@@ -14,7 +14,7 @@ const FIELDS_ENVIO=[
  'tituloCoordinadorNumero','procesoCerrado',
  'investigacionRevisada','fechaValidacionCoordinador','fechaResolucionInvestigacion','fechaResolucion',
  'fechaEnvio','creadoEn','actualizadoEn','actualizadoEnLocal','requiereRevision','requiereAccionDe',
- 'permitirReenvio','puedeReenviar','devueltoPor','numeroEnvios','numeroReenvios','intentosUsados',
+ 'permitirReenvio','puedeReenviar','devueltoPor','reiniciadoPorAdmin','reiniciadoEn','numeroEnvios','numeroReenvios','intentosUsados',
  'versionActual','versionActualId','historialProceso','telegram','telegramUser'
 ];
 const FIELDS_EVENTO=['id','tipo','accion','modulo','estado','estadoProceso','fechaLocal','creadoEn','actualizadoEn','revision','observacion','numeroEnvios'];
@@ -226,7 +226,7 @@ function crearRutasEstudiantes({operativa,academica,geminiKey}) {
           tituloPreferidoTexto:propuestas[preferido-1].tituloFinal,
           telegram:limpio(body.telegramUser||body.telegram||'').slice(0,60),
           estado:'PENDIENTE_REVISION',estadoProceso:'PENDIENTE_COORDINADOR',requiereAccionDe:'COORDINACION',
-          requiereRevision:true,permitirReenvio:false,puedeReenviar:false,devueltoPor:'',
+          requiereRevision:true,permitirReenvio:false,puedeReenviar:false,devueltoPor:'',reiniciadoPorAdmin:false,
           observacionDevolucion:'',observacion:'',validadoCoordinacion:false,
           validadoCoordinador:false,coordinadorRevisado:false,revision:null,
           revisionCoordinador:null,revisionInvestigador:null,estadoCoordinador:'PENDIENTE',
