@@ -1,4 +1,5 @@
 'use strict';
+const periodos=require('./periodos-activos');
 const FIELDS=['id','cedula','numeroIdentificacion','nombres','carrera','carreraNombre','nombreCarrera','carreraCodigo','codigoCarrera','periodoId','periodoCanonicoId','periodoNombre','periodoLabel','tipoTrabajo','modalidadTitulacion','estado','estadoProceso','estadoCoordinador','estadoInvestigador','validadoCoordinador','validadoCoordinacion','coordinadorRevisado','revisionCoordinador','revisionInvestigador','investigacionRevisada','investigacionRevisadaEn','fechaValidacionCoordinador','fechaResolucionInvestigacion','fechaEnvio','fechaResolucion','creadoEn','actualizadoEnLocal','numeroEnvios','numeroReenvios','tituloPreferidoNumero','tituloCoordinadorNumero','tituloPreferidoTexto','tituloElegido','tituloCoordinador','tituloFinal','tituloFinalInvestigacion','resultadoCoordinador','resultadoInvestigacion','titulosEnviados','propuestasDetalle','titulo1','titulo2','titulo3','devueltoPor','observacionDevolucion','puedeReenviar','permitirReenvio'];
 const CARRERAS=['carrerasNombres','carreras','carrerasAsignadas','carrerasIds'];
 const CAMPOS=['carreraNombre','carrera','nombreCarrera','carreraCodigo','codigoCarrera'];
@@ -60,12 +61,13 @@ function fecha(t){
 }
 async function cola(db,p){
  // Paginar por documento evita que los expedientes antiguos oculten pendientes nuevos.
- const mapa=new Map();let cursor=null;
+ const habilitados=await periodos.cargar(db);
+  const mapa=new Map();let cursor=null;
  do {
   let query=db.collection('envios').orderBy('__name__').limit(500);
   if(cursor)query=query.startAfter(cursor);
   const page=await query.get();
-  for(const snap of page.docs){const t=doc(snap);if(permitida(t,p)&&pendiente(t))mapa.set(t.id,t);}
+  for(const snap of page.docs){const t=doc(snap);if(permitida(t,p)&&pendiente(t)&&periodos.permitido(t,habilitados))mapa.set(t.id,t);}
   cursor=page.docs.length===500?page.docs[page.docs.length-1]:null;
  }while(cursor);
  const orden=[...mapa.values()].sort((a,b)=>fecha(a)-fecha(b)||limpiar(a.nombres).localeCompare(limpiar(b.nombres)));
@@ -80,17 +82,41 @@ function propia(t,p){
   r.investigadorEmail&&limpiar(r.investigadorEmail).toLowerCase()===publicP.email);
 }
 async function revisados(db,p){
- const pub=perfilPublico(p);
- const filtros=[['revisionInvestigador.investigadorId',p.id],
-  ['revisionInvestigador.investigadorCedula',pub.cedula],
-  ['revisionInvestigador.investigadorEmail',pub.email]].filter(x=>x[1]);
- const resultados=await Promise.all(filtros.map(x=>db.collection('envios').where(x[0],'==',x[1]).limit(500).get()));
- const mapa=new Map();let truncado=false;
- for(const grupo of resultados){if(grupo.docs.length>=500)truncado=true;
-  for(const s of grupo.docs){const d=doc(s);if(propia(d,p))mapa.set(d.id,d);}
- }
- const items=[...mapa.values()].sort((a,b)=>fechaRevision(b)-fechaRevision(a));
- return {titulos:items.slice(0,2500).map(filtrar),truncado:truncado||items.length>2500};
+  const pub=perfilPublico(p);
+  const filtros=[['revisionInvestigador.investigadorId',p.id],
+    ['revisionInvestigador.investigadorCedula',pub.cedula],
+    ['revisionInvestigador.investigadorEmail',pub.email]].filter(x=>x[1]);
+  const resultados=await Promise.all([
+    ...filtros.map(x=>db.collection('envios').where(x[0],'==',x[1]).limit(500).get()),
+    db.collection('workflow_events').where('revision.investigadorId','==',p.id).limit(500).get()
+  ]);
+  const mapa=new Map();let truncado=false;
+  function agregar(t,idBase){
+    if(!propia(t,p))return;
+    const r=t.revisionInvestigador||{};
+    const key=idBase+'|'+limpiar(r.fechaLocal||'')+'|'+clave(r.estado);
+    if(!mapa.has(key))mapa.set(key,t);
+  }
+  resultados.slice(0,-1).forEach(grupo=>{
+    if(grupo.docs.length>=500)truncado=true;
+    grupo.docs.forEach(s=>{const t=doc(s);if(t)agregar(t,t.id);});
+  });
+  const eventos=resultados[resultados.length-1];
+  if(eventos.docs.length>=500)truncado=true;
+  eventos.docs.forEach(s=>{
+    const e=doc(s),r=e&&e.revision||{};
+    if(!e||e.modulo!=='investigadores'||limpiar(r.investigadorId)!==p.id)return;
+    if(!['APROBADO','APROBADO_CON_OBSERVACION','DEVUELTO'].includes(clave(r.estado)))return;
+    const id=limpiar(e.tituloId||e.entidadId);
+    if(!id)return;
+    agregar({
+      id:id+'__revision__'+s.id,cedula:e.cedula||'',carreraNombre:e.carrera||'',
+      periodoId:e.periodoId||'',fechaResolucionInvestigacion:r.fechaLocal||e.fechaLocal||'',
+      estadoInvestigador:r.estado,revisionInvestigador:r,investigacionRevisada:true
+    },id);
+  });
+  const items=[...mapa.values()].sort((a,b)=>fechaRevision(b)-fechaRevision(a));
+  return {titulos:items.slice(0,2500).map(filtrar),truncado:truncado||items.length>2500};
 }
 function fechaRevision(t){
  const v=t.revisionInvestigador&&t.revisionInvestigador.fechaLocal||t.fechaResolucionInvestigacion||t.investigacionRevisadaEn;
