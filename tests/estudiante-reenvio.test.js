@@ -84,6 +84,8 @@ test('devolución antigua coherente se puede recuperar sin habilitar un simple e
  assert.equal(r.repo.evaluarReenvio({estado:'APROBADO_FINAL',permitirReenvio:true}).habilitado,false);
  assert.equal(r.repo.evaluarReenvio({...base,devueltoPor:'',requiereAccionDe:'',permitirReenvio:false,puedeReenviar:false}).habilitado,true);
  assert.equal(r.repo.evaluarReenvio({...base,procesoCerrado:true}).habilitado,false);
+ assert.equal(r.repo.evaluarReenvio({estado:'BORRADOR_REINICIADO',reiniciadoPorAdmin:true}).habilitado,true);
+ assert.equal(r.repo.evaluarReenvio({estado:'BORRADOR_REINICIADO',puedeReenviar:true}).habilitado,false);
  assert.equal(r.repo.evaluarReenvio({...base,investigacionRevisada:true,estadoInvestigador:'APROBADO'}).habilitado,false);
 });
 test('transacción vuelve a comprobar permiso, conserva identificador e historial y limpia revisiones',async()=>{
