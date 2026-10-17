@@ -330,6 +330,13 @@
       };
     }
 
+    var repoPeriodo=window.TAEstudianteRepository;
+    if(repoPeriodo && typeof repoPeriodo.periodoHabilitado==='function' &&
+      !repoPeriodo.periodoHabilitado(estudiante.periodoId,appConfig)) {
+      throw crearError('PERIODO_DESACTIVADO',
+        'El período académico no está habilitado para registrar títulos. Comunícate con Coordinación.');
+    }
+
     if (appConfig.procesoActivo === false) {
       throw crearError('PROCESO_INACTIVO', 'El proceso de registro de títulos no está activo.');
     }
