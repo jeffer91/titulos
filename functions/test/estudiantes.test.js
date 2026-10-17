@@ -52,6 +52,17 @@ test('la configuración jamás incluye secretos',()=>{
   const c=normalizarConfig({procesoActivo:true,periodoActivoId:periodo,apiKey:'secreto',sheetsToken:'token'});
   assert.equal(c.apiKey,undefined);assert.equal(c.sheetsToken,undefined);assert.equal(c.sheetsActivo,false);
 });
+test('reenvío tras archivo administrativo no crea otro documento ni habilita archivos falsos',async()=>{
+ const d={...propuesta,id:periodo+'__'+cedula,estado:'BORRADOR_REINICIADO',
+   estadoProceso:'BORRADOR_REINICIADO',reiniciadoPorAdmin:true,procesoCerrado:false,
+   numeroEnvios:1,titulosEnviados:[],puedeReenviar:true};
+ const a=montar({envios:{[d.id]:d}});
+ const res=await a.rutas['/envio'].handle({usuario,body:propuesta});
+ assert.equal(res.data.estadoProceso,'PENDIENTE_COORDINADOR');
+ assert.equal(a.operativa.collections.envios.size,1);
+ const b=montar({envios:{[d.id]:{...d,reiniciadoPorAdmin:false}}});
+ await assert.rejects(()=>b.rutas['/envio'].handle({usuario,body:propuesta}),e=>e.status===409);
+});
 test('deben existir exactamente tres títulos y uno preferido válido',()=>{
   assert.equal(validarTitulos(propuesta).propuestas.length,3);
   assert.throws(()=>validarTitulos({...propuesta,titulosEnviados:propuesta.titulosEnviados.slice(0,2)}),e=>e.status===422);
