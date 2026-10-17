@@ -12,7 +12,7 @@
   'use strict';
 
   var TIMEOUT_FIREBASE_MS = 4000;
-  var TIMEOUT_CONFIG_MS = 1200;
+  var TIMEOUT_CONFIG_MS = 5000;
   var TIMEOUT_ACADEMICO_MS = 5500;
   var TIMEOUT_HISTORIAL_MS = 4500;
   var TIMEOUT_TITULOS_MS = 8000;
@@ -279,26 +279,14 @@
   }
 
   function cargarConfiguracionSegura(repository) {
-    var seguro = window.TAEstudianteSeguro;
-    if (seguro && seguro.activo && seguro.activo()) {
-      return repository.cargarConfiguracionApp(); // Prohibido sustituir errores por defaults en modo protegido.
-    }
-    var defaults = Object.assign({}, (window.TA_ESTUDIANTES_CONFIG && window.TA_ESTUDIANTES_CONFIG.defaultAppConfig) || {});
-
-    if (!repository || typeof repository.cargarConfiguracionApp !== 'function') {
-      return Promise.resolve(defaults);
-    }
-
+    if(!repository||typeof repository.cargarConfiguracionApp!=='function')
+      return Promise.reject(crearError('CONFIGURACION_NO_DISPONIBLE',
+        'No es posible comprobar la configuración institucional.'));
+    // Un timeout NO se debe interpretar como período abierto ni como cerrado.
     return conTimeout(
-      repository.cargarConfiguracionApp(),
-      TIMEOUT_CONFIG_MS,
-      'La configuración está tardando demasiado.'
-    ).catch(function (error) {
-      console.warn('[Estudiantes] Se usa configuración local para no bloquear la consulta:', error);
-      defaults.origen = 'default-local-bloques';
-      defaults.procesoActivo = defaults.procesoActivo !== false;
-      return defaults;
-    });
+      repository.cargarConfiguracionApp(),TIMEOUT_CONFIG_MS,
+      'La configuración institucional tardó demasiado. Intenta nuevamente.'
+    );
   }
 
   function construirResultado(contexto) {

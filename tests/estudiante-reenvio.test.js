@@ -77,6 +77,16 @@ const payload={
  nombres:'ESTUDIANTE DE PRUEBA',carrera:'VENTAS',
  tituloPreferidoNumero:2,titulosEnviados:propuestas
 };
+test('prioriza matrícula de período habilitado antes que matrícula reciente',()=>{
+ const r=cargarRepositorio(null);
+ const cfg={periodosListaExplicita:true,periodosActivos:['2026-04__2026-09',periodo],
+   periodoActivoId:'2026-04__2026-09'};
+ const seleccionado=r.repo.seleccionarMatricula([
+   {periodoId:periodo,estadoMatricula:'ACTIVO',updatedAt:'2026-06-01'},
+   {periodoId:'2026-10__2027-03',estadoMatricula:'ACTIVO',updatedAt:'2026-10-01'}
+ ],cfg);
+ assert.equal(seleccionado.periodoId,periodo);
+});
 test('solo se permite enviar dentro de períodos activos administrativamente',()=>{
  const r=cargarRepositorio(null);
  assert.equal(r.repo.periodoHabilitado(periodo,{

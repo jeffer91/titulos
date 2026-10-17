@@ -78,6 +78,21 @@ test('deben existir exactamente tres títulos y uno preferido válido',()=>{
   assert.throws(()=>validarTitulos({...propuesta,titulosEnviados:propuesta.titulosEnviados.slice(0,2)}),e=>e.status===422);
   assert.throws(()=>validarTitulos({...propuesta,tituloPreferidoNumero:4}),e=>e.status===422);
   assert.equal(periodoValor('sin-periodo'),'');
+  assert.throws(()=>validarTitulos({...propuesta,titulosEnviados:[
+    propuesta.titulosEnviados[0],
+    {numero:2,tituloFinal:'DIAGNÓSTICO del proceso de ventas de una empresa!!'},
+    propuesta.titulosEnviados[2]
+  ]}),e=>e.status===422&&e.code==='TITULOS_REPETIDOS');
+});
+test('elige matrícula habilitada aunque la principal sea otra',async()=>{
+  const {rutas,operativa,academica}=montar();
+  const cfg=operativa.collections.configuracion.get('general');
+  cfg.periodosActivos=['2026-04__2026-09',periodo];
+  cfg.periodoActivoId='2026-04__2026-09';
+  academica.collections.matriculas.set('m2',{cedula,periodoId:'2026-10__2027-03',
+    nombreCarrera:'Software',estadoMatricula:'ACTIVO'});
+  const r=await rutas['/expediente'].handle({usuario,query:{cedula}});
+  assert.equal(r.estudiante.periodoId,periodo);
 });
 test('una cuenta sin cédula verificada no obtiene datos',async()=>{
   const {rutas}=montar();

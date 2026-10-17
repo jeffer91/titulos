@@ -46,6 +46,7 @@ function normalizarConfig(raw) {
     periodoActivoId:periodoValor(d.periodoActivoId||d.periodoActivo&&d.periodoActivo.id||d.periodoActivo),
     periodoActivoLabel:limpio(d.periodoActivoLabel||''),
     periodosActivos:Array.isArray(d.periodosActivos)?d.periodosActivos.filter(periodoValor).slice(0,30):[],
+    periodosListaExplicita:Array.isArray(d.periodosActivos),
     periodosActivosLabels:Array.isArray(d.periodosActivosLabels)?d.periodosActivosLabels.slice(0,30).map(limpio):[],
     maxIntentos:Math.max(1,Math.min(Number(d.maxIntentos)||1,5)),
     propuestasObligatorias:3,
@@ -74,8 +75,16 @@ async function informacionAcademica(academica,cedula,config,periodoSolicitado) {
  if(!estudiante||estudiante.eliminado===true)falla(404,'ESTUDIANTE_NO_ENCONTRADO');
  if(cedulaValor(estudiante.cedula||estudiante.numeroIdentificacion||estudiante.id)!==cedula)falla(403,'IDENTIDAD_NO_COINCIDE');
  const mats=matSnap.docs.map(datos).filter(m=>m&&m.eliminado!==true&&m.retirado!==true&&limpio(m.estadoMatricula||'ACTIVO').toUpperCase()==='ACTIVO'&&cedulaValor(m.cedula)===cedula);
- const p=periodoValor(periodoSolicitado)||config.periodoActivoId;
+ const p=periodoValor(periodoSolicitado);
+ const habilitados=config.periodosListaExplicita?config.periodosActivos:
+   (config.periodoActivoId?[config.periodoActivoId]:[]);
  let mat=p?mats.find(m=>modoPeriodo(periodoValor(m.periodoId),p)):null;
+ if(!mat&&!p){
+   mat=mats.find(m=>modoPeriodo(periodoValor(m.periodoId),config.periodoActivoId)&&
+     habilitados.includes(periodoValor(m.periodoId)))||
+     mats.filter(m=>habilitados.includes(periodoValor(m.periodoId)))
+       .sort((a,b)=>limpio(b.periodoId).localeCompare(limpio(a.periodoId)))[0]||null;
+ }
  if(!mat&&!p)mat=mats.slice().sort((a,b)=>limpio(b.periodoId).localeCompare(limpio(a.periodoId)))[0];
  if(!mat)falla(403,'MATRICULA_PERIODO_NO_AUTORIZADA');
  return {
@@ -111,6 +120,14 @@ function validarTitulos(body){
   nums.add(numero);
   return {numero,tituloFinal:titulo,tituloOriginal:limpio(p.tituloOriginal||'').slice(0,260),preferido:false};
  }).sort((a,b)=>a.numero-b.numero);
+ const claves=new Set();
+ for(const item of result){
+   const clave=limpio(item.tituloFinal).replace(/^[\s"'“”«»]+|[\s"'“”«»]+$/g,'')
+     .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+     .replace(/[^a-z0-9]+/g,' ').trim();
+   if(claves.has(clave))falla(422,'TITULOS_REPETIDOS');
+   claves.add(clave);
+ }
  const preferido=Number(body&&body.tituloPreferidoNumero);
  if(![1,2,3].includes(preferido))falla(422,'TITULO_PREFERIDO_INVALIDO');
  result.forEach(p=>p.preferido=p.numero===preferido);

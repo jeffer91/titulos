@@ -25,23 +25,24 @@
     }
 
     if (!firebaseService || typeof firebaseService.leerDocumento !== 'function') {
-      appConfigCache = normalizarAppConfig(null, 'default-local-sin-firebase');
-      appConfigCacheAt = ahora;
-      return Promise.resolve(appConfigCache);
+      var errorServicio=new Error('No fue posible verificar la configuración institucional.');
+      errorServicio.codigo='CONFIGURACION_NO_DISPONIBLE';
+      return Promise.reject(errorServicio);
     }
 
     return conTimeoutRepo(
       firebaseService.leerDocumento(config.collections.config, config.documents.appConfig),
-      900,
+      4000,
       'configuracion'
     ).then(function (doc) {
-      appConfigCache = normalizarAppConfig(doc, doc ? 'firebase-titulos' : 'default-local');
+      if(!doc)throw new Error('No consta la configuración institucional de períodos.');
+      appConfigCache = normalizarAppConfig(doc,'firebase-titulos');
       appConfigCacheAt = Date.now();
       return appConfigCache;
-    }).catch(function () {
-      appConfigCache = normalizarAppConfig(null, 'default-local-rapido');
-      appConfigCacheAt = Date.now();
-      return appConfigCache;
+    }).catch(function(error) {
+      appConfigCache=null;appConfigCacheAt=0;
+      error.codigo=error.codigo||'CONFIGURACION_NO_DISPONIBLE';
+      throw error;
     });
   }
 
@@ -153,23 +154,21 @@
   }
 
   function seleccionarMatricula(matriculas, appConfig) {
-    var lista = (matriculas || []).filter(function (m) {
-      return m && m.eliminado !== true && m.retirado !== true && normalizarTexto(m.estadoMatricula || 'ACTIVO') === 'ACTIVO';
+    var lista=(matriculas||[]).filter(function(m){
+      return m&&m.eliminado!==true&&m.retirado!==true&&
+        normalizarTexto(m.estadoMatricula||'ACTIVO')==='ACTIVO';
     });
-    if (!lista.length) return null;
-
-    var periodoActivo = obtenerPeriodoActivoDesdeConfig(appConfig);
-    if (periodoActivo) {
-      var coincidencia = lista.filter(function (m) { return limpiarTexto(m.periodoId) === periodoActivo; })[0];
-      if (coincidencia) return coincidencia;
+    if(!lista.length)return null;
+    lista.sort(function(a,b){
+      var aFecha=fechaNumero(a.updatedAt||a.createdAt),bFecha=fechaNumero(b.updatedAt||b.createdAt);
+      return aFecha!==bFecha?bFecha-aFecha:limpiarTexto(b.periodoId).localeCompare(limpiarTexto(a.periodoId));
+    });
+    var elegibles=lista.filter(function(m){return periodoHabilitado(m.periodoId,appConfig);});
+    if(elegibles.length){
+      var principal=normalizarPeriodoSimple(obtenerPeriodoActivoDesdeConfig(appConfig));
+      return elegibles.filter(function(m){return normalizarPeriodoSimple(m.periodoId)===principal;})[0]||elegibles[0];
     }
-
-    lista.sort(function (a, b) {
-      var fechaA = fechaNumero(a.updatedAt || a.createdAt);
-      var fechaB = fechaNumero(b.updatedAt || b.createdAt);
-      if (fechaA !== fechaB) return fechaB - fechaA;
-      return limpiarTexto(b.periodoId).localeCompare(limpiarTexto(a.periodoId));
-    });
+    // Permitir consultar un expediente histórico, nunca enviarlo si está cerrado.
     return lista[0];
   }
 
@@ -827,6 +826,7 @@
     guardarEnvioFinal: guardarEnvioFinal,
     evaluarReenvio: evaluarReenvio,
     periodoHabilitado: periodoHabilitado,
+    seleccionarMatricula: seleccionarMatricula,
     actualizarRespaldoSheets: actualizarRespaldoSheets,
     registrarLogEnvio: registrarLogEnvio,
     construirTituloId: construirTituloId,
