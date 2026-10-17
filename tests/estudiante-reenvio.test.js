@@ -77,6 +77,15 @@ const payload={
  nombres:'ESTUDIANTE DE PRUEBA',carrera:'VENTAS',
  tituloPreferidoNumero:2,titulosEnviados:propuestas
 };
+test('solo se permite enviar dentro de períodos activos administrativamente',()=>{
+ const r=cargarRepositorio(null);
+ assert.equal(r.repo.periodoHabilitado(periodo,{
+   periodosListaExplicita:true,periodosActivos:[periodo]}),true);
+ assert.equal(r.repo.periodoHabilitado(periodo,{
+   periodosListaExplicita:true,periodosActivos:[],periodoActivoId:periodo}),false);
+ assert.equal(r.repo.periodoHabilitado(periodo,{
+   periodoActivoDesactivado:true,periodoActivoId:periodo}),false);
+});
 test('devolución con autorización expresa habilita botón y reenvío',()=>{
  const r=cargarRepositorio({...base,puedeReenviar:true});
  assert.equal(r.repo.evaluarReenvio(r.actual).habilitado,true);

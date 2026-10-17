@@ -707,7 +707,10 @@
         var item = resumirEventoHistorial(evento);
         if (item) agregarHistorialCompacto(salida, vistos, item);
       });
-    } else {
+    }
+    // La cronología guardada dentro del expediente se integra siempre:
+    // si falla un log secundario no se pierde la revisión de la ronda.
+    {
       (seguimiento.historialProceso || []).forEach(function (item) {
         var revCoord = item.revisionCoordinador || {};
         var revInv = item.revisionInvestigador || {};

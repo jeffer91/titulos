@@ -144,12 +144,12 @@
   }
 
   function periodoHabilitado(periodoId, appConfig) {
-    var p=obtenerPeriodoIdDesdeValor(periodoId);
+    var p=normalizarPeriodoSimple(periodoId);
     if(!p||!appConfig)return false;
     if(appConfig.periodosListaExplicita===true)
-      return (appConfig.periodosActivos||[]).some(function(id){return obtenerPeriodoIdDesdeValor(id)===p;});
+      return (appConfig.periodosActivos||[]).some(function(id){return normalizarPeriodoSimple(id)===p;});
     if(appConfig.periodoActivoDesactivado===true)return false;
-    return obtenerPeriodoIdDesdeValor(appConfig.periodoActivoId||appConfig.periodoActivo&&appConfig.periodoActivo.id||appConfig.periodoActivo)===p;
+    return normalizarPeriodoSimple(appConfig.periodoActivoId||appConfig.periodoActivo&&appConfig.periodoActivo.id||appConfig.periodoActivo)===p;
   }
 
   function seleccionarMatricula(matriculas, appConfig) {

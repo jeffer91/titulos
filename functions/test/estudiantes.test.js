@@ -63,6 +63,12 @@ test('reenvío tras archivo administrativo no crea otro documento ni habilita ar
  const b=montar({envios:{[d.id]:{...d,reiniciadoPorAdmin:false}}});
  await assert.rejects(()=>b.rutas['/envio'].handle({usuario,body:propuesta}),e=>e.status===409);
 });
+test('desactivar un período bloquea el envío aun con matrícula activa',async()=>{
+ const {rutas,operativa}=montar();
+ operativa.collections.configuracion.get('general').periodosActivos=[];
+ await assert.rejects(()=>rutas['/envio'].handle({usuario,body:propuesta}),
+  e=>e.code==='PERIODO_DESACTIVADO'&&e.status===409);
+});
 test('deben existir exactamente tres títulos y uno preferido válido',()=>{
   assert.equal(validarTitulos(propuesta).propuestas.length,3);
   assert.throws(()=>validarTitulos({...propuesta,titulosEnviados:propuesta.titulosEnviados.slice(0,2)}),e=>e.status===422);
