@@ -310,7 +310,11 @@
     if (!estudiante.periodoId) throw crearError('PERIODO_NO_ENCONTRADO', 'No se encontró una matrícula activa para el período de titulación.');
     if (normalizar(estudiante.estadoMatricula || 'ACTIVO') !== 'ACTIVO') throw crearError('MATRICULA_INACTIVA', 'La matrícula no consta como ACTIVO.');
 
-    if (envio) {
+    // Archivo autorizado por Administración: mostrar un formulario nuevo.
+    var reiniciado = envio && envio.reiniciadoPorAdmin === true &&
+      (normalizar(envio.estado) === 'BORRADOR_REINICIADO' ||
+       normalizar(envio.estadoProceso) === 'BORRADOR_REINICIADO');
+    if (envio && !reiniciado) {
       return {
         estudiante: estudiante,
         appConfig: appConfig,
