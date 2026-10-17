@@ -393,35 +393,33 @@
   }
 
   function archivarIntento(tituloId, motivo) {
-    if(modoSeguro())return seguro.archivar(tituloId,motivo);
-    if (!tituloId) {
-      return Promise.reject(new Error('No se pudo identificar el intento.'));
-    }
-
-    return leerDocumento(config.collections.titulos, tituloId).then(function (titulo) {
-      if (!titulo) {
-        throw new Error('No se encontró el título enviado.');
-      }
-
-      var historialId = tituloId + '__' + Date.now();
-      var historial = Object.assign({}, titulo, {
-        idOriginal: tituloId,
-        id: historialId,
-        archivadoEn: ahoraIso(),
-        motivoArchivo: motivo || 'Reinicio de intento desde administración'
-      });
-
-      return guardarDocumento(config.collections.titulosHistorial, historialId, historial, false).then(function () {
-        return actualizarDocumento(config.collections.titulos, tituloId, {
-          estado: config.estadosTitulo.borradorReiniciado,
-          intentosUsados: 0,
-          tituloPreferidoNumero: '',
-          tituloPreferidoTexto: '',
-          titulosEnviados: [],
-          reiniciadoPorAdmin: true,
-          reiniciadoEn: ahoraIso(),
-          actualizadoEn: ahoraIso()
-        });
+    if(modoSeguro()) return seguro.archivar(tituloId,motivo);
+    if(!tituloId) return Promise.reject(new Error('No se pudo identificar el intento.'));
+    if(!firebaseService || typeof firebaseService.getDb!=='function')
+      return Promise.reject(new Error('No está disponible la transacción para archivar.'));
+    var db=firebaseService.getDb(),ref=db.collection(config.collections.titulos).doc(tituloId);
+    return db.runTransaction(function(tx){
+      return tx.get(ref).then(function(snapshot){
+        if(!snapshot.exists)throw new Error('No se encontró el envío.');
+        var original=Object.assign({id:tituloId},snapshot.data()||{});
+        if(['ARCHIVADO','BORRADOR_REINICIADO'].indexOf(String(original.estado||'').toUpperCase())!==-1)
+          throw new Error('Este intento ya está archivado.');
+        var ahora=ahoraIso(),idArchivo=tituloId+'__'+Date.now();
+        tx.set(db.collection(config.collections.titulosHistorial).doc(idArchivo),
+          Object.assign({},original,{id:idArchivo,idOriginal:tituloId,envioId:tituloId,
+            archivadoEn:ahora,motivoArchivo:motivo||'Reinicio de intento desde administración'}));
+        tx.set(ref,{
+          estado:'BORRADOR_REINICIADO',estadoProceso:'BORRADOR_REINICIADO',
+          reiniciadoPorAdmin:true,reiniciadoEn:ahora,requiereAccionDe:'ESTUDIANTE',
+          permitirReenvio:true,puedeReenviar:true,devueltoPor:'',intentosUsados:0,
+          tituloPreferidoNumero:'',tituloPreferidoTexto:'',tituloElegido:'',tituloVisible:'',
+          titulosEnviados:[],propuestasDetalle:[],titulo1:'',titulo2:'',titulo3:'',
+          estadoCoordinador:'PENDIENTE',estadoInvestigador:'',revisionCoordinador:null,
+          revisionInvestigador:null,coordinadorRevisado:false,validadoCoordinador:false,
+          validadoCoordinacion:false,investigacionRevisada:false,procesoCerrado:false,
+          tituloCoordinador:null,tituloFinal:null,tituloFinalInvestigacion:null,
+          actualizadoEn:ahora,actualizadoEnLocal:ahora
+        },{merge:true});
       });
     });
   }
