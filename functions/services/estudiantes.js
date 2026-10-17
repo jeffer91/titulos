@@ -1,4 +1,5 @@
 'use strict';
+const periodos=require('./periodos-activos');
 
 // Servicio exclusivo del estudiante: no aceptar cédulas ni roles autodeclarados.
 const ID=/^\d{10}$/;
@@ -207,6 +208,9 @@ function crearRutasEstudiantes({operativa,academica,geminiKey}) {
       const ref=operativa.collection('envios').doc(id);
       const ahora=new Date().toISOString();
       const resultado=await operativa.runTransaction(async tx=>{
+        const configSnap=await tx.get(operativa.collection('configuracion').doc('general'));
+        if(!configSnap.exists)falla(503,'CONFIGURACION_NO_DISPONIBLE');
+        periodos.validar({periodoId:periodo},periodos.activos(configSnap.data()));
         const prev=datos(await tx.get(ref));
         if(historico&&!prev)falla(409,'EXPEDIENTE_ACTUALIZADO');
         if(prev&&!evaluarReenvio(prev))falla(409,'REENVIO_NO_AUTORIZADO');
