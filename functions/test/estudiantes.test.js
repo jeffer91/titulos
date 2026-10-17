@@ -60,6 +60,10 @@ test('reenvío tras archivo administrativo no crea otro documento ni habilita ar
  const res=await a.rutas['/envio'].handle({usuario,body:propuesta});
  assert.equal(res.data.estadoProceso,'PENDIENTE_COORDINADOR');
  assert.equal(a.operativa.collections.envios.size,1);
+ const archivado=montar({envios:{[d.id]:d}});
+ const expediente=await archivado.rutas['/expediente'].handle({usuario,query:{periodoId:periodo}});
+ assert.equal(expediente.envio.reiniciadoPorAdmin,true);
+ assert.equal(res.data.reiniciadoPorAdmin,false);
  const b=montar({envios:{[d.id]:{...d,reiniciadoPorAdmin:false}}});
  await assert.rejects(()=>b.rutas['/envio'].handle({usuario,body:propuesta}),e=>e.status===409);
 });
