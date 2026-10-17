@@ -115,6 +115,28 @@ async function revisados(db,p){
       estadoInvestigador:r.estado,revisionInvestigador:r,investigacionRevisada:true
     },id);
   });
+  // Recuperar rondas históricas incluso si no hubo evento secundario.
+  let cursor=null;
+  do {
+    let query=db.collection('envios').orderBy('__name__').limit(500);
+    if(cursor)query=query.startAfter(cursor);
+    const page=await query.get();
+    for(const snap of page.docs){
+      const expediente=doc(snap);
+      if(!expediente)continue;
+      (Array.isArray(expediente.historialProceso)?expediente.historialProceso:[]).forEach((h,i)=>{
+        const r=h&&h.revisionInvestigador;
+        if(!r||!['APROBADO','APROBADO_CON_OBSERVACION','DEVUELTO'].includes(clave(r.estado)))return;
+        agregar({...expediente,
+          id:expediente.id+'__historico__'+String(h.version||i),
+          revisionInvestigador:r,estadoInvestigador:r.estado,investigacionRevisada:true,
+          fechaResolucionInvestigacion:r.fechaLocal||r.fecha||h.fechaArchivo||'',
+          tituloCoordinador:h.tituloCoordinador||expediente.tituloCoordinador||'',
+          historialProceso:[]},expediente.id);
+      });
+    }
+    cursor=page.docs.length===500?page.docs[page.docs.length-1]:null;
+  }while(cursor);
   const items=[...mapa.values()].sort((a,b)=>fechaRevision(b)-fechaRevision(a));
   return {titulos:items.slice(0,2500).map(filtrar),truncado:truncado||items.length>2500};
 }
