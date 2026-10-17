@@ -119,20 +119,7 @@
     */
     return firebaseService.listarDocumentos(config.collections.titulos, { limit: 5000 })
       .then(function (docs) {
-        var registros=[];
-        (docs||[]).forEach(function(d){
-          registros.push(d);
-          (Array.isArray(d.historialProceso)?d.historialProceso:[]).forEach(function(h,i){
-            if(!h||!h.revisionInvestigador)return;
-            registros.push(Object.assign({},d,{
-              id:String(d.id||d._docId||'')+'__historico__'+String(h.version||i),
-              revisionInvestigador:h.revisionInvestigador,
-              estadoInvestigador:h.revisionInvestigador.estado,
-              fechaResolucionInvestigacion:h.revisionInvestigador.fechaLocal||h.fechaArchivo,
-              investigacionRevisada:true
-            }));
-          });
-        });
+        var registros=docs||[];
         return reportService.normalizarLista(registros).filter(function (item) {
           return reportService.coincideInvestigador(item, investigador);
         });
