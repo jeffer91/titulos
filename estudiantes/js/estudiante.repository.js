@@ -588,6 +588,7 @@
             permitirReenvio: false,
             puedeReenviar: false,
             devueltoPor: '',
+            reiniciadoPorAdmin: false,
             observacionDevolucion: '',
             observacion: '',
             validadoCoordinacion: false,
