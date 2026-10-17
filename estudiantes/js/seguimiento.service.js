@@ -11,6 +11,7 @@
   var firebaseService = window.TAEstudianteFirebaseService;
   var ultimoResultado = null;
   var instalado = false;
+  var correccionActiva = false;
 
   instalar();
 
@@ -205,6 +206,16 @@
     var seguimiento = resultado.seguimiento || {};
     var panel = obtenerPanel();
     var estados = calcularEstados(envio);
+    // Una actualización tardía del historial no debe cerrar el editor.
+    if (correccionActiva && estados.general.tipo === 'danger') {
+      var editor = window.TAEstudianteFormularioController;
+      var nota = obtenerObservacionDevolucion(envio, seguimiento, estados);
+      if (editor && typeof editor.actualizarObservacionCorreccion === 'function') {
+        editor.actualizarObservacionCorreccion(nota && nota.texto || '');
+      }
+      return;
+    }
+    correccionActiva = false;
 
     /*
       Un envío existente SIEMPRE entra a seguimiento.
@@ -310,7 +321,7 @@
         '</section>'
       ].join('') : ''),
 
-      renderObservaciones(envio, revisionCoord, revisionInv, estados),
+      renderObservaciones(envio, revisionCoord, revisionInv, estados, seguimiento),
 
       '<section class="seguimiento-section seguimiento-section--history">',
         '<div class="seguimiento-section__head"><div><span>Proceso</span><h3>Historial</h3></div><small>' + historial.length + '</small></div>',
@@ -626,31 +637,59 @@
     ].join('');
   }
 
-  function renderObservaciones(envio, coord, inv, estados) {
-    var items = [];
-    var obsCoord = limpiar(coord.observacion || envio.comentarioCoordinador || '');
-    var obsInv = limpiar(inv.observacion || envio.observacionInvestigacion || '');
-    var devolucion = limpiar(envio.observacionDevolucion || '');
+  // Consultar la observación de la devolución actual, nunca una ronda pasada.
+  function obtenerObservacionDevolucion(envio, seguimiento, estados) {
+    envio = envio || {}; seguimiento = seguimiento || {};
+    estados = estados || calcularEstados(envio);
+    var inv=estados.investigacionDevuelta;
+    if (!estados.coordinacionDevuelta && !inv) return null;
+    var revision=inv ? (envio.revisionInvestigador || {}) : (envio.revisionCoordinador || {});
+    var origen=inv ? 'Investigación' : 'Coordinación';
+    var directo=limpiar(revision.observacion||revision.comentario||
+      (inv ? envio.observacionInvestigacion : envio.comentarioCoordinador)||
+      envio.observacionDevolucion||envio.motivoDevolucion||envio.ultimaObservacion||envio.observacion||'');
+    if (directo) return {texto:directo,origen:origen};
+    var fechaEnvio=fechaMs(envio.fechaEnvio||''),resultados=[];
+    function esActual(fecha) {var ms=fechaMs(fecha);return !fechaEnvio||(ms&&ms>=fechaEnvio-60000);}
+    (seguimiento.eventos||[]).forEach(function (evento) {
+      var rev=evento.revision||{},accion=normalizarEstado(rev.accion||evento.accion||'');
+      if (normalizarEstado(rev.estado)!=='DEVUELTO' && accion!=='DEVOLVER') return;
+      var tipo=normalizarEstado([evento.modulo,evento.tipo,rev.coordinadorId?'COORDINADOR':'',
+        rev.investigadorId?'INVESTIGADOR':''].join(' '));
+      var coincide=inv ? /INVESTIGADOR|INVESTIGACION/.test(tipo) : /COORDINADOR|COORDINACION/.test(tipo);
+      var fecha=rev.fechaLocal||evento.fechaLocal||evento.creadoEn||'';
+      var texto=limpiar(rev.observacion||rev.comentario||evento.observacion||'');
+      if(coincide&&texto&&esActual(fecha))resultados.push({texto:texto,origen:origen,fecha:fecha});
+    });
+    (seguimiento.historialProceso||[]).forEach(function (item) {
+      var rev=inv?item.revisionInvestigador:item.revisionCoordinador;
+      if(!rev||normalizarEstado(rev.estado)!=='DEVUELTO')return;
+      var fecha=rev.fechaLocal||rev.fecha||item.fechaResolucion||'';
+      var texto=limpiar(rev.observacion||rev.comentario||'');
+      if(texto&&esActual(fecha))resultados.push({texto:texto,origen:origen,fecha:fecha});
+    });
+    resultados.sort(function(a,b){return fechaMs(b.fecha)-fechaMs(a.fecha);});
+    return resultados[0]||null;
+  }
 
-    if (obsCoord) items.push({ titulo: 'Observación de la revisión inicial', texto: obsCoord });
-    if (obsInv) items.push({ titulo: 'Observación de Investigación', texto: obsInv });
-    if (devolucion && !items.some(function (item) { return item.texto === devolucion; })) {
-      items.push({ titulo: 'Motivo de devolución', texto: devolucion });
-    }
-
-    if (!items.length && estados && (estados.coordinacionDevuelta || estados.investigacionDevuelta)) {
-      items.push({ titulo: 'Observación pendiente', texto: 'No consta el motivo de devolución en este registro. Solicita a Coordinación que lo complete antes de corregir tus títulos.' });
-    }
-    if (!items.length) return '';
-
-    return [
-      '<section class="seguimiento-section">',
-        '<div class="seguimiento-section__head"><div><span>Revisión</span><h3>Observaciones</h3></div></div>',
-        items.map(function (item) {
-          return '<div class="seguimiento-note"><strong>' + escapar(item.titulo) + '</strong><p>' + escapar(item.texto) + '</p></div>';
-        }).join(''),
-      '</section>'
-    ].join('');
+  function renderObservaciones(envio, coord, inv, estados, seguimiento) {
+    var items=[],actual=obtenerObservacionDevolucion(envio,seguimiento,estados);
+    var obsCoord=limpiar(coord.observacion||coord.comentario||envio.comentarioCoordinador||'');
+    var obsInv=limpiar(inv.observacion||inv.comentario||envio.observacionInvestigacion||'');
+    if(actual)items.push({titulo:'Observación de '+actual.origen,texto:actual.texto});
+    if(obsCoord&&!items.some(function(i){return i.texto===obsCoord;}))
+      items.push({titulo:'Observación de Coordinación',texto:obsCoord});
+    if(obsInv&&!items.some(function(i){return i.texto===obsInv;}))
+      items.push({titulo:'Observación de Investigación',texto:obsInv});
+    if(!items.length&&(estados.coordinacionDevuelta||estados.investigacionDevuelta))
+      items.push({titulo:'Motivo de devolución no disponible',
+        texto:'No consta una observación recuperable para esta devolución. Solicita a Coordinación que registre el motivo de la corrección.'});
+    if(!items.length)return '';
+    return ['<section class="seguimiento-section">',
+      '<div class="seguimiento-section__head"><div><span>Revisión</span><h3>Observaciones</h3></div></div>',
+      items.map(function(i){return '<div class="seguimiento-note"><strong>'+escapar(i.titulo)+
+        '</strong><p>'+escapar(i.texto)+'</p></div>';}).join(''),
+      '</section>'].join('');
   }
 
   function construirHistorial(seguimiento, envio) {
@@ -831,6 +870,7 @@
           estudiante: estado.estudiante || (ultimoResultado && ultimoResultado.estudiante) || {},
           appConfig: estado.appConfig || (ultimoResultado && ultimoResultado.appConfig) || {},
           envioExistente: envio,
+          observacionTexto: (obtenerObservacionDevolucion(envio, ultimoResultado && ultimoResultado.seguimiento, calcularEstados(envio)) || {}).texto || '',
           forzarReenvio: true
         };
 
@@ -855,6 +895,7 @@
           mostrar('#formPropuestas');
         }
 
+        correccionActiva = true;
         panel.classList.add('is-hidden');
         panel.setAttribute('aria-hidden', 'true');
 
@@ -1105,6 +1146,7 @@
     mostrar: mostrarSeguimiento,
     cargar: cargarSeguimiento,
     calcularEstados: calcularEstados,
+    obtenerObservacionDevolucion: obtenerObservacionDevolucion,
     ultimo: function () { return ultimoResultado; }
   });
 })();

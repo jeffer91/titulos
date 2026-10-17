@@ -136,6 +136,15 @@ test('devolución antigua coherente habilita reenvío, conserva ID y reinicia la
   assert.equal(res.data.historialProceso[1].revisionCoordinador.observacion,'Reformular objetivos');
   await assert.rejects(()=>rutas['/envio'].handle({usuario,body:propuesta}),e=>e.code==='REENVIO_NO_AUTORIZADO');
 });
+test('una devolución antigua de Coordinación permite reenvío y guarda su observación',async()=>{
+ const previo={...propuesta,id:'legado-sin-permisos',estado:'DEVUELTO',estadoProceso:'DEVUELTO',
+  estadoCoordinador:'DEVUELTO',devueltoPor:'',requiereAccionDe:'',puedeReenviar:false,permitirReenvio:false,
+  revisionCoordinador:{estado:'DEVUELTO',observacion:'Revisar objetivos y alcance'}};
+ const {rutas}=montar({envios:{'legado-sin-permisos':previo}});
+ const result=await rutas['/envio'].handle({usuario,body:propuesta});
+ assert.equal(result.data.estadoProceso,'PENDIENTE_COORDINADOR');
+ assert.equal(result.data.historialProceso[0].revisionCoordinador.observacion,'Revisar objetivos y alcance');
+});
 test('el estado DEVUELTO sin devolución válida no habilita reenvío',async()=>{
  const previo={...propuesta,id:periodo+'__'+cedula,estado:'DEVUELTO',
    estadoProceso:'DEVUELTO',permitirReenvio:false,puedeReenviar:false};

@@ -1,5 +1,7 @@
 name: Verificar correcciones de reenvío
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 

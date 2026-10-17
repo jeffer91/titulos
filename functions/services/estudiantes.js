@@ -127,22 +127,21 @@ function infoPublica(academicaData,cedula){
   puedeEnviarTitulo:true
  };
 }
-// Política conservadora: una devolución requiere estado verificable y permiso
-// explícito, o evidencias coincidentes de la revisión y acción pendiente del estudiante.
+// Validación en servidor equivalente a la evaluación de reenvío del cliente.
 function evaluarReenvio(envio) {
- const e=envio||{};
- const clave=v=>limpio(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+ const e=envio||{},clave=v=>limpio(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
  const estado=clave(e.estado),proceso=clave(e.estadoProceso);
  const devuelto=['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].includes(estado)||
   ['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].includes(proceso);
- if(!devuelto||estado==='APROBADO_FINAL'||proceso==='APROBADO_FINAL'||e.procesoCerrado===true)return false;
- const por=clave(e.devueltoPor);
  const coord=clave(e.estadoCoordinador||(e.revisionCoordinador&&e.revisionCoordinador.estado));
  const inv=clave(e.estadoInvestigador||(e.revisionInvestigador&&e.revisionInvestigador.estado));
+ if(!devuelto||estado==='APROBADO_FINAL'||proceso==='APROBADO_FINAL'||e.procesoCerrado===true||
+  (e.investigacionRevisada===true&&['APROBADO','APROBADO_CON_OBSERVACION'].includes(inv)))return false;
+ const por=clave(e.devueltoPor),accion=clave(e.requiereAccionDe);
  const origen=((por==='COORDINADOR'||por==='COORDINACION')&&coord==='DEVUELTO')||
   ((por==='INVESTIGACION'||por==='INVESTIGADOR')&&inv==='DEVUELTO');
  return e.puedeReenviar===true||e.permitirReenvio===true||
-  (clave(e.requiereAccionDe)==='ESTUDIANTE'&&origen);
+  coord==='DEVUELTO'||inv==='DEVUELTO'||(accion==='ESTUDIANTE'&&origen);
 }
 function safeEnvio(data) {
  if(!data)return null;

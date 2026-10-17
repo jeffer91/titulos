@@ -114,7 +114,38 @@
     }
 
     prepararVistaDespuesDeConsulta();
+    mostrarObservacionCorreccion(datos);
     actualizarResumenPreferido();
+  }
+
+  // La observación acompaña todas las rondas de corrección sin ser editable.
+  function mostrarObservacionCorreccion(datos) {
+    datos=datos||{};
+    var texto=datos.observacionTexto||'';
+    if(!texto&&datos.envioExistente&&window.TAEstudianteSeguimiento){
+      var servicio=window.TAEstudianteSeguimiento,ultimo=servicio.ultimo&&servicio.ultimo();
+      var obs=servicio.obtenerObservacionDevolucion&&
+        servicio.obtenerObservacionDevolucion(datos.envioExistente,ultimo&&ultimo.seguimiento);
+      texto=obs&&obs.texto||'';
+    }
+    document.querySelectorAll('.ta-correction-note').forEach(function(n){n.remove();});
+    if(!datos.forzarReenvio)return;
+    ['propuesta1','propuesta2','propuesta3','resumen','envio'].forEach(function(paso){
+      var seccion=document.querySelector('[data-step="'+paso+'"]');
+      if(!seccion)return;
+      var nota=document.createElement('aside');nota.className='ta-correction-note';nota.setAttribute('role','note');
+      var titulo=document.createElement('strong');titulo.textContent='Observación para corregir tus títulos';
+      var mensaje=document.createElement('p');mensaje.className='ta-correction-note__message';
+      mensaje.textContent=texto||'La devolución está registrada, pero no se pudo recuperar el mensaje. Solicita el motivo a Coordinación antes de realizar cambios.';
+      nota.appendChild(titulo);nota.appendChild(mensaje);
+      var encabezado=seccion.querySelector('.section-heading');
+      if(encabezado)encabezado.insertAdjacentElement('afterend',nota);
+      else seccion.insertBefore(nota,seccion.firstChild);
+    });
+  }
+  function actualizarObservacionCorreccion(texto) {
+    if(!texto)return;
+    document.querySelectorAll('.ta-correction-note__message').forEach(function(e){e.textContent=texto;});
   }
 
   function prepararVistaDespuesDeConsulta() {
@@ -615,6 +646,7 @@
 
   window.TAEstudianteFormularioController = Object.freeze({
     inicializarFormularioTrasConsulta: inicializarFormularioTrasConsulta,
+    actualizarObservacionCorreccion: actualizarObservacionCorreccion,
     prepararVistaDespuesDeConsulta: prepararVistaDespuesDeConsulta,
     limpiarFormularioVisual: limpiarFormularioVisual,
     prepararPayloadFinalSinModal: prepararPayloadFinalSinModal,

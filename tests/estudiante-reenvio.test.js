@@ -82,6 +82,9 @@ test('devolución antigua coherente se puede recuperar sin habilitar un simple e
  assert.equal(r.repo.evaluarReenvio(r.actual).habilitado,true);
  assert.equal(r.repo.evaluarReenvio({estado:'DEVUELTO'}).habilitado,false);
  assert.equal(r.repo.evaluarReenvio({estado:'APROBADO_FINAL',permitirReenvio:true}).habilitado,false);
+ assert.equal(r.repo.evaluarReenvio({...base,devueltoPor:'',requiereAccionDe:'',permitirReenvio:false,puedeReenviar:false}).habilitado,true);
+ assert.equal(r.repo.evaluarReenvio({...base,procesoCerrado:true}).habilitado,false);
+ assert.equal(r.repo.evaluarReenvio({...base,investigacionRevisada:true,estadoInvestigador:'APROBADO'}).habilitado,false);
 });
 test('transacción vuelve a comprobar permiso, conserva identificador e historial y limpia revisiones',async()=>{
  const r=cargarRepositorio({...base,puedeReenviar:false,permitirReenvio:false,
@@ -141,7 +144,7 @@ test('seguimiento muestra el botón con permiso y explica el bloqueo sin permiso
    const c={window:w,document:doc,console,Promise,Date,JSON,Number,String,Object,Array,RegExp,setTimeout,clearTimeout};
    vm.createContext(c);
    vm.runInContext(codigo('seguimiento.service.js'),c);
-   w.TAEstudianteSeguimiento.mostrar({estudiante:{cedula,periodoId:periodo},envioExistente:dato,seguimiento:{}});
+   w.TAEstudianteSeguimiento.mostrar({estudiante:{cedula,periodoId:periodo},envioExistente:dato,seguimiento:{eventos:[{modulo:'coordinadores',accion:'DEVOLVER',revision:{estado:'DEVUELTO',observacion:'Delimitar población del estudio',fechaLocal:'2026-10-15T12:00:00Z'},fechaLocal:'2026-10-15T12:00:00Z'}]}});
    return panel.innerHTML;
  }
  const permitido=render({...base,puedeReenviar:false,permitirReenvio:false});
@@ -151,4 +154,7 @@ test('seguimiento muestra el botón con permiso y explica el bloqueo sin permiso
    revisionCoordinador:null,devueltoPor:'',requiereAccionDe:'',permitirReenvio:false});
  assert.doesNotMatch(bloqueado,/id="btnSeguimientoCorregir"/);
  assert.match(bloqueado,/no está habilitado/);
+ const legado=render({...base,revisionCoordinador:null,comentarioCoordinador:'',observacionDevolucion:'',devueltoPor:'',requiereAccionDe:'',puedeReenviar:false,permitirReenvio:false});
+ assert.match(legado,/id="btnSeguimientoCorregir"/);
+ assert.match(legado,/Delimitar población del estudio/);
 });

@@ -1554,3 +1554,9 @@ body.ta-query-active #consultaProcesoBloque {
 #consultaProcesoBloque [data-diagnostico-texto] {
   user-select: text;
 }
+
+/* Observación siempre visible durante la corrección de títulos. */
+.ta-correction-note{margin:9px 0 13px;padding:12px 14px;background:#fff8ec;border:1px solid #edc986;border-left:4px solid #b42318;border-radius:12px;color:#27394e}
+.ta-correction-note strong{display:block;color:#85251e;font-size:.86rem;line-height:1.3}
+.ta-correction-note p{margin:5px 0 0!important;color:#26394e!important;font-size:.84rem!important;line-height:1.45!important;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:560px){.ta-correction-note{padding:10px 11px;margin:8px 0 10px}.ta-correction-note p{font-size:.78rem!important}}

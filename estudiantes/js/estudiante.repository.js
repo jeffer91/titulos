@@ -386,34 +386,26 @@
 
 
   // Autoriza devoluciones actuales y expedientes antiguos coherentes.
-  // Una etiqueta "DEVUELTO" por sí sola nunca concede permiso de escritura.
+  // La devolución de un revisor también habilita registros antiguos que
+  // no tenían los indicadores explícitos de reenvío.
   function evaluarReenvio(envio) {
     envio = envio || {};
-    function clave(value) {
-      return limpiarTexto(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-    }
-    var general = clave(envio.estado);
-    var proceso = clave(envio.estadoProceso);
-    var devuelto = (general === 'DEVUELTO' || general === 'DEVUELTO_COORDINACION' ||
-      general === 'DEVUELTO_INVESTIGACION' || proceso === 'DEVUELTO' ||
-      proceso === 'DEVUELTO_COORDINACION' || proceso === 'DEVUELTO_INVESTIGACION');
-    var finalizado = general === 'APROBADO_FINAL' || proceso === 'APROBADO_FINAL' ||
-      envio.procesoCerrado === true;
-    var por = clave(envio.devueltoPor);
-    var accion = clave(envio.requiereAccionDe);
-    var coordinacion = clave(envio.estadoCoordinador || (envio.revisionCoordinador && envio.revisionCoordinador.estado));
-    var investigacion = clave(envio.estadoInvestigador || (envio.revisionInvestigador && envio.revisionInvestigador.estado));
-    var origenCoherente = ((por === 'COORDINADOR' || por === 'COORDINACION') && coordinacion === 'DEVUELTO') ||
-      ((por === 'INVESTIGACION' || por === 'INVESTIGADOR') && investigacion === 'DEVUELTO');
-    var permisoExplicito = envio.puedeReenviar === true || envio.permitirReenvio === true;
-    var devolucionLegada = accion === 'ESTUDIANTE' && origenCoherente;
-    return {
-      devuelto: devuelto && !finalizado,
-      habilitado: devuelto && !finalizado && (permisoExplicito || devolucionLegada),
-      legado: devuelto && !finalizado && !permisoExplicito && devolucionLegada
-    };
+    function clave(valor) { return limpiarTexto(valor).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(); }
+    var general=clave(envio.estado),proceso=clave(envio.estadoProceso);
+    var devuelto=['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].indexOf(general)!==-1 ||
+      ['DEVUELTO','DEVUELTO_COORDINACION','DEVUELTO_INVESTIGACION'].indexOf(proceso)!==-1;
+    var coord=clave(envio.estadoCoordinador || (envio.revisionCoordinador && envio.revisionCoordinador.estado));
+    var inv=clave(envio.estadoInvestigador || (envio.revisionInvestigador && envio.revisionInvestigador.estado));
+    var finalizado=general==='APROBADO_FINAL'||proceso==='APROBADO_FINAL'||envio.procesoCerrado===true||
+      (envio.investigacionRevisada===true&&(inv==='APROBADO'||inv==='APROBADO_CON_OBSERVACION'));
+    var por=clave(envio.devueltoPor),accion=clave(envio.requiereAccionDe);
+    var origen= ((por==='COORDINADOR'||por==='COORDINACION')&&coord==='DEVUELTO')||
+      ((por==='INVESTIGACION'||por==='INVESTIGADOR')&&inv==='DEVUELTO');
+    var explicito=envio.puedeReenviar===true||envio.permitirReenvio===true;
+    var comprobado=coord==='DEVUELTO'||inv==='DEVUELTO';
+    var permitido=devuelto&&!finalizado&&(explicito||comprobado||(accion==='ESTUDIANTE'&&origen));
+    return {devuelto:devuelto&&!finalizado,habilitado:permitido,legado:permitido&&!explicito};
   }
-
   function normalizarEnvioExistente(data) {
     if (!data) return null;
     var propuestas = Array.isArray(data.titulosEnviados) && data.titulosEnviados.length
