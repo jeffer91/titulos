@@ -59,6 +59,7 @@ async function run() {
   ];
 
   const firebaseService = {
+    leerDocumento: async()=>({periodosActivos:['2026-04__2026-09','2026-05__2026-11']}),
     guardarDocumento: async function (collection, id, payload) {
       Object.assign(docs.find(d=>d.id===id),payload);
     },
