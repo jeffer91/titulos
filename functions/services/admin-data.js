@@ -86,9 +86,16 @@ async function archivar(operativa,body,actor){
    archivadoEn:ahora,motivoArchivo:motivo||'Reinicio administrativo'
   });
   const changes={estado:'BORRADOR_REINICIADO',estadoProceso:'BORRADOR_REINICIADO',
-   intentosUsados:0,actualizadoEnLocal:ahora,requiereAccionDe:'ESTUDIANTE',
-   permitirReenvio:true,puedeReenviar:true};
-  tx.set(ref,changes,{merge:true});
+    reiniciadoPorAdmin:true,reiniciadoEn:ahora,intentosUsados:0,
+    actualizadoEnLocal:ahora,requiereAccionDe:'ESTUDIANTE',
+    permitirReenvio:true,puedeReenviar:true,devueltoPor:'',
+    tituloPreferidoNumero:'',tituloPreferidoTexto:'',tituloElegido:'',tituloVisible:'',
+    titulosEnviados:[],propuestasDetalle:[],titulo1:'',titulo2:'',titulo3:'',
+    estadoCoordinador:'PENDIENTE',estadoInvestigador:'',
+    revisionCoordinador:null,revisionInvestigador:null,coordinadorRevisado:false,
+    validadoCoordinador:false,validadoCoordinacion:false,investigacionRevisada:false,
+    tituloCoordinador:null,tituloFinal:null,tituloFinalInvestigacion:null,procesoCerrado:false};
+   tx.set(ref,changes,{merge:true});
   tx.set(operativa.collection('workflow_events').doc(),{
    tipo:'ADMIN_ARCHIVAR_INTENTO',modulo:'administradores',entidad:'envios',
    entidadId:id,tituloId:id,motivo:motivo||'Reinicio administrativo',
