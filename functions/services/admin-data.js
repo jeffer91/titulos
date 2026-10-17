@@ -23,7 +23,7 @@ const ENVIO=[
  'investigacionRevisada','fechaEnvio','fechaValidacionCoordinador','fechaResolucion',
  'fechaResolucionInvestigacion','investigacionRevisadaEn','actualizadoEnLocal','creadoEn',
  'numeroEnvios','intentosUsados','numeroReenvios','devueltoPor','observacionDevolucion',
- 'requiereRevision','requiereAccionDe','permitirReenvio','puedeReenviar','telegram','telegramUser'
+ 'requiereRevision','requiereAccionDe','permitirReenvio','puedeReenviar','telegram','telegramUser','historialProceso'
 ];
 const text=value=>String(value===undefined||value===null?'':value).trim();
 const cedula=v=>text(v).replace(/\D/g,'');
