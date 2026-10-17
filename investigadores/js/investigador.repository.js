@@ -51,6 +51,26 @@
     });
   }
 
+  // Leer el control administrativo de períodos también en el modo heredado.
+  function periodosHabilitados() {
+    if(!firebaseService || typeof firebaseService.leerDocumento!=='function')
+      return Promise.reject(new Error('No es posible verificar los períodos activos.'));
+    return firebaseService.leerDocumento(config.collections.config,'general').then(function(c){
+      if(!c)throw new Error('No se pudo consultar la configuración de períodos.');
+      var lista=Array.isArray(c.periodosActivos)?c.periodosActivos:
+        c.periodoActivoDesactivado===true?[]:
+        [c.periodoActivoId||(c.periodoActivo&&c.periodoActivo.id)||c.periodoActivo||''];
+      return new Set(lista.map(canonicoPeriodo).filter(Boolean));
+    });
+  }
+  function canonicoPeriodo(id){
+    return String(id||'').trim().replace(/_/g,'-').replace(/-+/g,'-');
+  }
+  function periodoHabilitado(t,activos){
+    var d=t&&t.raw||t||{};
+    return activos.has(canonicoPeriodo(d.periodoCanonicoId||d.periodoId||''));
+  }
+
   function listarTitulosHabilitados(investigador) {
     if(modoSeguro())return seguro.cola().then(function(result){
       if(result.truncado)console.warn('[Investigadores][LIMIT] Cola truncada por límite del backend.');
@@ -63,10 +83,11 @@
     */
     if (!investigador || investigador.activo === false || !investigador.pinActivo)
       return Promise.reject(new Error('El acceso del investigador no está activo.'));
-    return firebaseService.listarDocumentos(config.collections.titulos, { server: true })
+    return periodosHabilitados().then(function(activos){
+      return firebaseService.listarDocumentos(config.collections.titulos, { server: true })
       .then(function (docs) {
         return (docs || []).map(normalizarTitulo)
-          .filter(estaPendienteInvestigacion)
+          .filter(function(t){return estaPendienteInvestigacion(t)&&periodoHabilitado(t,activos);})
           .sort(function (a, b) {
             var fechaA = Number(a.fechaColaMs || Number.MAX_SAFE_INTEGER);
             var fechaB = Number(b.fechaColaMs || Number.MAX_SAFE_INTEGER);
@@ -74,6 +95,7 @@
             return a.nombres.localeCompare(b.nombres);
           });
       });
+    });
   }
 
   function listarRevisadosPorInvestigador(investigador) {
@@ -97,7 +119,21 @@
     */
     return firebaseService.listarDocumentos(config.collections.titulos, { limit: 5000 })
       .then(function (docs) {
-        return reportService.normalizarLista(docs || []).filter(function (item) {
+        var registros=[];
+        (docs||[]).forEach(function(d){
+          registros.push(d);
+          (Array.isArray(d.historialProceso)?d.historialProceso:[]).forEach(function(h,i){
+            if(!h||!h.revisionInvestigador)return;
+            registros.push(Object.assign({},d,{
+              id:String(d.id||d._docId||'')+'__historico__'+String(h.version||i),
+              revisionInvestigador:h.revisionInvestigador,
+              estadoInvestigador:h.revisionInvestigador.estado,
+              fechaResolucionInvestigacion:h.revisionInvestigador.fechaLocal||h.fechaArchivo,
+              investigacionRevisada:true
+            }));
+          });
+        });
+        return reportService.normalizarLista(registros).filter(function (item) {
           return reportService.coincideInvestigador(item, investigador);
         });
       });
@@ -168,7 +204,11 @@
       });
     }
 
-    return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, payload, { merge: true })
+    return periodosHabilitados().then(function(activos){
+      if(!periodoHabilitado(titulo,activos))
+        throw new Error('El período académico está desactivado.');
+      return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, payload, { merge: true });
+    })
       .then(function () {
         return firebaseService.agregarDocumento(config.collections.logs, {
           tipo: 'REVISION_TITULO_INVESTIGADOR',
