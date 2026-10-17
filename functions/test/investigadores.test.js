@@ -190,8 +190,8 @@ test('perfil sin carreras puede cargar cola, revisar y conservar historial propi
 });
 test('paginación conserva pendientes después de más de 2500 expedientes cerrados',async()=>{
  const base=datos();base.envios={};
- for(let i=0;i<2501;i++)base.envios['a'+String(i).padStart(4,'0')]={...titulo('a','Carrera','p','2026-01-01'),estado:'APROBADO_FINAL'};
- base.envios.z= titulo('z','Otra carrera','p','2026-01-02');
+ for(let i=0;i<2501;i++)base.envios['a'+String(i).padStart(4,'0')]={...titulo('a','Carrera','2026-05__2026-11','2026-01-01'),estado:'APROBADO_FINAL'};
+ base.envios.z= titulo('z','Otra carrera','2026-05__2026-11','2026-01-02');
  const {rutas}=setup(base);
  assert.deepEqual((await rutas['/cola'].handle({usuario:actor})).titulos.map(t=>t.id),['z']);
 });
