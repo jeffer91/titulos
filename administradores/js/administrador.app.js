@@ -59,32 +59,43 @@
       return;
     }
 
-    repository.iniciarFirebase()
-      .then(function () {
+    // El administrador histórico no tenía identidad de usuario: "Conectado"
+    // únicamente indicaba conexión a Firestore. Antes de mostrar el panel,
+    // validar una sola sesión real contra administradoresApi.
+    var acciones = window.TAAdminAccionesSeguras;
+    if (!acciones || typeof acciones.iniciarPanel !== 'function') {
+      ui.setText('#adminEstadoGeneral', 'Acceso no disponible');
+      var msg = document.getElementById('adminLoginMensaje');
+      var panel = document.getElementById('adminLoginSeguro');
+      if (panel) panel.hidden = false;
+      if (msg) msg.textContent = 'No se cargó el servicio de autenticación administrativa.';
+      return;
+    }
+    acciones.iniciarPanel().then(function (autorizado) {
+      if (!autorizado) {
+        ui.setText('#adminEstadoGeneral', 'Sesión requerida');
+        return false;
+      }
+      return repository.iniciarFirebase().then(function () {
         estado.firebaseListo = true;
         estado.inicializado = true;
-
-        ui.setText('#adminEstadoGeneral', 'Conectado');
-
+        ui.setText('#adminEstadoGeneral', 'Administrador verificado');
         return ejecutarNormalizacionAutomatica();
-      })
-      .then(function () {
+      }).then(function () {
         activarTab(obtenerTabInicial());
-      })
-      .catch(function (error) {
-        estado.firebaseListo = false;
-        estado.inicializado = true;
-
-        ui.setText('#adminEstadoGeneral', 'Sin conexión');
-
-        ui.showStatus('#inicioMensaje', {
-          titulo: 'No se pudo iniciar administrador',
-          mensaje: 'No se pudo conectar correctamente con Firebase.',
-          detalle: obtenerMensaje(error, config.textos.firebaseError || 'Error desconocido.')
-        }, 'error');
-
-        activarTab(obtenerTabInicial(), false);
+        return true;
       });
+    }).catch(function (error) {
+      estado.firebaseListo = false;
+      estado.inicializado = true;
+      ui.setText('#adminEstadoGeneral', 'Sin conexión');
+      ui.showStatus('#inicioMensaje', {
+        titulo: 'No se pudo iniciar administrador',
+        mensaje: 'No se pudo conectar correctamente con Firebase.',
+        detalle: obtenerMensaje(error, config.textos.firebaseError || 'Error desconocido.')
+      }, 'error');
+      activarTab(obtenerTabInicial(), false);
+    });
   }
 
   function conectarEventosBase() {
