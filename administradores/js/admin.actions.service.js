@@ -50,11 +50,13 @@
         return app && app.options && app.options.projectId===cfg.projectId &&
           app.options.apiKey===cfg.apiKey;
       });
-      var dedicada;
-      try { dedicada=window.firebase.app('ta-administracion-segura'); }
-      catch (_) { dedicada=window.firebase.initializeApp(cfg,'ta-administracion-segura'); }
-      if(!aplicaciones.some(function(app){return app.name===dedicada.name;}))
-        aplicaciones.push(dedicada);
+      ['ta-admin-titulos','ta-administracion-segura'].forEach(function (nombre) {
+        var app;
+        try { app=window.firebase.app(nombre); }
+        catch (_) { app=window.firebase.initializeApp(cfg,nombre); }
+        if(!aplicaciones.some(function (actual) {return actual.name===nombre;}))
+          aplicaciones.push(app);
+      });
       return Promise.all(aplicaciones.map(function (app) {
         var instancia=window.firebase.auth(app);
         return primerEstadoAutenticado(instancia).then(function (usuario) {
@@ -151,8 +153,12 @@
   }
   function prepararPanel() {
     if (comprobando) return comprobando;
-    comprobando = conectar().then(function (usuario) {
-      if (!usuario || !auth.currentUser) return actualizarEstado(false);
+    comprobando = conectar().then(function () {
+      if (!auth || !auth.currentUser) {
+        // Permitir volver a descubrir sesiones creadas tras la carga inicial.
+        authPromise=null;
+        return actualizarEstado(false);
+      }
       return solicitar('sesion', 'GET').then(function (identidad) {
         return actualizarEstado(Boolean(identidad && identidad.rol === 'administrador' && identidad.uid));
       }).catch(function () {
