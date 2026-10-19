@@ -255,43 +255,86 @@
     });
   }
 
+  function formatoFechaAdministrativa(value) {
+    if (!value) return '—';
+    var date;
+    if (typeof value.toDate === 'function') date = value.toDate();
+    else if (typeof value.seconds === 'number') date = new Date(value.seconds * 1000);
+    else if (typeof value === 'string' && /^Timestamp\\(seconds=/.test(value)) {
+      var m = /seconds=(\\d+)/.exec(value);
+      date = m ? new Date(Number(m[1]) * 1000) : new Date(value);
+    } else date = new Date(value);
+    return !isNaN(date.getTime())
+      ? new Intl.DateTimeFormat('es-EC', {dateStyle:'medium',timeStyle:'short'}).format(date)
+      : '—';
+  }
+
   function renderDetalleEstudiante(data) {
     var container = qs('#detalleEstudianteContenido');
-
     if (!container) return;
-
     data = data || {};
+    var titulo = data.titulo || {};
+    var esFinal = normalizarTexto(titulo.estadoProceso || titulo.estado) === 'APROBADO_FINAL' ||
+      titulo.procesoCerrado === true;
+    var preferido = Number(data.tituloPreferidoNumero || titulo.tituloPreferidoNumero || 0);
+    var seleccionado = Number(titulo.tituloAdminSeleccionadoNumero ||
+      titulo.tituloCoordinadorNumero ||
+      titulo.revisionCoordinador && titulo.revisionCoordinador.tituloSeleccionadoNumero || 0);
+    var final = esFinal ? String(titulo.tituloFinal || titulo.tituloFinalInvestigacion || '') : '';
+    var procedencia = titulo.aprobadoPorAdministracion === true
+      ? 'Resolución administrativa' : 'Revisión académica';
+    var propuestas = Array.isArray(data.titulosEnviados) ? data.titulosEnviados : [];
     container.innerHTML = '';
 
-    container.appendChild(crearDetalleBox('Datos del estudiante', [
-      ['Cédula', data.cedula],
-      ['Nombre', data.nombres],
-      ['Carrera', data.carrera],
-      ['Carrera original', data.carreraOriginal],
-      ['Período', data.periodoLabel || data.periodoId],
-      ['Telegram', data.telegram || data.telegramUser]
-    ]));
+    var datos = document.createElement('section');
+    datos.className = 'detail-box admin-identity';
+    datos.innerHTML = '<div class="admin-identity__grid">' +
+      '<div><small>Cédula</small><strong>' + escapeHtml(data.cedula || '—') + '</strong></div>' +
+      '<div><small>Período</small><strong>' + escapeHtml(data.periodoLabel || data.periodoId || '—') + '</strong></div>' +
+      '<div><small>Carrera</small><strong>' + escapeHtml(data.carrera || '—') + '</strong></div>' +
+      '<div><small>Telegram</small><strong>' + escapeHtml(data.telegram || data.telegramUser || '—') + '</strong></div>' +
+      '</div>';
+    container.appendChild(datos);
 
-    container.appendChild(crearDetalleBox('Estado de revisión', [
-      ['Estado', data.estado],
-      ['Título preferido', data.tituloPreferidoTexto],
-      ['Última actualización', data.actualizadoEn || data.updatedAt]
-    ]));
+    var estado = document.createElement('section');
+    estado.className = 'detail-box admin-review-summary';
+    estado.innerHTML =
+      '<div class="admin-review-summary__head"><h3>Estado de revisión</h3>' +
+      '<span class="admin-state-chip ' + (esFinal ? 'admin-state-chip--success' : '') + '">' +
+        escapeHtml(data.estado || 'Sin enviar') + '</span></div>' +
+      '<div class="admin-review-summary__fields">' +
+      '<div><small>Preferido por el estudiante</small><p>' + escapeHtml(data.tituloPreferidoTexto || '—') + '</p></div>' +
+      '<div><small>Seleccionado para revisión</small><p>' +
+        escapeHtml(titulo.tituloAdminSeleccionadoTexto || titulo.tituloCoordinador || '—') + '</p></div>' +
+      (final ? '<div class="admin-final-title"><small>Título definitivo · ' + escapeHtml(procedencia) +
+        '</small><p>' + escapeHtml(final) + '</p></div>' : '') +
+      '</div>' +
+      '<small>Última actualización: ' + escapeHtml(formatoFechaAdministrativa(data.actualizadoEn || titulo.actualizadoEnLocal)) + '</small>';
+    container.appendChild(estado);
 
-    if (Array.isArray(data.titulosEnviados) && data.titulosEnviados.length) {
-      data.titulosEnviados.forEach(function (titulo) {
-        container.appendChild(crearDetalleBox('Propuesta ' + titulo.numero, [
-          ['Título final', titulo.tituloFinal],
-          ['Tema', titulo.temaGeneral],
-          ['Problema', titulo.problemaNecesidad],
-          ['Objetivo', titulo.objetivo]
-        ]));
-      });
+    var section = document.createElement('section');
+    section.className = 'admin-proposals';
+    section.innerHTML = '<div class="admin-proposals__header"><h3>Propuestas enviadas</h3><small>' +
+      propuestas.length + ' propuesta(s)</small></div>';
+    if (!propuestas.length) {
+      section.appendChild(crearDetalleBox('Sin propuestas', [['Estado','El estudiante no tiene títulos enviados.']]));
     } else {
-      container.appendChild(crearDetalleBox('Títulos enviados', [
-        ['Estado', 'El estudiante todavía no registra títulos.']
-      ]));
+      propuestas.forEach(function(propuesta, index) {
+        var numero = Number(propuesta.numero || index+1);
+        var title = String(propuesta.tituloFinal || propuesta.titulo || '—');
+        var box = document.createElement('article');
+        box.className = 'admin-proposal';
+        box.innerHTML = '<div class="admin-proposal__head"><strong>Propuesta ' + numero + '</strong>' +
+          (numero === preferido ? '<span class="admin-proposal__tag">Preferida</span>' : '') +
+          (numero === seleccionado ? '<span class="admin-proposal__tag admin-proposal__tag--selected">Seleccionada en revisión</span>' : '') +
+          '</div><p>' + escapeHtml(title) + '</p>' +
+          (propuesta.tituloOriginalAdministracion
+            ? '<small>Antes de corrección administrativa: ' + escapeHtml(propuesta.tituloOriginalAdministracion) + '</small>'
+            : '');
+        section.appendChild(box);
+      });
     }
+    container.appendChild(section);
   }
 
   function crearDetalleBox(title, rows) {
