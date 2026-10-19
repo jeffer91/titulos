@@ -96,12 +96,16 @@ async function revisar(db,actor,body){
     estadoProcesoAnterior:antes.estadoProceso||'',tituloFinalAnterior:antes.tituloFinal||'',
     tituloCoordinadorAnterior:antes.tituloCoordinador||'',tituloPreferidoNumero:antes.tituloPreferidoNumero||null,
     titulosEnviados:items,revisionCoordinador:antes.revisionCoordinador||null,
-    revisionInvestigador:antes.revisionInvestigador||null,revisionAdministrativa:decision});
+    revisionInvestigador:antes.revisionInvestigador||null,
+    comentarioCoordinadorAnterior:antes.comentarioCoordinador||'',
+    observacionInvestigacionAnterior:antes.observacionInvestigacion||'',
+    observacionDevolucionAnterior:antes.observacionDevolucion||'',revisionAdministrativa:decision});
   const cambios={revisionAdministrativa:decision,ultimaAccionAdministrativa:accion,
     fechaAccionAdministrativa:ahora,actualizadoEnLocal:ahora,actualizadoEn:ahora,
     habilitadoInvestigacionPorAdmin:false,aprobadoPorAdministracion:false,
     requiereRevision:false,permitirReenvio:false,puedeReenviar:false,devueltoPor:'',
-    observacionDevolucion:'',procesoCerrado:false};
+    observacionDevolucion:'',comentarioCoordinador:'',observacionInvestigacion:'',
+    fechaResolucionInvestigacion:null,fechaColaInvestigacion:null,procesoCerrado:false};
   if(accion==='APROBAR'||accion==='CORREGIR_APROBAR'){
     Object.assign(cambios,{estado:'APROBADO_FINAL',estadoProceso:'APROBADO_FINAL',
       tituloFinal:final,tituloFinalInvestigacion:null,
@@ -112,12 +116,21 @@ async function revisar(db,actor,body){
       titulosEnviados:actualizados,propuestasDetalle:actualizados,
       titulo1:tituloPorNumero(actualizados,1),titulo2:tituloPorNumero(actualizados,2),
       titulo3:tituloPorNumero(actualizados,3)});
-    // Una revisión de Coordinación anterior permanece como hecho histórico, no como
-    // autoría de la resolución final de Administración.
+    // No exhibir devoluciones o revisiones pendientes como decisiones activas
+    // cuando Administración resolvió por sí misma.
+    const coordValida=['VALIDADO','APROBADO','APROBADO_CON_OBSERVACION'].includes(
+      clave(antes.estadoCoordinador||antes.revisionCoordinador&&antes.revisionCoordinador.estado));
+    if(!coordValida)Object.assign(cambios,{
+      revisionCoordinador:null,revision:null,estadoCoordinador:'',
+      coordinadorRevisado:false,validadoCoordinador:false,validadoCoordinacion:false,
+      tituloCoordinador:null,tituloCoordinadorNumero:null,resultadoCoordinador:null,
+      fechaValidacionCoordinador:null
+    });
+    // Las decisiones previas siguen accesibles en historial y versiones_envio.
   }else if(accion==='ENVIAR_COORDINACION'){
     Object.assign(cambios,{estado:'PENDIENTE_COORDINADOR',estadoProceso:'PENDIENTE_COORDINADOR',
       requiereRevision:true,requiereAccionDe:'COORDINACION',estadoCoordinador:'PENDIENTE',
-      estadoInvestigador:'',revisionCoordinador:null,revisionInvestigador:null,
+      estadoInvestigador:'',revision:null,revisionCoordinador:null,revisionInvestigador:null,
       coordinadorRevisado:false,validadoCoordinador:false,validadoCoordinacion:false,
       investigacionRevisada:false,investigacionRevisadaEn:null,resultadoCoordinador:null,
       resultadoInvestigacion:null,tituloCoordinador:null,tituloCoordinadorNumero:null,
@@ -136,14 +149,17 @@ async function revisar(db,actor,body){
     // devoluciones o revisiones inexistentes dejan de bloquear la cola nueva.
     const coordValida=['VALIDADO','APROBADO','APROBADO_CON_OBSERVACION'].includes(
       clave(antes.estadoCoordinador||antes.revisionCoordinador&&antes.revisionCoordinador.estado));
-    if(aprobado||!coordValida){Object.assign(cambios,{revisionCoordinador:null,estadoCoordinador:'PENDIENTE',
+    if(aprobado||!coordValida){Object.assign(cambios,{revision:null,revisionCoordinador:null,estadoCoordinador:'PENDIENTE',
       validadoCoordinador:false,validadoCoordinacion:false,coordinadorRevisado:false,
       tituloCoordinador:null,tituloCoordinadorNumero:null,resultadoCoordinador:null});}
   }
   const historial=Array.isArray(antes.historialProceso)?antes.historialProceso.slice(-96):[];
   cambios.historialProceso=historial.concat([{tipo:'INTERVENCION_ADMINISTRATIVA',...decision,
     estadoAnterior:antes.estado||'',estadoProcesoAnterior:antes.estadoProceso||'',
-    tituloFinalAnterior:antes.tituloFinal||'',revisionCoordinadorAnterior:antes.revisionCoordinador||null,
+    tituloFinalAnterior:antes.tituloFinal||'',
+    comentarioCoordinadorAnterior:antes.comentarioCoordinador||'',
+    observacionInvestigacionAnterior:antes.observacionInvestigacion||'',
+    revisionCoordinadorAnterior:antes.revisionCoordinador||null,
     revisionInvestigadorAnterior:antes.revisionInvestigador||null}]);
   tx.set(ref,cambios,{merge:true});
   tx.set(eventRef,{tipo:'INTERVENCION_ADMINISTRATIVA',accion,modulo:'administradores',
