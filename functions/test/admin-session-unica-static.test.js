@@ -14,7 +14,10 @@ test('no hay autorización duplicada dentro del expediente',()=>{
  for(const action of ['APROBAR','CORREGIR_APROBAR','ENVIAR_COORDINACION','ENVIAR_INVESTIGACION'])
    assert.ok(src.includes(action),'Falta '+action);
  assert.match(src,/repository\.intervenirTitulo\(body\)/);
- assert.match(src,/servicio\.estado\(\)/);
+ assert.match(src,/servicio\.autorizadoLocal\(\)/);
+ assert.equal(src.includes('adminConfirmarTituloCorregido'),false);
+ assert.match(src,/corregir\.textContent = 'Confirmar corrección y aprobación'/);
+ assert.match(src,/admin-actions__form/);
  assert.match(src,/mostrarEstadoAccion/);
 });
 

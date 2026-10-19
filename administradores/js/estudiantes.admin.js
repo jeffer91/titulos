@@ -9,11 +9,18 @@
   var estado = {
     periodos: [],
     estudiantes: [],
-    filtrados: []
+    filtrados: [],
+    detalleActual: null
   };
 
   function iniciar() {
     conectarEventos();
+    window.addEventListener('admin:autorizacion-cambio', function () {
+      var modal = ui.qs('#modalDetalleEstudiante');
+      if (modal && !modal.classList.contains('is-hidden') && estado.detalleActual) {
+        verMas(estado.detalleActual);
+      }
+    });
   }
 
   function conectarEventos() {
@@ -229,6 +236,7 @@
   }
 
   function verMas(item) {
+    estado.detalleActual = item;
     ui.setText('#modalDetalleTitulo', item.nombres || 'Detalle del estudiante');
     ui.setText('#modalDetalleSubtitulo', (item.cedula || '') + ' · ' + (item.carrera || item.nombreCarrera || ''));
 
@@ -243,13 +251,17 @@
     var propuestas = Array.isArray(item.titulosEnviados) ? item.titulosEnviados : [];
     var acciones = document.createElement('section');
     acciones.className = 'detail-box admin-actions';
+    var sesion = window.TAAdminAccionesSeguras;
+    var habilitado = Boolean(sesion && typeof sesion.autorizadoLocal === 'function' && sesion.autorizadoLocal());
     var aprobado = expediente.procesoCerrado === true ||
       normalizarTexto(expediente.estadoProceso || expediente.estado) === 'APROBADO_FINAL';
     acciones.innerHTML =
       '<div class="admin-actions__head"><h3>Acciones administrativas</h3>' +
       '<small>Intervenciones verificadas y registradas en el historial</small></div>' +
       (!propuestas.length ? '<p>No hay títulos activos que puedan revisarse.</p>' :
-      '<div class="admin-actions__form">' +
+      '<p class="admin-actions__read-only"' + (habilitado ? ' hidden' : '') +
+      '>Para aprobar o corregir títulos, cierra el expediente e ingresa desde «Acceso de Administración» en la cabecera. Se solicita una sola vez.</p>' +
+      '<div class="admin-actions__form"' + (habilitado ? '' : ' hidden') + '>' +
       '<label for="adminAccionPropuesta">Propuesta sobre la que actuarás</label>' +
       '<select id="adminAccionPropuesta" class="admin-actions__select"></select>' +
       '<label for="adminAccionMotivo">Justificación administrativa</label>' +
@@ -259,7 +271,6 @@
       '<div id="adminAccionEditor" class="admin-actions__editor" hidden>' +
         '<label for="adminAccionTituloCorregido">Título corregido</label>' +
         '<textarea id="adminAccionTituloCorregido" rows="3" maxlength="260"></textarea>' +
-        '<button type="button" class="btn btn--primary" id="adminConfirmarTituloCorregido">Confirmar corrección y aprobación</button>' +
       '</div>' +
       '<div class="admin-actions__buttons">' +
         '<button type="button" class="btn btn--primary" data-admin-decision="APROBAR">Aprobar título</button>' +
@@ -301,18 +312,26 @@
     }
     editText.value=actualOriginal();
     select.addEventListener('change',function(){editText.value=actualOriginal();});
-    acciones.querySelector('[data-admin-decision="CORREGIR_APROBAR"]').addEventListener('click',function(){
-      editor.hidden=false;
-      editText.focus();
+    var corregir = acciones.querySelector('[data-admin-decision="CORREGIR_APROBAR"]');
+    corregir.setAttribute('aria-expanded','false');
+    corregir.addEventListener('click',function(){
+      if (editor.hidden) {
+        editor.hidden = false;
+        editText.focus();
+        corregir.textContent = 'Confirmar corrección y aprobación';
+        corregir.setAttribute('aria-expanded','true');
+        return;
+      }
+      confirmarDecision('CORREGIR_APROBAR',item,acciones);
     });
     acciones.querySelectorAll('[data-admin-decision]').forEach(function(button){
       if(button.getAttribute('data-admin-decision')==='CORREGIR_APROBAR')return;
       button.addEventListener('click',function(){
+        editor.hidden=true;
+        corregir.textContent='Corregir y aprobar';
+        corregir.setAttribute('aria-expanded','false');
         confirmarDecision(button.getAttribute('data-admin-decision'),item,acciones);
       });
-    });
-    acciones.querySelector('#adminConfirmarTituloCorregido').addEventListener('click',function(){
-      confirmarDecision('CORREGIR_APROBAR',item,acciones);
     });
     acciones.querySelector('#adminArchivarDesdeDetalle').addEventListener('click',function(){
       confirmarArchivarIntento(item);
@@ -364,18 +383,10 @@
       actualizacionEsperada:typeof datos.actualizadoEnLocal==='string'
         ? datos.actualizadoEnLocal : null};
     var servicio=window.TAAdminAccionesSeguras;
-    if(!servicio || typeof servicio.estado!=='function'){
-      mostrarEstadoAccion(box,'Servicio de decisiones no disponible. Actualiza la página.',true);
+    if(!servicio || !servicio.autorizadoLocal || !servicio.autorizadoLocal()){
+      mostrarEstadoAccion(box,'Acceso administrativo no disponible. Utiliza el ingreso principal antes de editar.',true);
       return;
     }
-    servicio.estado().then(function(autorizado){
-      if(!autorizado){
-        mostrarEstadoAccion(box,
-          'Para guardar una decisión académica, inicia sesión una sola vez desde la cabecera del administrador.',true);
-        var iniciar=document.getElementById('adminIniciarSesionPrincipal');
-        if(iniciar){iniciar.hidden=false;iniciar.focus();}
-        return;
-      }
       ui.confirmar({
       titulo:nombres[accion]||'Confirmar acción administrativa',
       mensaje:'Estudiante: '+item.nombres+'. '+(accion==='ENVIAR_COORDINACION'
@@ -396,9 +407,6 @@
         });
       }
       });
-    }).catch(function(error){
-      mostrarEstadoAccion(box,obtenerMensaje(error,'No se pudo validar tu sesión.'),true);
-    });
   }
 
   function confirmarArchivarIntento(item) {
