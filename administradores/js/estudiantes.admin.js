@@ -259,7 +259,9 @@
       '<div class="admin-actions__head"><h3>Acciones administrativas</h3>' +
       '<small>Intervenciones verificadas y registradas en el historial</small></div>' +
       (!propuestas.length ? '<p>No hay títulos activos que puedan revisarse.</p>' :
-      '<div class="admin-actions__form"' + (habilitado ? '' : ' hidden') + '>' +
+      '<div class="admin-actions__form">' +
+      '<p class="admin-actions__availability"' + (habilitado ? ' hidden' : '') +
+      '>Las decisiones académicas no están disponibles en esta sesión. No se modificarán títulos.</p>' +
       '<label for="adminAccionPropuesta">Propuesta sobre la que actuarás</label>' +
       '<select id="adminAccionPropuesta" class="admin-actions__select"></select>' +
       '<label for="adminAccionMotivo">Justificación administrativa</label>' +
@@ -283,6 +285,16 @@
         '<button type="button" class="btn btn--danger" id="adminArchivarDesdeDetalle">Archivar intento y permitir nuevo envío</button>' +
       '</div>';
     container.appendChild(acciones);
+    if (!habilitado) {
+      acciones.querySelectorAll('[data-admin-decision]').forEach(function(button) {
+        button.disabled = true;
+        button.setAttribute('aria-disabled', 'true');
+      });
+      var selector = acciones.querySelector('#adminAccionPropuesta');
+      var motivo = acciones.querySelector('#adminAccionMotivo');
+      if (selector) selector.disabled = true;
+      if (motivo) motivo.disabled = true;
+    }
     if (!propuestas.length) {
       acciones.querySelector('.admin-actions__archive').hidden = true;
       return;
