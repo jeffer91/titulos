@@ -310,6 +310,16 @@
         '</small><p>' + escapeHtml(final) + '</p></div>' : '') +
       '</div>' +
       '<small>Última actualización: ' + escapeHtml(formatoFechaAdministrativa(data.actualizadoEn || titulo.actualizadoEnLocal)) + '</small>';
+    var etapas=document.createElement('div');etapas.className='admin-stages';
+    [['Coordinación',titulo.estadoCoordinador,titulo.revisionCoordinador,titulo.comentarioCoordinador],
+     ['Investigación',titulo.estadoInvestigador,titulo.revisionInvestigador,titulo.observacionInvestigacion]].forEach(function(e){
+      var r=e[2]||{},valor=e[1]||r.estado||'PENDIENTE',ok=/^(VALIDADO|APROBADO|APROBADO_CON_OBSERVACION)$/.test(valor);
+      var celda=document.createElement('div');celda.className='admin-stage'+(ok?' is-approved':'');
+      celda.innerHTML='<small>'+e[0]+'</small><strong>'+escapeHtml(ok?'Aprobado':valor==='DEVUELTO'?'Devuelto':'Pendiente')+'</strong>'+
+        (r.origen==='ADMINISTRACION'?'<small>Registrado por Administración</small>':'')+
+        (e[3]||r.observacion?'<p>'+escapeHtml(e[3]||r.observacion)+'</p>':'');etapas.appendChild(celda);
+    });
+    estado.prepend(etapas);
     container.appendChild(estado);
 
     var section = document.createElement('section');
@@ -322,7 +332,9 @@
       propuestas.forEach(function(propuesta, index) {
         var numero = Number(propuesta.numero || index+1);
         var title = String(propuesta.tituloFinal || propuesta.titulo || '—');
-        var box = document.createElement('article');
+        var box = document.createElement('button');
+        box.type = 'button';
+        box.dataset.propuestaNumero = String(numero);
         box.className = 'admin-proposal';
         box.innerHTML = '<div class="admin-proposal__head"><strong>Propuesta ' + numero + '</strong>' +
           (numero === preferido ? '<span class="admin-proposal__tag">Preferida</span>' : '') +
@@ -335,6 +347,13 @@
       });
     }
     container.appendChild(section);
+    var eventos=Array.isArray(titulo.historialProceso)?titulo.historialProceso:[];
+    if(eventos.length){
+      var historial=document.createElement('details');historial.className='admin-history';
+      historial.innerHTML='<summary>Historial del proceso · '+eventos.length+' movimiento(s)</summary>';
+      eventos.slice().reverse().forEach(function(e){var row=document.createElement('div');row.innerHTML='<strong>'+escapeHtml(String(e.accion||e.tipo||'Revisión').replace(/_/g,' '))+'</strong><small>'+escapeHtml(formatoFechaAdministrativa(e.fechaLocal||e.fecha))+'</small><p>'+escapeHtml(e.motivo||e.observacion||'')+'</p>';historial.appendChild(row);});
+      container.appendChild(historial);
+    }
   }
 
   function crearDetalleBox(title, rows) {

@@ -22,7 +22,7 @@ test('administración sin campos, ventanas ni botones de acceso',()=>{
  assert.match(html,/<body>/);
 });
 
-test('editor académico oculta acciones si no hay sesión validada',()=>{
+test('editor directo ofrece seis acciones y mantiene control de sesión para modo API',()=>{
  const s=read('administradores/js/estudiantes.admin.js');
  assert.match(s,/sesion\.autorizadoLocal\(\)/);
  assert.match(s,/admin-actions__form/);
@@ -31,7 +31,8 @@ test('editor académico oculta acciones si no hay sesión validada',()=>{
  assert.match(s,/repository\.intervenirTitulo\(body\)/);
  assert.equal(s.includes('admin-actions__read-only'),false);
  assert.equal(s.includes('adminConfirmarTituloCorregido'),false);
- for(const action of ['APROBAR','CORREGIR_APROBAR','ENVIAR_COORDINACION','ENVIAR_INVESTIGACION'])
+ assert.match(s,/TA_ADMIN_SEGURIDAD/);
+ for(const action of ['APROBAR_COORDINACION','APROBAR_INVESTIGACION','ENVIAR_COORDINACION','ENVIAR_INVESTIGACION','DEVOLVER_ESTUDIANTE','BORRAR_TITULO'])
   assert.ok(s.includes(action));
 });
 test('backend conserva autorización obligatoria por token y rol',()=>{

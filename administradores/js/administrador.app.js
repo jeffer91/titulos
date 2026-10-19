@@ -37,7 +37,7 @@
     // Detectar silenciosamente una sesión persistida, sin abrir ventanas
     // ni solicitar ningún dato de acceso al administrador.
     var acciones = window.TAAdminAccionesSeguras;
-    if (acciones && typeof acciones.prepararPanel === 'function') {
+    if (window.TA_ADMIN_SEGURIDAD && window.TA_ADMIN_SEGURIDAD.habilitado && acciones && typeof acciones.prepararPanel === 'function') {
       acciones.prepararPanel().catch(function (error) {
         console.warn('[Administrador] No se pudo comprobar la sesión:', error.codigo || error.message);
       });

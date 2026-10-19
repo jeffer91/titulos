@@ -33,6 +33,7 @@ jobs:
 
       - name: Probar flujos críticos
         run: |
+          node --test tests/admin-workflow.test.js
           node tests/consulta-estado.test.js
           node tests/estudiante-envio-rapido.test.js
           node --test tests/estudiante-consulta-recuperacion.test.js

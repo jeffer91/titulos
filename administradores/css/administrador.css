@@ -1441,3 +1441,29 @@ small {
  .admin-identity__grid,.admin-actions__buttons {grid-template-columns:1fr}
  .admin-actions__login {grid-template-columns:1fr}
 }
+
+/* Ficha administrativa: acciones primero, selección explícita y dos etapas. */
+#modalDetalleEstudiante .modal__panel{background:#f6f8fc;border:1px solid #d9e3ee;box-shadow:0 24px 80px #102b4c33}
+#modalDetalleEstudiante .modal__header{padding-right:38px}
+.admin-actions{background:#fff;border:1px solid #c3d3e5;border-top:4px solid #225981;box-shadow:0 5px 18px #14334f09}
+.admin-actions__head h3{font-size:1.15rem;color:#163955;margin:4px 0}
+.admin-actions__head small{letter-spacing:.09em;font-size:.65rem;font-weight:800}
+.admin-actions__buttons{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.admin-actions__buttons .btn{font-size:.8rem;padding:10px;min-height:45px}
+.admin-actions__buttons .btn--primary{background:#176452;border-color:#176452;color:white}
+.admin-actions__buttons .btn--danger{background:#fff4f3;color:#a52c30;border:1px solid #edc4c4}
+.admin-active-title{padding:12px 14px!important;background:#edf3fa;border-left:3px solid #34719f;border-radius:8px;color:#14334f!important;font-weight:600;font-size:.9rem;line-height:1.5}
+.admin-stages{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.admin-stage{display:flex;flex-direction:column;gap:5px;background:#eef1f6;border:1px solid #dce3ec;border-radius:12px;padding:13px}
+.admin-stage strong{font-size:1rem;color:#755821}.admin-stage.is-approved{background:#eef8f3;border-color:#c8e3d6}.admin-stage.is-approved strong{color:#176452}
+.admin-stage p{font-size:.8rem}.admin-stage small{font-size:.75rem}
+button.admin-proposal{display:block;width:100%;text-align:left;color:var(--text);font-family:inherit;cursor:pointer;transition:border-color .15s,background .15s}
+button.admin-proposal:hover{border-color:#6b93b6;background:#f7faff}
+button.admin-proposal.is-selected{border:2px solid #2d6c99;background:#eff6fd;padding:10px 12px}
+button.admin-proposal:focus-visible{outline:3px solid #d6aa54;outline-offset:3px}
+.admin-history{border:1px solid var(--line);border-radius:12px;background:white;padding:14px}
+.admin-history summary{cursor:pointer;font-weight:700;color:#234e70}
+.admin-history>div{padding:12px 0;border-top:1px solid #e5ebf2;margin-top:10px}
+.admin-history small{display:block;color:var(--muted);margin-top:4px}.admin-history p{font-size:.85rem}
+@media(max-width:680px){.admin-actions__buttons{grid-template-columns:1fr 1fr}.admin-stages{grid-template-columns:1fr}#modalDetalleEstudiante .modal__panel{padding:16px}}
+@media(max-width:380px){.admin-actions__buttons{grid-template-columns:1fr}}

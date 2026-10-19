@@ -425,10 +425,27 @@
   }
 
   function intervenirTitulo(payload) {
-    var acciones = window.TAAdminAccionesSeguras;
-    if (!acciones || typeof acciones.decidir !== 'function')
-      return Promise.reject(new Error('No está disponible la autorización administrativa.'));
-    return acciones.decidir(payload);
+    if(modoSeguro()) return window.TAAdminAccionesSeguras.decidir(payload);
+    return iniciarFirebase().then(function(){
+      var db=firebaseService.getDb();
+      var ref=db.collection(config.collections.titulos).doc(payload.tituloId);
+      var archivo=db.collection(config.collections.titulosHistorial).doc();
+      return db.runTransaction(function(tx){
+        return tx.get(ref).then(function(snap){
+          if(!snap.exists)throw new Error('El expediente ya no existe.');
+          var antes=snap.data(),ahora=ahoraIso();
+          var cambios=window.TAAdminWorkflow.preparar(antes,payload,ahora);
+          tx.set(archivo,Object.assign({},antes,{envioId:payload.tituloId,idOriginal:payload.tituloId,
+            tipo:'INTERVENCION_ADMINISTRATIVA',archivadoEn:ahora,fechaArchivo:ahora,
+            revisionAdministrativa:cambios.revisionAdministrativa}));
+          tx.set(ref,cambios,{merge:true});
+          return {id:payload.tituloId,estado:cambios.estado||antes.estado};
+        });
+      });
+    }).catch(function(error){
+      if(error.code==='permission-denied')throw new Error('Firebase rechazó el cambio por sus permisos. No se guardó ninguna modificación.');
+      throw error;
+    });
   }
 
   function normalizarDatosAutomaticamente() {
