@@ -48,6 +48,29 @@
     });
     return authPromise;
   }
+  function mensajeServidor(codigo, status) {
+    switch (codigo) {
+      case 'ROL_NO_AUTORIZADO':
+      case 'ROL_ADMINISTRADOR_NO_VERIFICADO':
+        return 'La cuenta no tiene el rol administrador en Firebase. Debe asignarse por un responsable autorizado.';
+      case 'SESION_INVALIDA':
+      case 'TOKEN_REQUERIDO':
+        return 'Tu sesión expiró o fue revocada. Vuelve a ingresar desde Administración.';
+      case 'RUTA_NO_DISPONIBLE':
+        return 'La función administrativa no está actualizada en Firebase. Debe desplegarse administradoresApi.';
+      case 'SERVICIO_NO_DISPONIBLE':
+        return 'El backend de Administración no está disponible. No se guardó ningún cambio.';
+      case 'FICHA_DESACTUALIZADA':
+        return 'El expediente cambió desde que lo abriste. Actualiza estudiantes e inténtalo nuevamente.';
+      case 'PERIODO_DESACTIVADO':
+        return 'El período está desactivado y no admite nuevas decisiones.';
+      case 'APROBADO_REQUIERE_REAPERTURA_EXPLICITA':
+        return 'El título ya está aprobado. Confirma la reapertura y registra el motivo.';
+      default:
+        return 'La operación fue rechazada por el servidor (' + (codigo || status) + '). No se guardó.';
+    }
+  }
+
   function solicitar(ruta, metodo, body) {
     return conectar().then(function () {
       if (!auth || !auth.currentUser)
@@ -65,7 +88,7 @@
       return resp.json().then(function (payload) {
         if (!resp.ok || !payload || payload.ok !== true)
           throw error(payload && payload.codigo || 'ADMIN_API_ERROR',
-            'No se pudo validar la autorización (' + (payload && payload.codigo || resp.status) + ').');
+            mensajeServidor(payload && payload.codigo, resp.status));
         // /sesion devuelve la identidad en usuario, no en data.
         // Comprobar la identidad autenticada antes de mostrar el panel.
         if (ruta === 'sesion') {
@@ -76,6 +99,10 @@
         }
         return payload.data;
       });
+    }).catch(function (fallo) {
+      if (fallo.codigo) throw fallo;
+      throw error('RED_NO_DISPONIBLE',
+        'No se pudo conectar con administradoresApi. Comprueba su despliegue y la conexión; no se guardó nada.');
     });
   }
   function estado() {
@@ -162,16 +189,24 @@
     }
     // La ausencia de Auth no impide consultar el panel, pero sí decidir.
     return conectar().then(function (usuario) {
-      if (!usuario) { vistaAutorizada(false); return false; }
+      if (!usuario) {
+        vistaAutorizada(false);
+        mostrarAcceso(); // Un solo acceso al iniciar; permite volver a consulta.
+        return false;
+      }
       return solicitar('sesion', 'GET').then(function (identidad) {
         vistaAutorizada(Boolean(identidad && identidad.rol === 'administrador'));
         return rolVerificado;
-      }).catch(function () {
+      }).catch(function (e) {
         vistaAutorizada(false);
+        mostrarAcceso();
+        if (mensaje) mensaje.textContent=e.message;
         return false;
       });
-    }).catch(function () {
+    }).catch(function (e) {
       vistaAutorizada(false);
+      mostrarAcceso();
+      if (mensaje) mensaje.textContent=e.message;
       return false;
     });
   }
