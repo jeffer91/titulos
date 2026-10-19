@@ -1397,3 +1397,47 @@ small {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ===== Expediente y acciones de Administración (2026-10) ===== */
+.admin-identity__grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}
+.admin-identity__grid>div {display:flex;flex-direction:column;min-width:0;gap:2px}
+.admin-identity small,.admin-review-summary small,.admin-proposals small,.admin-actions small {color:var(--muted);font-size:.76rem}
+.admin-identity strong {overflow-wrap:anywhere;font-size:.86rem}
+.admin-review-summary__head,.admin-proposals__header,.admin-actions__head {display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.admin-review-summary__fields {display:grid;gap:8px;margin:8px 0}
+.admin-review-summary__fields>div {padding:8px 10px;border-radius:10px;background:#f2f5fa}
+.admin-review-summary__fields p {margin:3px 0;color:var(--text);font-size:.85rem;line-height:1.45}
+.admin-review-summary__fields .admin-final-title {background:var(--success-bg);border-left:3px solid var(--success)}
+.admin-state-chip {background:var(--soft-primary);border-radius:999px;color:var(--primary);font-size:.7rem;font-weight:800;padding:5px 10px}
+.admin-state-chip--success {background:var(--success-bg);color:var(--success)}
+.admin-proposals {display:grid;gap:8px}
+.admin-proposals__header h3,.admin-actions h3 {margin:0}
+.admin-proposal {border:1px solid var(--line);background:#fff;border-radius:12px;padding:11px 13px}
+.admin-proposal__head {display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.admin-proposal__head strong {font-size:.86rem}
+.admin-proposal__tag {background:var(--soft-primary);color:var(--primary);padding:2px 7px;border-radius:999px;font-size:.68rem;font-weight:700}
+.admin-proposal__tag--selected {background:var(--success-bg);color:var(--success)}
+.admin-proposal p {font-size:.86rem;color:var(--text);margin:4px 0}
+.admin-actions {border-color:#adc2dc;background:#f9fbff}
+.admin-actions__form {display:grid;gap:8px;margin-top:12px}
+.admin-actions__form label {font-size:.8rem;font-weight:700}
+.admin-actions__form select,.admin-actions__form textarea {width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:#fff;color:var(--text);min-width:0}
+.admin-actions__buttons {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.admin-actions__buttons .btn {white-space:normal;text-align:center;min-height:42px}
+.admin-actions__editor {display:grid;gap:8px;padding:10px;background:#fff;border:1px solid var(--line);border-radius:12px}
+.admin-actions__access {margin-top:8px;padding:10px;background:#eaf0f9;border-radius:10px}
+.admin-actions__access strong {font-size:.82rem}
+.admin-actions__access p {font-size:.78rem;margin:3px 0 8px}
+.admin-actions__login {display:grid;grid-template-columns:1fr 1fr auto;gap:8px}
+.admin-actions__login input {min-width:0;border-radius:9px;border:1px solid var(--line);padding:8px}
+.admin-actions__status {margin:0;font-size:.83rem;color:var(--success)!important}
+.admin-actions__status.is-error {color:var(--danger)!important}
+.admin-actions__archive {margin-top:12px;padding-top:11px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.admin-reopen {display:flex;gap:9px;align-items:start;padding:10px;background:var(--warning-bg);border-radius:10px}
+.admin-reopen input {width:auto;margin-top:4px}
+.admin-actions [hidden] {display:none!important}
+@media(max-width:680px){
+ .admin-identity__grid,.admin-actions__buttons {grid-template-columns:1fr}
+ .admin-actions__login {grid-template-columns:1fr}
+}
