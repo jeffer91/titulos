@@ -44,7 +44,7 @@ async function revisar(db,actor,body){
  if(!ACCIONES.has(accion))fallo(422,'ACCION_INVALIDA');
  if(motivo.length<8||motivo.length>1000)fallo(422,'MOTIVO_REQUERIDO');
  if(corregido.length>260)fallo(422,'TITULO_MUY_LARGO');
- if(accion!=='ENVIAR_COORDINACION'&&![1,2,3].includes(numero))fallo(422,'PROPUESTA_INVALIDA');
+ if(![1,2,3].includes(numero))fallo(422,'PROPUESTA_INVALIDA');
  if(accion==='CORREGIR_APROBAR'&&corregido.length<20)fallo(422,'TITULO_CORREGIDO_INVALIDO');
  if(accion!=='CORREGIR_APROBAR'&&corregido)fallo(422,'CORRECCION_NO_PERMITIDA');
  const ref=db.collection('envios').doc(id),prevSnap=await ref.get();
@@ -60,6 +60,17 @@ async function revisar(db,actor,body){
   if(!snap.exists)fallo(404,'ENVIO_NO_ENCONTRADO');
   const antes=snap.data()||{};
   periodos.validar(antes,periodos.activos(cfg.data()));
+  // Optimistic concurrency: una ficha anterior nunca decide sobre otro estado.
+  if(typeof body.estadoEsperado!=='string'||typeof body.procesoEsperado!=='string'||
+     typeof body.tituloOriginalEsperado!=='string')
+    fallo(422,'VERSION_FICHA_REQUERIDA');
+  if(clave(body.estadoEsperado)!==clave(antes.estado)||
+     clave(body.procesoEsperado)!==clave(antes.estadoProceso))
+    fallo(409,'FICHA_DESACTUALIZADA');
+  if(body.actualizacionEsperada!==undefined&&body.actualizacionEsperada!==null&&
+     typeof body.actualizacionEsperada==='string'&&
+     body.actualizacionEsperada!==String(antes.actualizadoEnLocal||''))
+    fallo(409,'FICHA_DESACTUALIZADA');
   if(['ARCHIVADO','ARCHIVADO_ADMIN','BORRADOR_REINICIADO'].includes(clave(antes.estado)) ||
      ['ARCHIVADO','BORRADOR_REINICIADO'].includes(clave(antes.estadoProceso)))
     fallo(409,'EXPEDIENTE_SIN_ENVIO_ACTIVO');
@@ -70,7 +81,8 @@ async function revisar(db,actor,body){
   if(aprobado&&body.reabrirAprobado!==true)fallo(409,'APROBADO_REQUIERE_REAPERTURA_EXPLICITA');
   if(aprobado&&motivo.length<15)fallo(422,'MOTIVO_REAPERTURA_INSUFICIENTE');
   const original=tituloPorNumero(items,numero);
-  if(accion!=='ENVIAR_COORDINACION'&&!original)fallo(422,'PROPUESTA_NO_DISPONIBLE');
+  if(!original)fallo(422,'PROPUESTA_NO_DISPONIBLE');
+  if(limpio(body.tituloOriginalEsperado)!==original)fallo(409,'FICHA_DESACTUALIZADA');
   if(accion==='CORREGIR_APROBAR'&&clave(corregido)===clave(original))fallo(422,'CORRECCION_SIN_CAMBIOS');
   const final=accion==='CORREGIR_APROBAR'?corregido:original;
   const actualizados=items.map(p=>accion==='CORREGIR_APROBAR'&&p.numero===numero?
@@ -111,7 +123,7 @@ async function revisar(db,actor,body){
       resultadoInvestigacion:null,tituloCoordinador:null,tituloCoordinadorNumero:null,
       tituloFinal:null,tituloFinalInvestigacion:null,tituloAdminSeleccionadoNumero:null,
       tituloAdminSeleccionadoTexto:'',fechaValidacionCoordinador:null,
-      fechaResolucionInvestigacion:null,fechaResolucion:null});
+      fechaResolucionInvestigacion:null,fechaResolucion:null,fechaColaInvestigacion:null});
   }else{
     Object.assign(cambios,{estado:'PENDIENTE_INVESTIGADOR',estadoProceso:'PENDIENTE_INVESTIGADOR',
       requiereAccionDe:'INVESTIGACION',estadoInvestigador:'PENDIENTE',
