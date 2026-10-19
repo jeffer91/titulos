@@ -395,6 +395,9 @@
           ui.showStatus('#estudiantesMensaje',obtenerMensaje(error,'No se pudo guardar la intervención.'),'error');
         });
       }
+      });
+    }).catch(function(error){
+      mostrarEstadoAccion(box,obtenerMensaje(error,'No se pudo validar tu sesión.'),true);
     });
   }
 
