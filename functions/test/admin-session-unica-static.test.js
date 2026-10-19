@@ -1,0 +1,31 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+test('las acciones de estudiantes no contienen credenciales ni formulario de segundo acceso',()=>{
+ const s=read('administradores/js/estudiantes.admin.js');
+ for(const forbidden of ['adminLoginAccionesForm','adminLoginAccionesEmail',
+  'adminLoginAccionesPassword','adminCerrarAccionesSesion','adminAccesoAcciones']){
+  assert.equal(s.includes(forbidden),false,'Formulario duplicado: '+forbidden);
+ }
+ for(const action of ['APROBAR','CORREGIR_APROBAR','ENVIAR_COORDINACION','ENVIAR_INVESTIGACION'])
+  assert.ok(s.includes(action),'Acción faltante: '+action);
+ assert.ok(s.includes('repository.intervenirTitulo(body)'));
+});
+test('el administrador exige una sola sesión antes de abrir el panel histórico',()=>{
+ const html=read('administradores/administrador.html');
+ const app=read('administradores/js/administrador.app.js');
+ const auth=read('administradores/js/admin.actions.service.js');
+ assert.match(html,/<body class="admin-auth-pending">/);
+ assert.match(html,/id="adminLoginSeguroForm"/);
+ assert.match(html,/id="adminCerrarSesionPrincipal"/);
+ assert.match(app,/acciones\.iniciarPanel\(\)/);
+ assert.match(auth,/solicitar\('sesion', 'GET'\)/);
+ assert.match(auth,/solicitar\('envios\/decision', 'POST', body\)/);
+ assert.match(auth,/Authorization: 'Bearer ' \+ token/);
+ assert.match(auth,/auth\.signInWithEmailAndPassword/);
+ assert.equal(auth.includes('signInAnonymously'),false);
+});
