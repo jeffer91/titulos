@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261017-60';
+  var BUILD = '20261019-admin-v2';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
