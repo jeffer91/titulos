@@ -19,6 +19,8 @@ const ENVIO=[
  'estadoInvestigador','resultadoCoordinador','resultadoInvestigacion','titulosEnviados',
  'propuestasDetalle','titulo1','titulo2','titulo3','tituloPreferidoNumero','tituloElegido',
  'tituloPreferidoTexto','tituloCoordinador','tituloFinalInvestigacion','tituloFinal',
+ 'revisionAdministrativa','ultimaAccionAdministrativa','fechaAccionAdministrativa','tituloAdminSeleccionadoNumero',
+ 'tituloAdminSeleccionadoTexto','habilitadoInvestigacionPorAdmin','aprobadoPorAdministracion','procesoCerrado',
  'revisionCoordinador','revisionInvestigador','validadoCoordinador','coordinadorRevisado',
  'investigacionRevisada','fechaEnvio','fechaValidacionCoordinador','fechaResolucion',
  'fechaResolucionInvestigacion','investigacionRevisadaEn','actualizadoEnLocal','creadoEn',
