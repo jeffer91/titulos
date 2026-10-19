@@ -87,6 +87,14 @@
     return conectar().then(function () { return auth.signOut(); });
   }
 
+  // Estado validado una sola vez para activar la interfaz; cada escritura
+  // todavía verifica token y rol de forma independiente en el servidor.
+  function autorizadoLocal() { return rolVerificado === true; }
+  function comunicarEstado() {
+    window.dispatchEvent(new CustomEvent('admin:autorizacion-cambio', {
+      detail: { autorizado: rolVerificado === true }
+    }));
+  }
   // La consulta del panel histórico sigue disponible; solo los actos
   // académicos exigen un token y rol administrador verificados por la API.
   var rolVerificado = false;
@@ -109,6 +117,7 @@
       abrir.hidden = rolVerificado;
       cerrar.hidden = !rolVerificado;
       if (rolVerificado) panel.hidden = true;
+      comunicarEstado();
       var estado = document.getElementById('adminEstadoGeneral');
       if (estado) estado.textContent = rolVerificado
         ? 'Administrador autorizado' : 'Conectado · consulta';
@@ -181,7 +190,8 @@
   }
   window.TAAdminAccionesSeguras = Object.freeze({
     conectar: conectar, prepararPanel: prepararPanel,
-    estado: estadoAutorizado, cerrar: cerrarSesion,
+    estado: estadoAutorizado, autorizadoLocal: autorizadoLocal,
+    cerrar: cerrarSesion,
     decidir: function (body) { return solicitar('envios/decision', 'POST', body); }
   });
 })();
