@@ -363,7 +363,20 @@
       tituloOriginalEsperado:String(actual.tituloFinal||actual.titulo||'').trim(),
       actualizacionEsperada:typeof datos.actualizadoEnLocal==='string'
         ? datos.actualizadoEnLocal : null};
-    ui.confirmar({
+    var servicio=window.TAAdminAccionesSeguras;
+    if(!servicio || typeof servicio.estado!=='function'){
+      mostrarEstadoAccion(box,'Servicio de decisiones no disponible. Actualiza la página.',true);
+      return;
+    }
+    servicio.estado().then(function(autorizado){
+      if(!autorizado){
+        mostrarEstadoAccion(box,
+          'Para guardar una decisión académica, inicia sesión una sola vez desde la cabecera del administrador.',true);
+        var iniciar=document.getElementById('adminIniciarSesionPrincipal');
+        if(iniciar){iniciar.hidden=false;iniciar.focus();}
+        return;
+      }
+      ui.confirmar({
       titulo:nombres[accion]||'Confirmar acción administrativa',
       mensaje:'Estudiante: '+item.nombres+'. '+(accion==='ENVIAR_COORDINACION'
         ? 'Se reiniciará la revisión inicial.' : 'Propuesta '+propuestaNumero+'.')+
