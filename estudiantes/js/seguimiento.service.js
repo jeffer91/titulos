@@ -385,7 +385,7 @@
       ? estado('Devuelto', 'danger')
       : finalAprobado
         ? estado(inv === 'APROBADO_CON_OBSERVACION' ? 'Aprobado con observación' : 'Aprobado', inv === 'APROBADO_CON_OBSERVACION' ? 'warning' : 'success')
-        : coordAprobado
+        : (coordAprobado || (canonico === 'INVESTIGACION_PENDIENTE' && envio.habilitadoInvestigacionPorAdmin === true))
           ? estado('Pendiente', 'pending')
           : estado('Aún no habilitado', 'muted');
 
