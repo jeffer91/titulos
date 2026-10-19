@@ -19,6 +19,18 @@
       document.head.appendChild(script);
     });
   }
+  function primerEstadoAutenticado(instancia) {
+    return new Promise(function (resolve) {
+      var cancelar = function () {};
+      cancelar = instancia.onAuthStateChanged(function (usuario) {
+        cancelar();
+        resolve(usuario || null);
+      }, function () {
+        cancelar();
+        resolve(null);
+      });
+    });
+  }
   function conectar() {
     if (authPromise) return authPromise;
     authPromise = Promise.resolve().then(function () {
@@ -28,22 +40,40 @@
       if (window.firebase && window.firebase.auth) return true;
       return cargarScript('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js');
     }).then(function () {
-      if (!window.TA_ADMIN_FIREBASE_CONFIG || !window.TA_ADMIN_FIREBASE_CONFIG.apiKey)
-        throw error('FIREBASE_CONFIG_PENDIENTE', 'No se configuró Firebase Authentication de Administración.');
-      var app;
-      try { app = window.firebase.app('ta-administracion-segura'); }
-      catch (_) { app = window.firebase.initializeApp(window.TA_ADMIN_FIREBASE_CONFIG, 'ta-administracion-segura'); }
-      auth = window.firebase.auth(app);
-      return auth.setPersistence(window.firebase.auth.Auth.Persistence.SESSION).then(function () {
-        return new Promise(function (resolve, reject) {
-          var unsub = auth.onAuthStateChanged(function (usuario) {
-            unsub();
-            resolve(usuario);
-          }, reject);
+      var cfg=window.TA_ADMIN_FIREBASE_CONFIG;
+      if (!cfg || !cfg.apiKey || !cfg.projectId)
+        throw error('FIREBASE_CONFIG_PENDIENTE',
+          'No se encontró la configuración operativa de Firebase.');
+      // Buscar sesiones persistidas de ESTE MISMO proyecto, incluidas las
+      // iniciadas desde otras vistas de la aplicación institucional.
+      var aplicaciones=(window.firebase.apps || []).filter(function (app) {
+        return app && app.options && app.options.projectId===cfg.projectId &&
+          app.options.apiKey===cfg.apiKey;
+      });
+      ['ta-admin-titulos','ta-administracion-segura'].forEach(function (nombre) {
+        var app;
+        try { app=window.firebase.app(nombre); }
+        catch (_) { app=window.firebase.initializeApp(cfg,nombre); }
+        if(!aplicaciones.some(function (actual) {return actual.name===nombre;}))
+          aplicaciones.push(app);
+      });
+      return Promise.all(aplicaciones.map(function (app) {
+        var instancia=window.firebase.auth(app);
+        return primerEstadoAutenticado(instancia).then(function (usuario) {
+          return {instancia:instancia,usuario:usuario,esDedicada:app.name==='ta-administracion-segura'};
         });
+      })).then(function (resultados) {
+        var vigente=resultados.filter(function(r){return Boolean(r.usuario)&&r.esDedicada;})[0] ||
+          resultados.filter(function(r){return Boolean(r.usuario);})[0];
+        var elegida=vigente || resultados.filter(function(r){return r.esDedicada;})[0];
+        auth=elegida.instancia;
+        // Nunca alterar la persistencia de una identidad ya iniciada.
+        // setPersistence(SESSION) descartaba sesiones locales previas.
+        return elegida.usuario || null;
       });
     }).catch(function (e) {
-      authPromise = null;
+      authPromise=null;
+      auth=null;
       throw e;
     });
     return authPromise;
@@ -124,8 +154,12 @@
   }
   function prepararPanel() {
     if (comprobando) return comprobando;
-    comprobando = conectar().then(function (usuario) {
-      if (!usuario || !auth.currentUser) return actualizarEstado(false);
+    comprobando = conectar().then(function () {
+      if (!auth || !auth.currentUser) {
+        // Permitir volver a descubrir sesiones creadas tras la carga inicial.
+        authPromise=null;
+        return actualizarEstado(false);
+      }
       return solicitar('sesion', 'GET').then(function (identidad) {
         return actualizarEstado(Boolean(identidad && identidad.rol === 'administrador' && identidad.uid));
       }).catch(function () {
