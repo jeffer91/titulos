@@ -392,9 +392,18 @@
       ENVIAR_COORDINACION:'Enviar a Coordinación',
       ENVIAR_INVESTIGACION:'Enviar a Investigación'
     };
-    var body={tituloId:item.titulo.id,accion:accion,motivo:motivo,
+    var actual=(item.titulosEnviados||[]).filter(function(p,i){
+      return Number(p.numero||i+1)===propuestaNumero;
+    })[0]||{};
+    var datos=item.titulo||{};
+    var body={tituloId:datos.id,accion:accion,motivo:motivo,
       propuestaNumero:propuestaNumero,
-      tituloCorregido:corregido,reabrirAprobado:reabrirAprobado};
+      tituloCorregido:corregido,reabrirAprobado:reabrirAprobado,
+      estadoEsperado:String(datos.estado||''),
+      procesoEsperado:String(datos.estadoProceso||''),
+      tituloOriginalEsperado:String(actual.tituloFinal||actual.titulo||'').trim(),
+      actualizacionEsperada:typeof datos.actualizadoEnLocal==='string'
+        ? datos.actualizadoEnLocal : null};
     ui.confirmar({
       titulo:nombres[accion]||'Confirmar acción administrativa',
       mensaje:'Estudiante: '+item.nombres+'. '+(accion==='ENVIAR_COORDINACION'
