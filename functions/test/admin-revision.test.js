@@ -2,6 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {revisar}=require('../services/admin-revision');
+const {revisar:revisarInvestigacion}=require('../services/investigadores.revision');
 const PERIODO='2026-05__2026-11';
 const ADMIN={uid:'admin-verified',rol:'administrador'};
 function dbMemoria(overrides={}){
@@ -145,4 +146,50 @@ test('rechaza un título que cambió mientras el administrador tenía la ficha a
  await assert.rejects(()=>revisar(db,ADMIN,payload('APROBAR')),
   error=>error.code==='FICHA_DESACTUALIZADA');
  assert.equal(db.tables.versiones_envio.size,0);
+});
+
+test('las observaciones anteriores pasan al historial y no figuran como vigentes',async()=>{
+ const original=dbMemoria().tables.envios.get('e1');
+ const db=dbMemoria({envios:{e1:{...original,estado:'DEVUELTO',
+   estadoProceso:'DEVUELTO',estadoCoordinador:'DEVUELTO',
+   revisionCoordinador:{estado:'DEVUELTO',observacion:'Nota antigua de Coordinación'},
+   comentarioCoordinador:'Nota antigua de Coordinación',
+   observacionInvestigacion:'Comentario antiguo del investigador',
+   fechaResolucionInvestigacion:'2026-10-01T10:00:00Z'
+ }}});
+ await revisar(db,ADMIN,payload('APROBAR',{
+  estadoEsperado:'DEVUELTO',procesoEsperado:'DEVUELTO'
+ }));
+ const result=db.tables.envios.get('e1');
+ assert.equal(result.estadoProceso,'APROBADO_FINAL');
+ assert.equal(result.estadoCoordinador,'');
+ assert.equal(result.revisionCoordinador,null);
+ assert.equal(result.comentarioCoordinador,'');
+ assert.equal(result.observacionInvestigacion,'');
+ assert.equal(result.fechaResolucionInvestigacion,null);
+ const version=[...db.tables.versiones_envio.values()][0];
+ assert.equal(version.observacionInvestigacionAnterior,'Comentario antiguo del investigador');
+ assert.equal(version.revisionCoordinador.observacion,'Nota antigua de Coordinación');
+});
+test('la derivación desde Administración llega a aprobación real de Investigación',async()=>{
+ const original=dbMemoria().tables.envios.get('e1');
+ const db=dbMemoria({investigadores:{i1:{activo:true,authUid:'uid-inv',pinActivo:true}}});
+ await revisar(db,ADMIN,payload('ENVIAR_INVESTIGACION'));
+ const pending=db.tables.envios.get('e1');
+ assert.equal(pending.tituloAdminSeleccionadoNumero,2);
+ const h={
+  activo:t=>t&&t.activo===true,
+  permitida:()=>true,
+  pendiente:t=>t.estadoProceso==='PENDIENTE_INVESTIGADOR'&&t.habilitadoInvestigacionPorAdmin===true,
+  perfilPublico:()=>({cedula:'0000000001',nombre:'Investigador prueba',email:'prueba@instituto.edu'}),
+  filtrar:t=>t
+ };
+ await revisarInvestigacion(db,{id:'i1'},{uid:'uid-inv'},{
+  tituloId:'e1',accion:'APROBAR'
+ },h);
+ const final=db.tables.envios.get('e1');
+ assert.equal(final.estado,'APROBADO_FINAL');
+ assert.equal(final.tituloFinal,'Título segundo sin modificar');
+ assert.equal(final.revisionInvestigador.estado,'APROBADO');
+ assert.equal(final.aprobadoPorAdministracion,false);
 });
