@@ -21,8 +21,8 @@
 </head>
 <body>
   <section id="adminLoginSeguro" hidden style="max-width:460px;margin:8vh auto;padding:28px;border:1px solid #cbd5e1;border-radius:14px">
-    <h1>Acceso institucional de Administración</h1>
-    <p>Identifícate con una cuenta que tenga permisos administrativos verificados.</p>
+    <h1>Acceso único de Administración</h1>
+    <p>Ingresa una vez para aprobar, corregir o enviar títulos. Puedes continuar consultando sin iniciar sesión.</p>
     <form id="adminLoginSeguroForm">
       <label for="adminLoginCorreo">Correo institucional</label>
       <input id="adminLoginCorreo" type="email" required autocomplete="username" style="width:100%;margin:7px 0 18px;padding:10px" />
@@ -30,7 +30,7 @@
       <input id="adminLoginClave" type="password" required autocomplete="current-password" style="width:100%;margin:7px 0 18px;padding:10px" />
       <button class="btn btn--primary" type="submit">Ingresar</button>
     </form>
-    <button id="adminCancelarLogin" class="btn btn--secondary" type="button">Volver al panel</button>
+    <button id="adminCancelarLogin" class="btn btn--secondary" type="button">Continuar solo consulta</button>
     <button id="adminSalirSeguro" class="btn btn--secondary" type="button" hidden>Cerrar sesión</button>
     <p id="adminLoginMensaje" role="status"></p>
   </section>
@@ -1072,10 +1072,10 @@
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js?v=20261013-colas-carreras"></script>
   <script src="js/investigadores.admin.js?v=20261015-conciliar-pines-v3"></script>
-  <script src="js/admin.actions.service.js?v=20261019-sesion-unica2"></script>
-  <script src="js/estudiantes.admin.js?v=20261019-sesion-unica2"></script>
+  <script src="js/admin.actions.service.js?v=20261019-acceso-unico3"></script>
+  <script src="js/estudiantes.admin.js?v=20261019-acceso-unico3"></script>
   <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>
-  <script src="js/administrador.app.js?v=20261019-sesion-unica2"></script>
+  <script src="js/administrador.app.js?v=20261019-acceso-unico3"></script>
 </body>
 </html>
