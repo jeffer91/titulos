@@ -135,6 +135,12 @@
       }
     });
 
+    window.addEventListener('admin:titulos-actualizados', function () {
+      ['inicio','faltantes','estudiantes','reportes'].forEach(function (nombre) {
+        estado.modulosCargados[nombre] = false;
+      });
+    });
+
     window.addEventListener('admin:faltantes-actualizados', function (event) {
       var total = event && event.detail ? Number(event.detail.total || 0) : 0;
       var badge = ui.qs('#faltantesSidebarBadge');
