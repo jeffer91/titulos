@@ -267,6 +267,8 @@
       ? obtenerTituloCoordinacion(envio)
       : '';
     var tituloFinal = obtenerTituloFinal(envio, tituloCoord, estados);
+    var tituloRemitidoAdmin = envio.habilitadoInvestigacionPorAdmin === true
+      ? limpiar(envio.tituloAdminSeleccionadoTexto || '') : '';
     var historial = construirHistorial(seguimiento, envio);
     var permiso = repositoryOriginal && typeof repositoryOriginal.evaluarReenvio === 'function'
       ? repositoryOriginal.evaluarReenvio(envio)
@@ -297,7 +299,7 @@
         '<div class="seguimiento-progress__line"></div>',
         renderPasoRevision('2', 'Investigación', estados.investigacion, revisionInv, envio),
         '<div class="seguimiento-progress__line"></div>',
-        renderPasoFinal(estados, tituloFinal),
+        renderPasoFinal(estados, tituloFinal, envio),
       '</div>',
 
       '<section class="seguimiento-section">',
@@ -311,6 +313,13 @@
         '<section class="seguimiento-section seguimiento-section--selected">',
           '<span class="seguimiento-label">Título seleccionado en la revisión inicial</span>',
           '<p class="seguimiento-title-text">' + escapar(tituloCoord) + '</p>',
+        '</section>'
+      ].join('') : ''),
+
+      (tituloRemitidoAdmin ? [
+        '<section class="seguimiento-section seguimiento-section--selected">',
+          '<span class="seguimiento-label">Título remitido a Investigación por Administración</span>',
+          '<p class="seguimiento-title-text">' + escapar(tituloRemitidoAdmin) + '</p>',
         '</section>'
       ].join('') : ''),
 
@@ -346,9 +355,10 @@
     var coordDevuelto = canonico === 'DEVUELTO_COORDINACION';
     var invDevuelto = canonico === 'DEVUELTO_INVESTIGACION';
     var finalAprobado = canonico === 'APROBADO_FINAL';
+    var aprobadoAdmin = finalAprobado && envio.aprobadoPorAdministracion === true;
 
-    var coordAprobado = finalAprobado ||
-      canonico === 'INVESTIGACION_PENDIENTE' ||
+    var coordAprobado = (finalAprobado && !aprobadoAdmin) ||
+      (canonico === 'INVESTIGACION_PENDIENTE' && envio.habilitadoInvestigacionPorAdmin !== true) ||
       invDevuelto ||
       coord === 'VALIDADO' ||
       coord === 'APROBADO' ||
@@ -357,17 +367,21 @@
       envio.validadoCoordinacion === true ||
       Boolean(obtenerTituloCoordinacion(envio));
 
-    var invAprobado = finalAprobado ||
+    var invAprobado = (finalAprobado && !aprobadoAdmin) ||
       inv === 'APROBADO' ||
       inv === 'APROBADO_CON_OBSERVACION';
 
-    var estadoCoord = coordDevuelto
+    var estadoCoord = aprobadoAdmin && !coordAprobado
+      ? estado('No requerido · Administración', 'muted')
+      : coordDevuelto
       ? estado('Devuelto', 'danger')
       : coordAprobado
         ? estado('Aprobado', 'success')
         : estado('Pendiente', 'pending');
 
-    var estadoInv = invDevuelto
+    var estadoInv = aprobadoAdmin && !invAprobado
+      ? estado('No requerido · Administración', 'muted')
+      : invDevuelto
       ? estado('Devuelto', 'danger')
       : finalAprobado
         ? estado(inv === 'APROBADO_CON_OBSERVACION' ? 'Aprobado con observación' : 'Aprobado', inv === 'APROBADO_CON_OBSERVACION' ? 'warning' : 'success')
@@ -378,7 +392,7 @@
     var estadoGeneral;
 
     if (finalAprobado) {
-      estadoGeneral = estado('Aprobación final', 'success');
+      estadoGeneral = estado(aprobadoAdmin ? 'Aprobado por Administración' : 'Aprobación final', 'success');
     } else if (coordDevuelto || invDevuelto) {
       estadoGeneral = estado('Requiere corrección', 'danger');
     } else if (canonico === 'INVESTIGACION_PENDIENTE' || coordAprobado) {
@@ -606,13 +620,17 @@
     ].join('');
   }
 
-  function renderPasoFinal(estados, tituloFinal) {
+  function renderPasoFinal(estados, tituloFinal, envio) {
     var estadoFinal = estados.finalAprobado ? estado('Aprobado', 'success') : estado('Pendiente', 'muted');
     return [
       '<article class="seguimiento-step">',
         '<div class="seguimiento-step__number ' + claseEstado(estadoFinal.tipo) + '">3</div>',
         '<div><span>Aprobación final</span><strong>' + escapar(estadoFinal.label) + '</strong>',
-        tituloFinal ? '<small>Título definitivo disponible</small>' : '<small>Se activa al completar las dos revisiones</small>',
+        tituloFinal ? '<small>' + (envio && envio.aprobadoPorAdministracion === true
+          ? 'Resolución definitiva de Administración' : 'Título definitivo disponible') + '</small>'
+          : '<small>' + (envio && envio.habilitadoInvestigacionPorAdmin === true
+            ? 'Pendiente de revisión de Investigación por derivación administrativa'
+            : 'Se activa al completar las dos revisiones') + '</small>',
         '</div>',
       '</article>'
     ].join('');
