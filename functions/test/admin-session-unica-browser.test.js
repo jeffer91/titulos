@@ -26,23 +26,29 @@ function entorno({logueado=true,resultado={ok:true,usuario:{uid:'admin1',rol:'ad
  function authFactory(){return auth;}
  authFactory.Auth={Persistence:{SESSION:'SESSION'}};
  const firebase={initializeApp:()=>({}),app:()=>({}),auth:authFactory};
+ const events=[];
  const window={firebase,TA_ADMIN_FIREBASE_CONFIG:{apiKey:'demo'},
-  TA_ADMIN_SEGURIDAD:{apiBase:'https://test.example.org/administradoresApi'}};
+  TA_ADMIN_SEGURIDAD:{apiBase:'https://test.example.org/administradoresApi'},
+  dispatchEvent:e=>events.push(e)};
  const document={getElementById:id=>elements[id]||null};
  const fetch=async(url,options)=>{request.push({url,options});
    return {ok:true,status:200,json:async()=>resultado};
  };
- vm.runInNewContext(source,{window,document,fetch,queueMicrotask,Promise});
+ class CustomEvent { constructor(type,details){this.type=type;this.detail=details.detail;} }
+ vm.runInNewContext(source,{window,document,fetch,queueMicrotask,Promise,CustomEvent});
  return {service:window.TAAdminAccionesSeguras,request,login,form,iniciar,cerrar,
-   estado,mensaje,listeners,auth};
+   estado,mensaje,listeners,auth,events};
 }
-test('sin login, abre panel en modo consulta sin ninguna ventana de autenticación',async()=>{
+test('sin sesión solicita un único acceso al entrar y permite volver a consulta',async()=>{
  const e=entorno({logueado:false});
  assert.equal(await e.service.prepararPanel(),false);
- assert.equal(e.login.hidden,true);
+ assert.equal(e.login.hidden,false);
  assert.equal(e.iniciar.hidden,false);
  assert.equal(e.cerrar.hidden,true);
  assert.equal(e.request.length,0);
+ assert.equal(e.service.autorizadoLocal(),false);
+ e.listeners['cancelar:click']();
+ assert.equal(e.login.hidden,true);
  assert.equal(await e.service.estado(),false);
 });
 test('sesión con rol válido se reutiliza y oculta segundo acceso',async()=>{
@@ -55,12 +61,15 @@ test('sesión con rol válido se reutiliza y oculta segundo acceso',async()=>{
  assert.match(e.request[0].url,/\/sesion$/);
  assert.equal(e.request[0].options.headers.Authorization,'Bearer token-identidad');
  assert.equal(await e.service.estado(),true);
+ assert.equal(e.service.autorizadoLocal(),true);
+ assert.ok(e.events.some(e=>e.type==='admin:autorizacion-cambio'&&e.detail.autorizado===true));
 });
 test('un usuario sin rol administrador no queda autorizado',async()=>{
  const e=entorno({resultado:{ok:true,usuario:{uid:'est1',rol:'estudiante'}}});
  assert.equal(await e.service.prepararPanel(),false);
- assert.equal(e.login.hidden,true);
+ assert.equal(e.login.hidden,false);
  assert.equal(e.cerrar.hidden,true);
+ assert.equal(e.service.autorizadoLocal(),false);
  assert.equal(await e.service.estado(),false);
 });
 test('la API impide aprobar títulos sin token autenticado',async()=>{
@@ -68,12 +77,13 @@ test('la API impide aprobar títulos sin token autenticado',async()=>{
  await assert.rejects(()=>e.service.decidir({accion:'APROBAR'}),/cuenta institucional/i);
  assert.equal(e.request.length,0);
 });
-test('botón de iniciar sesión es explícito y no se abre automáticamente',async()=>{
+test('la sesión se solicita una sola vez en el panel y no al abrir un expediente',async()=>{
  const e=entorno({logueado:false});
  await e.service.prepararPanel();
- assert.equal(e.login.hidden,true);
- e.listeners['iniciar:click']();
  assert.equal(e.login.hidden,false);
  e.listeners['cancelar:click']();
  assert.equal(e.login.hidden,true);
+ e.listeners['iniciar:click']();
+ assert.equal(e.login.hidden,false);
+ assert.equal(e.request.length,0);
 });
