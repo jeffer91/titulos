@@ -60,10 +60,7 @@ test('sin sesión administrativa, no intenta escribir',async()=>{
 test('una sesión verificada permite enviar una decisión firmada sin pedir datos',async()=>{
  const e=entorno();
  await e.service.prepararPanel();
- assert.deepEqual(
-  JSON.parse(JSON.stringify(await e.service.decidir({accion:'APROBAR'}))),
-  undefined
- );
+ assert.equal(await e.service.decidir({accion:'APROBAR'}),undefined);
  assert.equal(e.requests.length,2);
  assert.match(e.requests[1].url,/\/envios\/decision$/);
  assert.equal(e.requests[1].options.method,'POST');
