@@ -2,6 +2,7 @@
 const person=require('./admin-personal');
 const periodos=require('./periodos-activos');
 const adminData=require('./admin-data');
+const adminRevision=require('./admin-revision');
 const {publicConfig,validate,safeProvider,fail,text}=require('./admin-config');
 const adminFields=['id','nombreCarrera','codigoCarrera','carrera','nombre','codigo','activo'];
 
@@ -19,6 +20,9 @@ function crearRutasAdministradores({db,authAdmin,academica}){
   }},
   '/envios/archivar':{method:'POST',async handle({usuario,body}){
     return adminData.archivar(db,body,usuario);
+  }},
+  '/envios/decision':{method:'POST',async handle({usuario,body}){
+    return adminRevision.revisar(db,usuario,body);
   }},
   '/configuracion':{method:'GET',async handle(){
    const snap=await db.collection('configuracion').doc('general').get();
