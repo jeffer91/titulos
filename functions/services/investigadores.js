@@ -54,7 +54,7 @@ function pendiente(t){
  return validado&&Array.isArray(t.titulosEnviados)&&t.titulosEnviados.length>0;
 }
 function fecha(t){
- const v=t.fechaValidacionCoordinador||t.revisionCoordinador&&t.revisionCoordinador.fechaLocal||t.revisadoEnLocal||t.fechaResolucion||t.fechaEnvio||t.creadoEn;
+ const v=t.fechaColaInvestigacion||t.fechaValidacionCoordinador||t.revisionCoordinador&&t.revisionCoordinador.fechaLocal||t.revisadoEnLocal||t.fechaResolucion||t.fechaEnvio||t.creadoEn;
  if(v&&typeof v.toDate==='function')return v.toDate().getTime();
  if(v&&typeof v.seconds==='number')return v.seconds*1000;
  return Date.parse(v||'')||Number.MAX_SAFE_INTEGER;
