@@ -606,6 +606,7 @@
     var article = document.createElement('article');
     var coordinador = titulo.revisionCoordinador || {};
     var seleccionadoNumero = Number(
+      (titulo.habilitadoInvestigacionPorAdmin ? titulo.tituloAdminSeleccionadoNumero : 0) ||
       titulo.tituloCoordinadorNumero ||
       coordinador.tituloSeleccionadoNumero ||
       0
@@ -616,7 +617,8 @@
     article.innerHTML =
       '<div class="queue-card-head">' +
         '<div>' +
-          '<span class="state state--coord">Habilitado por Coordinación</span>' +
+          '<span class="state state--coord">' +
+            (titulo.habilitadoInvestigacionPorAdmin ? 'Remitido por Administración' : 'Habilitado por Coordinación') + '</span>' +
           '<h3>' + escapeHtml(titulo.nombres || 'Estudiante') + '</h3>' +
           '<div class="meta">' +
             '<span>' + escapeHtml(titulo.cedula || 'Sin cédula') + '</span>' +
@@ -625,7 +627,7 @@
           '</div>' +
         '</div>' +
         '<div class="queue-arrival">' +
-          '<span>Validado por Coordinación</span>' +
+          '<span>' + (titulo.habilitadoInvestigacionPorAdmin ? 'Derivación administrativa' : 'Validado por Coordinación') + '</span>' +
           '<strong>' + escapeHtml(formatearFecha(titulo.fechaColaInvestigacion || titulo.fechaEnvio)) + '</strong>' +
         '</div>' +
       '</div>' +
@@ -653,7 +655,7 @@
       item.innerHTML =
         '<div class="proposal__head">' +
           '<strong>Título ' + escapeHtml(numero || '') + '</strong>' +
-          (seleccionado ? '<span>Seleccionado por Coordinación</span>' : '') +
+          (seleccionado ? '<span>' + (titulo.habilitadoInvestigacionPorAdmin ? 'Seleccionado por Administración' : 'Seleccionado por Coordinación') + '</span>' : '') +
           (corregido ? '<span class="proposal__corrected">Corregido</span>' : '') +
         '</div>' +
         '<p>' + escapeHtml(p.tituloFinal || p.titulo || 'Sin título') + '</p>' +
