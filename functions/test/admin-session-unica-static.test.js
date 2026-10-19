@@ -29,3 +29,21 @@ test('el administrador exige una sola sesión antes de abrir el panel histórico
  assert.match(auth,/auth\.signInWithEmailAndPassword/);
  assert.equal(auth.includes('signInAnonymously'),false);
 });
+
+test('no inicializa módulos ni enlaza controles antes del inicio de sesión',()=>{
+ const app=read('administradores/js/administrador.app.js');
+ const comienzo=app.slice(app.indexOf('function iniciar() {'),app.indexOf('var seguro = window.TAAdministradorSeguro'));
+ assert.equal(comienzo.includes('conectarEventosBase()'),false);
+ assert.equal(comienzo.includes('iniciarModulos()'),false);
+ const conexiones=(app.match(/conectarEventosBase\(\);/g)||[]).length;
+ const modulos=(app.match(/iniciarModulos\(\);/g)||[]).length;
+ assert.equal(conexiones,2);
+ assert.equal(modulos,2);
+});
+test('el transporte valida rol e identidad del endpoint de sesión',()=>{
+ const auth=read('administradores/js/admin.actions.service.js');
+ assert.match(auth,/payload\.usuario\.rol !== 'administrador'/);
+ assert.match(auth,/payload\.usuario\.uid/);
+ assert.match(auth,/payload\.ok !== true/);
+ assert.match(auth,/return payload\.usuario/);
+});
