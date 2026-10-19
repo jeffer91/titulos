@@ -63,7 +63,8 @@
           return {instancia:instancia,usuario:usuario,esDedicada:app.name==='ta-administracion-segura'};
         });
       })).then(function (resultados) {
-        var vigente=resultados.filter(function(r){return Boolean(r.usuario);})[0];
+        var vigente=resultados.filter(function(r){return Boolean(r.usuario)&&r.esDedicada;})[0] ||
+          resultados.filter(function(r){return Boolean(r.usuario);})[0];
         var elegida=vigente || resultados.filter(function(r){return r.esDedicada;})[0];
         auth=elegida.instancia;
         // Nunca alterar la persistencia de una identidad ya iniciada.
