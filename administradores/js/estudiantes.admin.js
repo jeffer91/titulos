@@ -259,8 +259,6 @@
       '<div class="admin-actions__head"><h3>Acciones administrativas</h3>' +
       '<small>Intervenciones verificadas y registradas en el historial</small></div>' +
       (!propuestas.length ? '<p>No hay títulos activos que puedan revisarse.</p>' :
-      '<p class="admin-actions__read-only"' + (habilitado ? ' hidden' : '') +
-      '>Para aprobar o corregir títulos, cierra el expediente e ingresa desde «Acceso de Administración» en la cabecera. Se solicita una sola vez.</p>' +
       '<div class="admin-actions__form"' + (habilitado ? '' : ' hidden') + '>' +
       '<label for="adminAccionPropuesta">Propuesta sobre la que actuarás</label>' +
       '<select id="adminAccionPropuesta" class="admin-actions__select"></select>' +
@@ -384,7 +382,7 @@
         ? datos.actualizadoEnLocal : null};
     var servicio=window.TAAdminAccionesSeguras;
     if(!servicio || !servicio.autorizadoLocal || !servicio.autorizadoLocal()){
-      mostrarEstadoAccion(box,'Acceso administrativo no disponible. Utiliza el ingreso principal antes de editar.',true);
+      mostrarEstadoAccion(box,'Esta sesión no puede realizar decisiones académicas. No se guardó ningún cambio.',true);
       return;
     }
       ui.confirmar({
