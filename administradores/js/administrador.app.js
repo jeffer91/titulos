@@ -34,8 +34,8 @@
     iniciarModulos();
     ui.setText('#adminEstadoGeneral', 'Conectando');
 
-    // Autenticación no intrusiva: las consultas históricas mantienen su acceso,
-    // mientras las decisiones requieren una sesión autenticada con rol real.
+    // Detectar silenciosamente una sesión persistida, sin abrir ventanas
+    // ni solicitar ningún dato de acceso al administrador.
     var acciones = window.TAAdminAccionesSeguras;
     if (acciones && typeof acciones.prepararPanel === 'function') {
       acciones.prepararPanel().catch(function (error) {
@@ -60,9 +60,8 @@
         });
       }).catch(function (error) {
         estado.firebaseListo = false;
-        ui.setText('#adminEstadoGeneral', 'Acceso denegado');
-        var estadoLogin = document.getElementById('adminLoginMensaje');
-        if (estadoLogin) estadoLogin.textContent = obtenerMensaje(error, 'No autorizado');
+        ui.setText('#adminEstadoGeneral', 'Sin conexión');
+        console.warn('[Administrador] No se pudo iniciar el modo seguro:', error.codigo || error.message);
       });
       return;
     }
@@ -70,18 +69,14 @@
       .then(function () {
         estado.firebaseListo = true;
         estado.inicializado = true;
-        ui.setText('#adminEstadoGeneral', 'Conectado · consulta');
+        ui.setText('#adminEstadoGeneral', 'Conectado');
         return ejecutarNormalizacionAutomatica();
       })
       .then(function () {
         activarTab(obtenerTabInicial());
-        if (acciones && typeof acciones.estado === 'function') {
-          acciones.estado().then(function (autorizado) {
-            ui.setText('#adminEstadoGeneral',
-              autorizado ? 'Administrador autorizado' : 'Conectado · consulta');
-          }).catch(function () {
-            ui.setText('#adminEstadoGeneral', 'Conectado · consulta');
-          });
+        if (acciones && typeof acciones.autorizadoLocal === 'function' &&
+            acciones.autorizadoLocal()) {
+          ui.setText('#adminEstadoGeneral', 'Conectado');
         }
       })
       .catch(function (error) {
