@@ -6,10 +6,10 @@ const str=v=>String(v===undefined||v===null?'':v).replace(/\s+/g,' ').trim();
 const upper=v=>str(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
 function doc(snap){return snap&&snap.exists?{...snap.data(),id:snap.id}:null;}
 function tituloSeleccionado(t){
- const n=Number(t.tituloCoordinadorNumero||t.revisionCoordinador&&t.revisionCoordinador.tituloSeleccionadoNumero||0);
+ const n=Number(t.habilitadoInvestigacionPorAdmin&&t.tituloAdminSeleccionadoNumero||t.tituloCoordinadorNumero||t.revisionCoordinador&&t.revisionCoordinador.tituloSeleccionadoNumero||0);
  const list=Array.isArray(t.titulosEnviados)?t.titulosEnviados:[];
  const item=list.find(x=>Number(x.numero)===n);
- return str(t.tituloCoordinador||item&&(item.tituloFinal||item.titulo)||'');
+ return str(t.habilitadoInvestigacionPorAdmin&&t.tituloAdminSeleccionadoTexto||t.tituloCoordinador||item&&(item.tituloFinal||item.titulo)||'');
 }
 async function revisar(db,perfil,actor,body,h){
  if(!body||typeof body!=='object'||Array.isArray(body))fail(400,'REVISION_INVALIDA');

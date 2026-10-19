@@ -1,6 +1,6 @@
 'use strict';
 const periodos=require('./periodos-activos');
-const FIELDS=['id','cedula','numeroIdentificacion','nombres','carrera','carreraNombre','nombreCarrera','carreraCodigo','codigoCarrera','periodoId','periodoCanonicoId','periodoNombre','periodoLabel','tipoTrabajo','modalidadTitulacion','estado','estadoProceso','estadoCoordinador','estadoInvestigador','validadoCoordinador','validadoCoordinacion','coordinadorRevisado','revisionCoordinador','revisionInvestigador','investigacionRevisada','investigacionRevisadaEn','fechaValidacionCoordinador','fechaResolucionInvestigacion','fechaEnvio','fechaResolucion','creadoEn','actualizadoEnLocal','numeroEnvios','numeroReenvios','tituloPreferidoNumero','tituloCoordinadorNumero','tituloPreferidoTexto','tituloElegido','tituloCoordinador','tituloFinal','tituloFinalInvestigacion','resultadoCoordinador','resultadoInvestigacion','titulosEnviados','propuestasDetalle','titulo1','titulo2','titulo3','devueltoPor','observacionDevolucion','puedeReenviar','permitirReenvio'];
+const FIELDS=['id','cedula','numeroIdentificacion','nombres','carrera','carreraNombre','nombreCarrera','carreraCodigo','codigoCarrera','periodoId','periodoCanonicoId','periodoNombre','periodoLabel','tipoTrabajo','modalidadTitulacion','estado','estadoProceso','estadoCoordinador','estadoInvestigador','validadoCoordinador','validadoCoordinacion','coordinadorRevisado','revisionCoordinador','revisionInvestigador','investigacionRevisada','investigacionRevisadaEn','fechaValidacionCoordinador','fechaColaInvestigacion','fechaResolucionInvestigacion','fechaEnvio','fechaResolucion','creadoEn','actualizadoEnLocal','numeroEnvios','numeroReenvios','tituloPreferidoNumero','tituloCoordinadorNumero','tituloAdminSeleccionadoNumero','tituloAdminSeleccionadoTexto','habilitadoInvestigacionPorAdmin','revisionAdministrativa','tituloPreferidoTexto','tituloElegido','tituloCoordinador','tituloFinal','tituloFinalInvestigacion','resultadoCoordinador','resultadoInvestigacion','titulosEnviados','propuestasDetalle','titulo1','titulo2','titulo3','devueltoPor','observacionDevolucion','puedeReenviar','permitirReenvio'];
 const CARRERAS=['carrerasNombres','carreras','carrerasAsignadas','carrerasIds'];
 const CAMPOS=['carreraNombre','carrera','nombreCarrera','carreraCodigo','codigoCarrera'];
 const limpiar=x=>String(x===undefined||x===null?'':x).replace(/\s+/g,' ').trim();
@@ -54,7 +54,7 @@ function pendiente(t){
  return validado&&Array.isArray(t.titulosEnviados)&&t.titulosEnviados.length>0;
 }
 function fecha(t){
- const v=t.fechaValidacionCoordinador||t.revisionCoordinador&&t.revisionCoordinador.fechaLocal||t.revisadoEnLocal||t.fechaResolucion||t.fechaEnvio||t.creadoEn;
+ const v=t.fechaColaInvestigacion||t.fechaValidacionCoordinador||t.revisionCoordinador&&t.revisionCoordinador.fechaLocal||t.revisadoEnLocal||t.fechaResolucion||t.fechaEnvio||t.creadoEn;
  if(v&&typeof v.toDate==='function')return v.toDate().getTime();
  if(v&&typeof v.seconds==='number')return v.seconds*1000;
  return Date.parse(v||'')||Number.MAX_SAFE_INTEGER;

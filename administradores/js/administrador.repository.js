@@ -424,6 +424,13 @@
     });
   }
 
+  function intervenirTitulo(payload) {
+    var acciones = window.TAAdminAccionesSeguras;
+    if (!acciones || typeof acciones.decidir !== 'function')
+      return Promise.reject(new Error('No está disponible la autorización administrativa.'));
+    return acciones.decidir(payload);
+  }
+
   function normalizarDatosAutomaticamente() {
     if(modoSeguro())return seguro.noMigrado('normalización global de datos');
     var resultado = {
@@ -1341,6 +1348,7 @@
     listarEstudiantesConTitulos: listarEstudiantesConTitulos,
     obtenerDetalleEstudiante: obtenerDetalleEstudiante,
     archivarIntento: archivarIntento,
+    intervenirTitulo: intervenirTitulo,
     clasificarEstadoTitulo: clasificarEstadoTitulo,
     obtenerEtapaRevision: obtenerEtapaRevision,
     obtenerFaltantesRevision: obtenerFaltantesRevision,

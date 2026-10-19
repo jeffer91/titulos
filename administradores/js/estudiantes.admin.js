@@ -238,37 +238,192 @@
 
   function agregarAccionesDetalle(item) {
     var container = ui.qs('#detalleEstudianteContenido');
-
     if (!container) return;
-
-    var acciones = document.createElement('article');
-    acciones.className = 'detail-box';
-
-    var h3 = document.createElement('h3');
-    h3.textContent = 'Acciones administrativas';
-    acciones.appendChild(h3);
-
-    if (item.titulo && item.titulo.id) {
-      var p = document.createElement('p');
-      p.textContent = 'Puedes archivar el intento actual para permitir que el estudiante registre nuevamente sus títulos.';
-      acciones.appendChild(p);
-
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'btn btn--danger';
-      button.textContent = 'Archivar intento y permitir nuevo envío';
-      button.addEventListener('click', function () {
-        confirmarArchivarIntento(item);
-      });
-
-      acciones.appendChild(button);
-    } else {
-      var sinTitulo = document.createElement('p');
-      sinTitulo.textContent = 'El estudiante todavía no tiene un intento enviado para archivar.';
-      acciones.appendChild(sinTitulo);
-    }
-
+    var expediente = item.titulo || {};
+    var propuestas = Array.isArray(item.titulosEnviados) ? item.titulosEnviados : [];
+    var acciones = document.createElement('section');
+    acciones.className = 'detail-box admin-actions';
+    var aprobado = expediente.procesoCerrado === true ||
+      normalizarTexto(expediente.estadoProceso || expediente.estado) === 'APROBADO_FINAL';
+    acciones.innerHTML =
+      '<div class="admin-actions__head"><h3>Acciones administrativas</h3>' +
+      '<small>Intervenciones verificadas y registradas en el historial</small></div>' +
+      (!propuestas.length ? '<p>No hay títulos activos que puedan revisarse.</p>' :
+      '<div class="admin-actions__form">' +
+      '<label for="adminAccionPropuesta">Propuesta sobre la que actuarás</label>' +
+      '<select id="adminAccionPropuesta" class="admin-actions__select"></select>' +
+      '<label for="adminAccionMotivo">Justificación administrativa</label>' +
+      '<textarea id="adminAccionMotivo" rows="2" maxlength="1000" placeholder="Motivo de la intervención (mínimo 8 caracteres)"></textarea>' +
+      (aprobado ? '<label class="admin-reopen"><input id="adminReabrirAprobado" type="checkbox" /> ' +
+        'Confirmo que esta intervención reabrirá o reemplazará la aprobación vigente; conservar el historial anterior.</label>' : '') +
+      '<div id="adminAccionEditor" class="admin-actions__editor" hidden>' +
+        '<label for="adminAccionTituloCorregido">Título corregido</label>' +
+        '<textarea id="adminAccionTituloCorregido" rows="3" maxlength="260"></textarea>' +
+        '<button type="button" class="btn btn--primary" id="adminConfirmarTituloCorregido">Confirmar corrección y aprobación</button>' +
+      '</div>' +
+      '<div class="admin-actions__buttons">' +
+        '<button type="button" class="btn btn--primary" data-admin-decision="APROBAR">Aprobar título</button>' +
+        '<button type="button" class="btn btn--secondary" data-admin-decision="CORREGIR_APROBAR">Corregir y aprobar</button>' +
+        '<button type="button" class="btn btn--secondary" data-admin-decision="ENVIAR_COORDINACION">Enviar a Coordinación</button>' +
+        '<button type="button" class="btn btn--secondary" data-admin-decision="ENVIAR_INVESTIGACION">Enviar a Investigación</button>' +
+      '</div>' +
+      '<div class="admin-actions__access" id="adminAccesoAcciones">' +
+       '<strong>Autorización para decisiones académicas</strong>' +
+       '<p>Estas operaciones requieren una cuenta con rol administrador verificado en Firebase.</p>' +
+       '<form id="adminLoginAccionesForm" class="admin-actions__login">' +
+        '<input id="adminLoginAccionesEmail" type="email" required autocomplete="username" placeholder="Correo institucional" aria-label="Correo institucional" />' +
+        '<input id="adminLoginAccionesPassword" type="password" required autocomplete="current-password" placeholder="Contraseña" aria-label="Contraseña" />' +
+        '<button class="btn btn--primary" type="submit">Autorizar acciones</button>' +
+       '</form>' +
+       '<button type="button" id="adminCerrarAccionesSesion" class="btn btn--ghost" hidden>Cerrar sesión de intervenciones</button>' +
+      '</div>' +
+      '<p id="adminAccionResultado" role="status" class="admin-actions__status"></p>' +
+      '</div>') +
+      '<div class="admin-actions__archive">' +
+        '<small>Reinicio del envío</small>' +
+        '<button type="button" class="btn btn--danger" id="adminArchivarDesdeDetalle">Archivar intento y permitir nuevo envío</button>' +
+      '</div>';
     container.appendChild(acciones);
+    if (!propuestas.length) {
+      acciones.querySelector('.admin-actions__archive').hidden = true;
+      return;
+    }
+    var select = acciones.querySelector('#adminAccionPropuesta');
+    propuestas.forEach(function(p,index) {
+      var numero = Number(p.numero || index + 1);
+      var option = document.createElement('option');
+      option.value = String(numero);
+      option.textContent = 'Propuesta ' + numero +
+        (numero === Number(item.tituloPreferidoNumero) ? ' · Preferida' : '') +
+        ' — ' + String(p.tituloFinal || p.titulo || '').slice(0,90);
+      select.appendChild(option);
+    });
+    var elegido = Number(expediente.tituloAdminSeleccionadoNumero ||
+      expediente.tituloCoordinadorNumero || item.tituloPreferidoNumero || 1);
+    if(propuestas.some(function(p,i){return Number(p.numero || i+1) === elegido;}))
+      select.value=String(elegido);
+    var editor = acciones.querySelector('#adminAccionEditor');
+    var editText = acciones.querySelector('#adminAccionTituloCorregido');
+    function actualOriginal() {
+      var n=Number(select.value);
+      var p=propuestas.filter(function(v,i){return Number(v.numero||i+1)===n;})[0]||{};
+      return String(p.tituloFinal||p.titulo||'').trim();
+    }
+    editText.value=actualOriginal();
+    select.addEventListener('change',function(){editText.value=actualOriginal();});
+    acciones.querySelector('[data-admin-decision="CORREGIR_APROBAR"]').addEventListener('click',function(){
+      editor.hidden=false;
+      editText.focus();
+    });
+    acciones.querySelectorAll('[data-admin-decision]').forEach(function(button){
+      if(button.getAttribute('data-admin-decision')==='CORREGIR_APROBAR')return;
+      button.addEventListener('click',function(){
+        confirmarDecision(button.getAttribute('data-admin-decision'),item,acciones);
+      });
+    });
+    acciones.querySelector('#adminConfirmarTituloCorregido').addEventListener('click',function(){
+      confirmarDecision('CORREGIR_APROBAR',item,acciones);
+    });
+    acciones.querySelector('#adminArchivarDesdeDetalle').addEventListener('click',function(){
+      confirmarArchivarIntento(item);
+    });
+    var servicio=window.TAAdminAccionesSeguras;
+    var login=acciones.querySelector('#adminLoginAccionesForm');
+    var logout=acciones.querySelector('#adminCerrarAccionesSesion');
+    function estadoAcceso(autorizado) {
+      login.hidden=autorizado;
+      logout.hidden=!autorizado;
+      acciones.querySelector('#adminAccesoAcciones p').textContent=autorizado
+        ? 'Sesión iniciada. El servidor verificará el rol al ejecutar cada operación.'
+        : 'Inicia sesión con una cuenta que tenga rol administrador.';
+    }
+    if(servicio)servicio.estado().then(estadoAcceso).catch(function(e){
+      mostrarEstadoAccion(acciones,e.message,true);
+    });
+    login.addEventListener('submit',function(e){
+      e.preventDefault();
+      var email=acciones.querySelector('#adminLoginAccionesEmail').value;
+      var clave=acciones.querySelector('#adminLoginAccionesPassword').value;
+      var button=login.querySelector('button[type="submit"]');
+      ui.setLoading(button,true,'Autorizando...');
+      servicio.iniciarSesion(email,clave).then(function(){
+        acciones.querySelector('#adminLoginAccionesPassword').value='';
+        estadoAcceso(true);
+        mostrarEstadoAccion(acciones,'Cuenta administrativa autorizada.',false);
+      }).catch(function(error){mostrarEstadoAccion(acciones,obtenerMensaje(error,'Acceso rechazado.'),true);})
+        .finally(function(){ui.setLoading(button,false);});
+    });
+    logout.addEventListener('click',function(){
+      servicio.cerrar().then(function(){estadoAcceso(false);}).catch(function(error){
+        mostrarEstadoAccion(acciones,error.message,true);
+      });
+    });
+  }
+
+  function mostrarEstadoAccion(box,mensaje,esError){
+    var p=box.querySelector('#adminAccionResultado');
+    if(!p)return;
+    p.textContent=mensaje||'';
+    p.classList.toggle('is-error',Boolean(esError));
+  }
+
+  function confirmarDecision(accion,item,box){
+    var propuestaNumero=Number(box.querySelector('#adminAccionPropuesta').value||0);
+    var motivo=box.querySelector('#adminAccionMotivo').value.trim();
+    var reabrir=box.querySelector('#adminReabrirAprobado');
+    var reabrirAprobado=Boolean(reabrir&&reabrir.checked);
+    var corregido=accion==='CORREGIR_APROBAR'
+      ? box.querySelector('#adminAccionTituloCorregido').value.trim() : '';
+    if(motivo.length<8){
+      mostrarEstadoAccion(box,'Escribe una justificación de al menos 8 caracteres.',true);return;
+    }
+    if(reabrir&&!reabrirAprobado){
+      mostrarEstadoAccion(box,'Para modificar un expediente aprobado, marca la autorización de reapertura.',true);return;
+    }
+    if(reabrir&&motivo.length<15){
+      mostrarEstadoAccion(box,'La reapertura requiere un motivo de al menos 15 caracteres.',true);return;
+    }
+    if(accion==='CORREGIR_APROBAR'&&corregido.length<20){
+      mostrarEstadoAccion(box,'Escribe el título corregido (mínimo 20 caracteres).',true);return;
+    }
+    var nombres={
+      APROBAR:'Aprobar definitivamente',
+      CORREGIR_APROBAR:'Corregir y aprobar definitivamente',
+      ENVIAR_COORDINACION:'Enviar a Coordinación',
+      ENVIAR_INVESTIGACION:'Enviar a Investigación'
+    };
+    var actual=(item.titulosEnviados||[]).filter(function(p,i){
+      return Number(p.numero||i+1)===propuestaNumero;
+    })[0]||{};
+    var datos=item.titulo||{};
+    var body={tituloId:datos.id,accion:accion,motivo:motivo,
+      propuestaNumero:propuestaNumero,
+      tituloCorregido:corregido,reabrirAprobado:reabrirAprobado,
+      estadoEsperado:String(datos.estado||''),
+      procesoEsperado:String(datos.estadoProceso||''),
+      tituloOriginalEsperado:String(actual.tituloFinal||actual.titulo||'').trim(),
+      actualizacionEsperada:typeof datos.actualizadoEnLocal==='string'
+        ? datos.actualizadoEnLocal : null};
+    ui.confirmar({
+      titulo:nombres[accion]||'Confirmar acción administrativa',
+      mensaje:'Estudiante: '+item.nombres+'. '+(accion==='ENVIAR_COORDINACION'
+        ? 'Se reiniciará la revisión inicial.' : 'Propuesta '+propuestaNumero+'.')+
+        (reabrirAprobado?' Se conservará la aprobación anterior en el historial.':'')+
+        ' ¿Confirmas esta resolución?',
+      onConfirm:function(){
+        mostrarEstadoAccion(box,'Guardando decisión administrativa...',false);
+        repository.intervenirTitulo(body).then(function(){
+          ui.cerrarDetalleEstudiante();
+          window.dispatchEvent(new CustomEvent('admin:titulos-actualizados'));
+          return cargarEstudiantes();
+        }).then(function(){
+          ui.showStatus('#estudiantesMensaje','Intervención registrada: '+nombres[accion]+'.','success');
+        }).catch(function(error){
+          mostrarEstadoAccion(box,obtenerMensaje(error,'No se pudo guardar la intervención.'),true);
+          ui.showStatus('#estudiantesMensaje',obtenerMensaje(error,'No se pudo guardar la intervención.'),'error');
+        });
+      }
+    });
   }
 
   function confirmarArchivarIntento(item) {

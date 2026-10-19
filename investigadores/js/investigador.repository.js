@@ -282,7 +282,8 @@
     var estado = String(data.estado || 'PENDIENTE_REVISION').toUpperCase();
     var proceso = String(data.estadoProceso || '').toUpperCase();
     var estadoCoord = String(data.estadoCoordinador || '').toUpperCase();
-    if (!estadoCoord && (data.validadoCoordinador === true || estado === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR')) estadoCoord = 'VALIDADO';
+    if (!estadoCoord && data.habilitadoInvestigacionPorAdmin !== true &&
+        (data.validadoCoordinador === true || estado === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR')) estadoCoord = 'VALIDADO';
 
     return {
       id: data.id || data._docId || '',
@@ -294,6 +295,7 @@
       periodoLabel: limpiar(data.periodoNombre || data.periodoLabel || data.periodoId || data.periodoCanonicoId || ''),
       fechaEnvio: fechaIso(data.fechaEnvio || data.actualizadoEnLocal || data.creadoEn || data.actualizadoEn),
       fechaColaInvestigacion: fechaIso(
+        data.fechaColaInvestigacion ||
         data.fechaValidacionCoordinador ||
         (data.revisionCoordinador && (data.revisionCoordinador.fechaLocal || data.revisionCoordinador.fechaValidacion || data.revisionCoordinador.fechaRevision)) ||
         data.revisadoEnLocal ||
@@ -320,6 +322,10 @@
       estadoCoordinador: estadoCoord,
       tituloPreferidoNumero: preferido,
       tituloCoordinadorNumero: Number(data.tituloCoordinadorNumero || (data.revisionCoordinador && data.revisionCoordinador.tituloSeleccionadoNumero) || 0),
+      tituloAdminSeleccionadoNumero: Number(data.tituloAdminSeleccionadoNumero || 0),
+      tituloAdminSeleccionadoTexto: limpiar(data.tituloAdminSeleccionadoTexto || ''),
+      habilitadoInvestigacionPorAdmin: data.habilitadoInvestigacionPorAdmin === true,
+      revisionAdministrativa: data.revisionAdministrativa || null,
       resultadoCoordinador: limpiar(data.resultadoCoordinador || (data.revisionCoordinador && data.revisionCoordinador.resultado) || ''),
       tituloPreferidoTexto: limpiar(data.tituloPreferidoTexto || data.tituloElegido || data.tituloCoordinador || preferida.tituloFinal || ''),
       tituloElegido: limpiar(data.tituloElegido || ''),
