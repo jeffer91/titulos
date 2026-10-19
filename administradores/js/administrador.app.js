@@ -30,9 +30,7 @@
   document.addEventListener('DOMContentLoaded', iniciar);
 
   function iniciar() {
-    conectarEventosBase();
-    iniciarModulos();
-
+    // No iniciar módulos ni conectar acciones hasta validar la identidad.
     ui.setText('#adminEstadoGeneral', 'Conectando');
 
     var seguro = window.TAAdministradorSeguro;
@@ -45,6 +43,8 @@
         return repository.iniciarFirebase().then(function () {
           estado.firebaseListo = true;
           estado.inicializado = true;
+          conectarEventosBase();
+          iniciarModulos();
           document.body.classList.remove('admin-auth-pending');
           ui.setText('#adminEstadoGeneral', 'Acceso verificado');
           activarTab(obtenerTabInicial());
@@ -79,6 +79,8 @@
       return repository.iniciarFirebase().then(function () {
         estado.firebaseListo = true;
         estado.inicializado = true;
+        conectarEventosBase();
+        iniciarModulos();
         ui.setText('#adminEstadoGeneral', 'Administrador verificado');
         return ejecutarNormalizacionAutomatica();
       }).then(function () {
