@@ -48,7 +48,8 @@ function dbMemoria(overrides={}){
 }
 function payload(accion,extra={}){
  return {tituloId:'e1',accion,motivo:'Resolución administrativa debidamente justificada',
-  propuestaNumero:2,...extra};
+  propuestaNumero:2,estadoEsperado:'PENDIENTE_REVISION',procesoEsperado:'PENDIENTE_COORDINADOR',
+  tituloOriginalEsperado:'Título segundo sin modificar',...extra};
 }
 test('aprueba la propuesta seleccionada sin inventar revisiones de otras personas',async()=>{
  const db=dbMemoria();
@@ -80,7 +81,7 @@ test('enviar a Coordinación reinicia únicamente la ronda activa y guarda su hi
    estado:'DEVUELTO',estadoProceso:'DEVUELTO',estadoCoordinador:'DEVUELTO',
    revisionCoordinador:{estado:'DEVUELTO'},coordinadorRevisado:true
  }}});
- await revisar(db,ADMIN,payload('ENVIAR_COORDINACION'));
+ await revisar(db,ADMIN,payload('ENVIAR_COORDINACION',{estadoEsperado:'DEVUELTO',procesoEsperado:'DEVUELTO'}));
  const e=db.tables.envios.get('e1');
  assert.equal(e.estadoProceso,'PENDIENTE_COORDINADOR');
  assert.equal(e.estadoCoordinador,'PENDIENTE');
@@ -94,7 +95,7 @@ test('remisión excepcional a Investigación no inventa aprobación de coordinad
    estadoProceso:'DEVUELTO',estadoCoordinador:'DEVUELTO',
    revisionCoordinador:{estado:'DEVUELTO'},coordinadorRevisado:true
  }}});
- await revisar(db,ADMIN,payload('ENVIAR_INVESTIGACION'));
+ await revisar(db,ADMIN,payload('ENVIAR_INVESTIGACION',{estadoEsperado:'DEVUELTO',procesoEsperado:'DEVUELTO'}));
  const e=db.tables.envios.get('e1');
  assert.equal(e.estadoProceso,'PENDIENTE_INVESTIGADOR');
  assert.equal(e.habilitadoInvestigacionPorAdmin,true);
@@ -109,9 +110,9 @@ test('protege títulos aprobados hasta reapertura expresamente confirmada',async
  const db=dbMemoria({envios:{e1:{...original,estado:'APROBADO_FINAL',
     estadoProceso:'APROBADO_FINAL',procesoCerrado:true,tituloFinal:'Título primero sin modificar'
  }}});
- await assert.rejects(()=>revisar(db,ADMIN,payload('ENVIAR_COORDINACION')),
+ await assert.rejects(()=>revisar(db,ADMIN,payload('ENVIAR_COORDINACION',{estadoEsperado:'APROBADO_FINAL',procesoEsperado:'APROBADO_FINAL'})),
    error=>error.code==='APROBADO_REQUIERE_REAPERTURA_EXPLICITA');
- await revisar(db,ADMIN,payload('ENVIAR_COORDINACION',{reabrirAprobado:true}));
+ await revisar(db,ADMIN,payload('ENVIAR_COORDINACION',{estadoEsperado:'APROBADO_FINAL',procesoEsperado:'APROBADO_FINAL',reabrirAprobado:true}));
  assert.equal(db.tables.envios.get('e1').tituloFinal,null);
  assert.equal(db.tables.versiones_envio.size,1);
 });
@@ -126,4 +127,22 @@ test('no remite a Coordinación sin asignación activa para la carrera',async()=
  const db=dbMemoria({coordinadores:{c1:{activo:false,carreras:['Marketing']}}});
  await assert.rejects(()=>revisar(db,ADMIN,payload('ENVIAR_COORDINACION')),
    error=>error.code==='COORDINADOR_NO_ASIGNADO');
+});
+
+test('rechaza una decisión basada en una ficha anterior sin mutar el envío',async()=>{
+ const db=dbMemoria();
+ await revisar(db,ADMIN,payload('APROBAR'));
+ const aprobado=db.tables.envios.get('e1');
+ await assert.rejects(()=>revisar(db,ADMIN,payload('ENVIAR_COORDINACION')),
+   error=>error.code==='FICHA_DESACTUALIZADA');
+ assert.equal(db.tables.envios.get('e1').estadoProceso,'APROBADO_FINAL');
+ assert.deepEqual(db.tables.envios.get('e1'),aprobado);
+ assert.equal(db.tables.versiones_envio.size,1);
+});
+test('rechaza un título que cambió mientras el administrador tenía la ficha abierta',async()=>{
+ const db=dbMemoria();
+ db.tables.envios.get('e1').titulosEnviados[1].tituloFinal='Otro título actualizado';
+ await assert.rejects(()=>revisar(db,ADMIN,payload('APROBAR')),
+  error=>error.code==='FICHA_DESACTUALIZADA');
+ assert.equal(db.tables.versiones_envio.size,0);
 });
