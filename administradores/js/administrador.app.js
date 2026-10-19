@@ -75,6 +75,14 @@
       })
       .then(function () {
         activarTab(obtenerTabInicial());
+        if (acciones && typeof acciones.estado === 'function') {
+          acciones.estado().then(function (autorizado) {
+            ui.setText('#adminEstadoGeneral',
+              autorizado ? 'Administrador autorizado' : 'Conectado · consulta');
+          }).catch(function () {
+            ui.setText('#adminEstadoGeneral', 'Conectado · consulta');
+          });
+        }
       })
       .catch(function (error) {
         estado.firebaseListo = false;
