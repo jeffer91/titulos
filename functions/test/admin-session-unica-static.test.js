@@ -6,43 +6,40 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'../..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
-test('no hay autorización duplicada dentro del expediente',()=>{
- const src=read('administradores/js/estudiantes.admin.js');
- for(const v of ['adminLoginAccionesForm','adminLoginAccionesEmail','adminLoginAccionesPassword',
-  'adminCerrarAccionesSesion','adminAccesoAcciones'])
-   assert.equal(src.includes(v),false,'No debe estar: '+v);
- for(const action of ['APROBAR','CORREGIR_APROBAR','ENVIAR_COORDINACION','ENVIAR_INVESTIGACION'])
-   assert.ok(src.includes(action),'Falta '+action);
- assert.match(src,/repository\.intervenirTitulo\(body\)/);
- assert.match(src,/servicio\.autorizadoLocal\(\)/);
- assert.equal(src.includes('adminConfirmarTituloCorregido'),false);
- assert.match(src,/corregir\.textContent = 'Confirmar corrección y aprobación'/);
- assert.match(src,/admin-actions__form/);
- assert.match(src,/mostrarEstadoAccion/);
-});
-
-test('el administrador puede abrir sus consultas sin una sesión privilegiada',()=>{
+test('administración sin campos, ventanas ni botones de acceso',()=>{
  const html=read('administradores/administrador.html');
- const app=read('administradores/js/administrador.app.js');
- const auth=read('administradores/js/admin.actions.service.js');
+ const s=read('administradores/js/admin.actions.service.js');
+ for(const texto of ['id="adminLoginSeguro"','id="adminLoginSeguroForm"',
+  'id="adminLoginCorreo"','id="adminLoginClave"',
+  'id="adminIniciarSesionPrincipal"','id="adminCerrarSesionPrincipal"',
+  'autocomplete="current-password"']){
+  assert.ok(!html.includes(texto),'No debe existir: '+texto);
+ }
+ for(const token of ['signInWithEmailAndPassword','Inicia sesión','iniciar sesión',
+  'Acceso de Administración','adminLoginCorreo','adminLoginSeguro']){
+  assert.equal(s.includes(token),false,'No debe solicitar acceso: '+token);
+ }
  assert.match(html,/<body>/);
- assert.doesNotMatch(html,/<body class="admin-auth-pending">/);
- assert.match(html,/id="adminIniciarSesionPrincipal"/);
- assert.match(html,/id="adminCerrarSesionPrincipal"/);
- assert.match(html,/id="adminCancelarLogin"/);
- assert.match(app,/conectarEventosBase\(\)/);
- assert.match(app,/iniciarModulos\(\)/);
- assert.match(app,/acciones\.prepararPanel\(\)/);
- assert.match(auth,/var rolVerificado = false/);
 });
 
-test('las decisiones aún exigen token y rol de administrador comprobados por API',()=>{
- const auth=read('administradores/js/admin.actions.service.js');
- assert.match(auth,/solicitar\('sesion', 'GET'\)/);
- assert.match(auth,/solicitar\('envios\/decision', 'POST', body\)/);
- assert.match(auth,/Authorization: 'Bearer ' \+ token/);
- assert.match(auth,/payload\.usuario\.rol !== 'administrador'/);
- assert.match(auth,/payload\.usuario\.uid/);
- assert.match(auth,/payload\.ok !== true/);
- assert.equal(auth.includes('signInAnonymously'),false);
+test('editor académico oculta acciones si no hay sesión validada',()=>{
+ const s=read('administradores/js/estudiantes.admin.js');
+ assert.match(s,/sesion\.autorizadoLocal\(\)/);
+ assert.match(s,/admin-actions__form/);
+ assert.match(s,/habilitado \? '' : ' hidden'/);
+ assert.match(s,/repository\.intervenirTitulo\(body\)/);
+ assert.equal(s.includes('admin-actions__read-only'),false);
+ assert.equal(s.includes('adminConfirmarTituloCorregido'),false);
+ for(const action of ['APROBAR','CORREGIR_APROBAR','ENVIAR_COORDINACION','ENVIAR_INVESTIGACION'])
+  assert.ok(s.includes(action));
+});
+test('backend conserva autorización obligatoria por token y rol',()=>{
+ const service=read('administradores/js/admin.actions.service.js');
+ const backend=read('functions/shared/security.js');
+ assert.match(service,/Authorization: 'Bearer ' \+ token/);
+ assert.match(service,/solicitar\('sesion', 'GET'\)/);
+ assert.match(service,/solicitar\('envios\/decision', 'POST', body\)/);
+ assert.match(service,/rol === 'administrador'/);
+ assert.match(backend,/verifyIdToken\(token,true\)/);
+ assert.match(backend,/ROL_NO_AUTORIZADO/);
 });
