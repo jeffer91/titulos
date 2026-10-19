@@ -26,7 +26,8 @@ test('editor académico oculta acciones si no hay sesión validada',()=>{
  const s=read('administradores/js/estudiantes.admin.js');
  assert.match(s,/sesion\.autorizadoLocal\(\)/);
  assert.match(s,/admin-actions__form/);
- assert.match(s,/habilitado \? '' : ' hidden'/);
+ assert.match(s,/button\.disabled = true/);
+ assert.match(s,/admin-actions__availability/);
  assert.match(s,/repository\.intervenirTitulo\(body\)/);
  assert.equal(s.includes('admin-actions__read-only'),false);
  assert.equal(s.includes('adminConfirmarTituloCorregido'),false);
