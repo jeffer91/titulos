@@ -87,79 +87,101 @@
     return conectar().then(function () { return auth.signOut(); });
   }
 
-  /* Reutiliza la pantalla de ingreso que ya existe al inicio del administrador,
-     sin construir un segundo formulario dentro del expediente de un estudiante. */
-  function iniciarPanel() {
-    document.body.classList.add('admin-auth-pending');
+  // La consulta del panel histórico sigue disponible; solo los actos
+  // académicos exigen un token y rol administrador verificados por la API.
+  var rolVerificado = false;
+  function prepararPanel() {
     var panel = document.getElementById('adminLoginSeguro');
     var form = document.getElementById('adminLoginSeguroForm');
     var mensaje = document.getElementById('adminLoginMensaje');
-    var salir = document.getElementById('adminSalirSeguro');
-    var salirCabecera = document.getElementById('adminCerrarSesionPrincipal');
-    if (!panel || !form) return Promise.reject(error('PANTALLA_ACCESO_FALTANTE'));
-    panel.hidden = false;
+    var abrir = document.getElementById('adminIniciarSesionPrincipal');
+    var cerrar = document.getElementById('adminCerrarSesionPrincipal');
+    var regresar = document.getElementById('adminCancelarLogin');
+    if (!panel || !form || !abrir || !cerrar) return Promise.resolve(false);
+    panel.hidden = true;
+    var mostrarAcceso = function () {
+      panel.hidden = false;
+      var correo = document.getElementById('adminLoginCorreo');
+      if (correo) correo.focus();
+    };
+    function vistaAutorizada(activo) {
+      rolVerificado = Boolean(activo);
+      abrir.hidden = rolVerificado;
+      cerrar.hidden = !rolVerificado;
+      if (rolVerificado) panel.hidden = true;
+      var estado = document.getElementById('adminEstadoGeneral');
+      if (estado) estado.textContent = rolVerificado
+        ? 'Administrador autorizado' : 'Conectado · consulta';
+    }
     if (!form.dataset.accionesLinked) {
       form.dataset.accionesLinked = '1';
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
+      abrir.addEventListener('click', mostrarAcceso);
+      if (regresar) regresar.addEventListener('click', function () { panel.hidden = true; });
+      cerrar.addEventListener('click', function () {
+        rolVerificado = false;
+        cerrarSesion().then(function () {
+          vistaAutorizada(false);
+        }).catch(function (e) {
+          if (mensaje) mensaje.textContent = e.message;
+        });
+      });
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
         var correo = document.getElementById('adminLoginCorreo');
         var clave = document.getElementById('adminLoginClave');
         var boton = form.querySelector('button[type="submit"]');
         if (boton) boton.disabled = true;
-        if (mensaje) mensaje.textContent = 'Verificando identidad y permisos administrativos...';
+        if (mensaje) mensaje.textContent = 'Comprobando cuenta administrativa...';
         conectar().then(function () {
           return auth.signInWithEmailAndPassword(correo.value.trim(), clave.value);
         }).then(function () {
           return solicitar('sesion', 'GET');
-        }).then(function () {
+        }).then(function (identidad) {
+          if (!identidad || identidad.rol !== 'administrador')
+            throw error('ROL_NO_AUTORIZADO', 'Tu cuenta no tiene permisos de Administración.');
           if (clave) clave.value = '';
-          window.location.reload();
+          if (mensaje) mensaje.textContent = '';
+          vistaAutorizada(true);
         }).catch(function (e) {
           if (clave) clave.value = '';
-          if (mensaje) mensaje.textContent = e.message ||
-            'No se pudo validar tu cuenta de Administración.';
+          vistaAutorizada(false);
+          if (mensaje) mensaje.textContent = e.message || 'No se pudo autorizar esta cuenta.';
         }).finally(function () {
           if (boton) boton.disabled = false;
         });
       });
-      var salirSesion = function () {
-        cerrar().then(function () { window.location.reload(); })
-          .catch(function (e) { if (mensaje) mensaje.textContent = e.message; });
-      };
-      if (salir) salir.addEventListener('click', salirSesion);
-      if (salirCabecera) salirCabecera.addEventListener('click', salirSesion);
     }
+    // La ausencia de Auth no impide consultar el panel, pero sí decidir.
     return conectar().then(function (usuario) {
-      if (!usuario) {
-        form.hidden = false;
-        if (salir) salir.hidden = true;
-        if (mensaje) mensaje.textContent = 'Ingresa con tu correo institucional y contraseña de Administración.';
-        return false;
-      }
-      return solicitar('sesion', 'GET').then(function (usuarioVerificado) {
-        if (!usuarioVerificado || usuarioVerificado.rol !== 'administrador')
-          throw error('ROL_ADMINISTRADOR_NO_VERIFICADO', 'Acceso administrativo no autorizado.');
-        panel.hidden = true;
-        document.body.classList.remove('admin-auth-pending');
-        if (mensaje) mensaje.textContent = '';
-        if (salirCabecera) salirCabecera.hidden = false;
-        return true;
-      }).catch(function (e) {
-        form.hidden = false;
-        if (salir) salir.hidden = false;
-        if (mensaje) mensaje.textContent = e.message ||
-          'La cuenta no tiene el rol de administrador verificado.';
+      if (!usuario) { vistaAutorizada(false); return false; }
+      return solicitar('sesion', 'GET').then(function (identidad) {
+        vistaAutorizada(Boolean(identidad && identidad.rol === 'administrador'));
+        return rolVerificado;
+      }).catch(function () {
+        vistaAutorizada(false);
         return false;
       });
-    }).catch(function (e) {
-      form.hidden = false;
-      if (mensaje) mensaje.textContent = e.message;
+    }).catch(function () {
+      vistaAutorizada(false);
       return false;
     });
   }
+  function cerrarSesion() {
+    return conectar().then(function () { return auth.signOut(); });
+  }
+  function estadoAutorizado() {
+    if (rolVerificado) return Promise.resolve(true);
+    return conectar().then(function (usuario) {
+      if (!usuario) return false;
+      return solicitar('sesion', 'GET').then(function (identidad) {
+        rolVerificado = Boolean(identidad && identidad.rol === 'administrador');
+        return rolVerificado;
+      }).catch(function () { return false; });
+    }).catch(function () { return false; });
+  }
   window.TAAdminAccionesSeguras = Object.freeze({
-    conectar: conectar, iniciarPanel: iniciarPanel, estado: estado,
-    cerrar: cerrar,
+    conectar: conectar, prepararPanel: prepararPanel,
+    estado: estadoAutorizado, cerrar: cerrarSesion,
     decidir: function (body) { return solicitar('envios/decision', 'POST', body); }
   });
 })();
