@@ -260,7 +260,7 @@
       '<small>Intervenciones verificadas y registradas en el historial</small></div>' +
       (!propuestas.length ? '<p>No hay títulos activos que puedan revisarse.</p>' :
       '<p class="admin-actions__read-only"' + (habilitado ? ' hidden' : '') +
-      '>Modo consulta. Para habilitar decisiones académicas, utiliza el acceso de Administración en la cabecera.</p>' +
+      '>Para aprobar o corregir títulos, cierra el expediente e ingresa desde «Acceso de Administración» en la cabecera. Se solicita una sola vez.</p>' +
       '<div class="admin-actions__form"' + (habilitado ? '' : ' hidden') + '>' +
       '<label for="adminAccionPropuesta">Propuesta sobre la que actuarás</label>' +
       '<select id="adminAccionPropuesta" class="admin-actions__select"></select>' +
