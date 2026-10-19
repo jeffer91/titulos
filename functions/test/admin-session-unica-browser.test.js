@@ -30,8 +30,8 @@ function entorno({logueado=true,otraSesion=false,externa=false,
  authFactory.Auth={Persistence:{SESSION:'SESSION'}};
  const firebase={
   apps:(otraSesion?[otra]:[]).concat(externa?[ajena]:[]),
-  initializeApp:()=>dedicada,
-  app:()=>dedicada,
+  initializeApp:(_cfg,nombre)=>nombre==='ta-admin-titulos'?otra:dedicada,
+  app:nombre=>nombre==='ta-admin-titulos'?otra:dedicada,
   auth:authFactory
  };
  const window={
