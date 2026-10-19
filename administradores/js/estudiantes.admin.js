@@ -267,16 +267,6 @@
         '<button type="button" class="btn btn--secondary" data-admin-decision="ENVIAR_COORDINACION">Enviar a Coordinación</button>' +
         '<button type="button" class="btn btn--secondary" data-admin-decision="ENVIAR_INVESTIGACION">Enviar a Investigación</button>' +
       '</div>' +
-      '<div class="admin-actions__access" id="adminAccesoAcciones">' +
-       '<strong>Autorización para decisiones académicas</strong>' +
-       '<p>Estas operaciones requieren una cuenta con rol administrador verificado en Firebase.</p>' +
-       '<form id="adminLoginAccionesForm" class="admin-actions__login">' +
-        '<input id="adminLoginAccionesEmail" type="email" required autocomplete="username" placeholder="Correo institucional" aria-label="Correo institucional" />' +
-        '<input id="adminLoginAccionesPassword" type="password" required autocomplete="current-password" placeholder="Contraseña" aria-label="Contraseña" />' +
-        '<button class="btn btn--primary" type="submit">Autorizar acciones</button>' +
-       '</form>' +
-       '<button type="button" id="adminCerrarAccionesSesion" class="btn btn--ghost" hidden>Cerrar sesión de intervenciones</button>' +
-      '</div>' +
       '<p id="adminAccionResultado" role="status" class="admin-actions__status"></p>' +
       '</div>') +
       '<div class="admin-actions__archive">' +
@@ -327,37 +317,6 @@
     acciones.querySelector('#adminArchivarDesdeDetalle').addEventListener('click',function(){
       confirmarArchivarIntento(item);
     });
-    var servicio=window.TAAdminAccionesSeguras;
-    var login=acciones.querySelector('#adminLoginAccionesForm');
-    var logout=acciones.querySelector('#adminCerrarAccionesSesion');
-    function estadoAcceso(autorizado) {
-      login.hidden=autorizado;
-      logout.hidden=!autorizado;
-      acciones.querySelector('#adminAccesoAcciones p').textContent=autorizado
-        ? 'Sesión iniciada. El servidor verificará el rol al ejecutar cada operación.'
-        : 'Inicia sesión con una cuenta que tenga rol administrador.';
-    }
-    if(servicio)servicio.estado().then(estadoAcceso).catch(function(e){
-      mostrarEstadoAccion(acciones,e.message,true);
-    });
-    login.addEventListener('submit',function(e){
-      e.preventDefault();
-      var email=acciones.querySelector('#adminLoginAccionesEmail').value;
-      var clave=acciones.querySelector('#adminLoginAccionesPassword').value;
-      var button=login.querySelector('button[type="submit"]');
-      ui.setLoading(button,true,'Autorizando...');
-      servicio.iniciarSesion(email,clave).then(function(){
-        acciones.querySelector('#adminLoginAccionesPassword').value='';
-        estadoAcceso(true);
-        mostrarEstadoAccion(acciones,'Cuenta administrativa autorizada.',false);
-      }).catch(function(error){mostrarEstadoAccion(acciones,obtenerMensaje(error,'Acceso rechazado.'),true);})
-        .finally(function(){ui.setLoading(button,false);});
-    });
-    logout.addEventListener('click',function(){
-      servicio.cerrar().then(function(){estadoAcceso(false);}).catch(function(error){
-        mostrarEstadoAccion(acciones,error.message,true);
-      });
-    });
   }
 
   function mostrarEstadoAccion(box,mensaje,esError){
@@ -404,7 +363,20 @@
       tituloOriginalEsperado:String(actual.tituloFinal||actual.titulo||'').trim(),
       actualizacionEsperada:typeof datos.actualizadoEnLocal==='string'
         ? datos.actualizadoEnLocal : null};
-    ui.confirmar({
+    var servicio=window.TAAdminAccionesSeguras;
+    if(!servicio || typeof servicio.estado!=='function'){
+      mostrarEstadoAccion(box,'Servicio de decisiones no disponible. Actualiza la página.',true);
+      return;
+    }
+    servicio.estado().then(function(autorizado){
+      if(!autorizado){
+        mostrarEstadoAccion(box,
+          'Para guardar una decisión académica, inicia sesión una sola vez desde la cabecera del administrador.',true);
+        var iniciar=document.getElementById('adminIniciarSesionPrincipal');
+        if(iniciar){iniciar.hidden=false;iniciar.focus();}
+        return;
+      }
+      ui.confirmar({
       titulo:nombres[accion]||'Confirmar acción administrativa',
       mensaje:'Estudiante: '+item.nombres+'. '+(accion==='ENVIAR_COORDINACION'
         ? 'Se reiniciará la revisión inicial.' : 'Propuesta '+propuestaNumero+'.')+
@@ -423,6 +395,9 @@
           ui.showStatus('#estudiantesMensaje',obtenerMensaje(error,'No se pudo guardar la intervención.'),'error');
         });
       }
+      });
+    }).catch(function(error){
+      mostrarEstadoAccion(box,obtenerMensaje(error,'No se pudo validar tu sesión.'),true);
     });
   }
 

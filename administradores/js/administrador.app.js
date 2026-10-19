@@ -32,8 +32,16 @@
   function iniciar() {
     conectarEventosBase();
     iniciarModulos();
-
     ui.setText('#adminEstadoGeneral', 'Conectando');
+
+    // Autenticación no intrusiva: las consultas históricas mantienen su acceso,
+    // mientras las decisiones requieren una sesión autenticada con rol real.
+    var acciones = window.TAAdminAccionesSeguras;
+    if (acciones && typeof acciones.prepararPanel === 'function') {
+      acciones.prepararPanel().catch(function (error) {
+        console.warn('[Administrador] No se pudo comprobar la sesión:', error.codigo || error.message);
+      });
+    }
 
     var seguro = window.TAAdministradorSeguro;
     if (seguro && seguro.activo && seguro.activo()) {
@@ -58,31 +66,33 @@
       });
       return;
     }
-
     repository.iniciarFirebase()
       .then(function () {
         estado.firebaseListo = true;
         estado.inicializado = true;
-
-        ui.setText('#adminEstadoGeneral', 'Conectado');
-
+        ui.setText('#adminEstadoGeneral', 'Conectado · consulta');
         return ejecutarNormalizacionAutomatica();
       })
       .then(function () {
         activarTab(obtenerTabInicial());
+        if (acciones && typeof acciones.estado === 'function') {
+          acciones.estado().then(function (autorizado) {
+            ui.setText('#adminEstadoGeneral',
+              autorizado ? 'Administrador autorizado' : 'Conectado · consulta');
+          }).catch(function () {
+            ui.setText('#adminEstadoGeneral', 'Conectado · consulta');
+          });
+        }
       })
       .catch(function (error) {
         estado.firebaseListo = false;
         estado.inicializado = true;
-
         ui.setText('#adminEstadoGeneral', 'Sin conexión');
-
         ui.showStatus('#inicioMensaje', {
           titulo: 'No se pudo iniciar administrador',
           mensaje: 'No se pudo conectar correctamente con Firebase.',
           detalle: obtenerMensaje(error, config.textos.firebaseError || 'Error desconocido.')
         }, 'error');
-
         activarTab(obtenerTabInicial(), false);
       });
   }
