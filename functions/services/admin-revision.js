@@ -120,8 +120,11 @@ async function revisar(db,actor,body){
       tituloAdminSeleccionadoNumero:numero,tituloAdminSeleccionadoTexto:final,
       habilitadoInvestigacionPorAdmin:true,fechaResolucionInvestigacion:null,
       fechaColaInvestigacion:ahora});
-    // No se marca validadoCoordinador ni se inventa revisionCoordinador.
-    if(aprobado){Object.assign(cambios,{revisionCoordinador:null,estadoCoordinador:'PENDIENTE',
+    // Se conservan validaciones reales de Coordinación cuando existen;
+    // devoluciones o revisiones inexistentes dejan de bloquear la cola nueva.
+    const coordValida=['VALIDADO','APROBADO','APROBADO_CON_OBSERVACION'].includes(
+      clave(antes.estadoCoordinador||antes.revisionCoordinador&&antes.revisionCoordinador.estado));
+    if(aprobado||!coordValida){Object.assign(cambios,{revisionCoordinador:null,estadoCoordinador:'PENDIENTE',
       validadoCoordinador:false,validadoCoordinacion:false,coordinadorRevisado:false,
       tituloCoordinador:null,tituloCoordinadorNumero:null,resultadoCoordinador:null});}
   }
