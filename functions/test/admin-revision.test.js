@@ -193,3 +193,42 @@ test('la derivación desde Administración llega a aprobación real de Investiga
  assert.equal(final.revisionInvestigador.estado,'APROBADO');
  assert.equal(final.aprobadoPorAdministracion,false);
 });
+
+test('administrador puede cambiar un título ya aprobado por otra propuesta',async()=>{
+ const base=dbMemoria().tables.envios.get('e1');
+ const db=dbMemoria({envios:{e1:{...base,estado:'APROBADO_FINAL',
+   estadoProceso:'APROBADO_FINAL',procesoCerrado:true,
+   tituloFinal:'Título primero sin modificar',tituloCoordinadorNumero:1
+ }}});
+ const res=await revisar(db,ADMIN,payload('APROBAR',{
+   estadoEsperado:'APROBADO_FINAL',procesoEsperado:'APROBADO_FINAL',
+   reabrirAprobado:true,propuestaNumero:3,tituloOriginalEsperado:'Título tercero sin modificar'
+ }));
+ const e=db.tables.envios.get('e1');
+ assert.equal(res.estado,'APROBADO_FINAL');
+ assert.equal(e.tituloFinal,'Título tercero sin modificar');
+ assert.equal(e.tituloAdminSeleccionadoNumero,3);
+ assert.equal(e.tituloPreferidoNumero,1);
+ assert.equal(e.procesoCerrado,true);
+ assert.equal(db.tables.versiones_envio.size,1);
+ const previo=[...db.tables.versiones_envio.values()][0];
+ assert.equal(previo.tituloFinalAnterior,'Título primero sin modificar');
+});
+test('administrador puede devolver un título aprobado a Investigación conservando el anterior',async()=>{
+ const base=dbMemoria().tables.envios.get('e1');
+ const db=dbMemoria({envios:{e1:{...base,estado:'APROBADO_FINAL',
+  estadoProceso:'APROBADO_FINAL',procesoCerrado:true,
+  tituloFinal:'Título primero sin modificar'
+ }}});
+ await revisar(db,ADMIN,payload('ENVIAR_INVESTIGACION',{
+  estadoEsperado:'APROBADO_FINAL',procesoEsperado:'APROBADO_FINAL',reabrirAprobado:true
+ }));
+ const e=db.tables.envios.get('e1');
+ assert.equal(e.estadoProceso,'PENDIENTE_INVESTIGADOR');
+ assert.equal(e.habilitadoInvestigacionPorAdmin,true);
+ assert.equal(e.tituloFinal,null);
+ assert.equal(e.tituloAdminSeleccionadoNumero,2);
+ assert.equal(e.revisionInvestigador,null);
+ assert.equal(db.tables.versiones_envio.size,1);
+ assert.equal([...db.tables.versiones_envio.values()][0].tituloFinalAnterior,'Título primero sin modificar');
+});
