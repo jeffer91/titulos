@@ -63,9 +63,17 @@
       });
     }).then(function (resp) {
       return resp.json().then(function (payload) {
-        if (!resp.ok || payload.ok === false)
-          throw error(payload.codigo || 'ADMIN_API_ERROR',
-            'No se pudo validar la autorización (' + (payload.codigo || resp.status) + ').');
+        if (!resp.ok || !payload || payload.ok !== true)
+          throw error(payload && payload.codigo || 'ADMIN_API_ERROR',
+            'No se pudo validar la autorización (' + (payload && payload.codigo || resp.status) + ').');
+        // /sesion devuelve la identidad en usuario, no en data.
+        // Comprobar la identidad autenticada antes de mostrar el panel.
+        if (ruta === 'sesion') {
+          if (!payload.usuario || payload.usuario.rol !== 'administrador' || !payload.usuario.uid)
+            throw error('ROL_ADMINISTRADOR_NO_VERIFICADO',
+              'La API no confirmó una sesión administrativa válida.');
+          return payload.usuario;
+        }
         return payload.data;
       });
     });
@@ -128,7 +136,9 @@
         if (mensaje) mensaje.textContent = 'Ingresa con tu correo institucional y contraseña de Administración.';
         return false;
       }
-      return solicitar('sesion', 'GET').then(function () {
+      return solicitar('sesion', 'GET').then(function (usuarioVerificado) {
+        if (!usuarioVerificado || usuarioVerificado.rol !== 'administrador')
+          throw error('ROL_ADMINISTRADOR_NO_VERIFICADO', 'Acceso administrativo no autorizado.');
         panel.hidden = true;
         document.body.classList.remove('admin-auth-pending');
         if (mensaje) mensaje.textContent = '';
