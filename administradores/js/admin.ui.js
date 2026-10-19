@@ -260,8 +260,8 @@
     var date;
     if (typeof value.toDate === 'function') date = value.toDate();
     else if (typeof value.seconds === 'number') date = new Date(value.seconds * 1000);
-    else if (typeof value === 'string' && /^Timestamp\\(seconds=/.test(value)) {
-      var m = /seconds=(\\d+)/.exec(value);
+    else if (typeof value === 'string' && /^Timestamp\(seconds=/.test(value)) {
+      var m = /seconds=(\d+)/.exec(value);
       date = m ? new Date(Number(m[1]) * 1000) : new Date(value);
     } else date = new Date(value);
     return !isNaN(date.getTime())
