@@ -17,7 +17,7 @@
     .admin-modo-seguro #pinConciliacionPanel{display:none!important}
   </style>
 </head>
-<body>
+<body class="admin-auth-pending">
   <section id="adminLoginSeguro" hidden style="max-width:460px;margin:8vh auto;padding:28px;border:1px solid #cbd5e1;border-radius:14px">
     <h1>Acceso institucional de Administración</h1>
     <p>Identifícate con una cuenta que tenga permisos administrativos verificados.</p>
@@ -79,6 +79,7 @@
             <p id="adminPeriodoActual">Gestión de títulos académicos</p>
           </div>
           <div class="admin-status" id="adminEstadoGeneral">Iniciando</div>
+          <button class="btn btn--secondary" type="button" id="adminCerrarSesionPrincipal" hidden>Cerrar sesión</button>
         </div>
       </header>
 
@@ -1067,10 +1068,10 @@
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js?v=20261013-colas-carreras"></script>
   <script src="js/investigadores.admin.js?v=20261015-conciliar-pines-v3"></script>
-  <script src="js/admin.actions.service.js?v=20261019-actions"></script>
-  <script src="js/estudiantes.admin.js?v=20261019-actions"></script>
+  <script src="js/admin.actions.service.js?v=20261019-sesion-unica"></script>
+  <script src="js/estudiantes.admin.js?v=20261019-sesion-unica"></script>
   <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>
-  <script src="js/administrador.app.js?v=20261019-actions-v2"></script>
+  <script src="js/administrador.app.js?v=20261019-sesion-unica"></script>
 </body>
 </html>
