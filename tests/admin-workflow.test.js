@@ -65,3 +65,19 @@ test('la reapertura de un título aprobado exige justificación suficiente',()=>
   reabrirAprobado:true,motivo:'Muy corto'
  }),/15 caracteres/);
 });
+
+test('resolución directa no aparenta una aprobación de Coordinación cuando no existió',()=>{
+ const previa=initial();
+ previa.tituloSeleccionadoTexto='Selección anterior sin validación';
+ previa.tituloSeleccionadoNumero=1;
+ const d=run(previa,'CORREGIR_APROBAR',2,{tituloCorregido:'Título definitivo establecido de forma directa por Administración'});
+ assert.equal(d.estado,'APROBADO_FINAL');
+ assert.equal(d.tituloAdminSeleccionadoNumero,2);
+ assert.equal(d.tituloAdminSeleccionadoTexto,'Título definitivo establecido de forma directa por Administración');
+ assert.equal(d.tituloSeleccionadoTexto,'');
+ assert.equal(d.tituloSeleccionadoNumero,null);
+ assert.equal(d.tituloCoordinador,null);
+ assert.equal(d.revisionCoordinador,null);
+ assert.equal(d.validadoCoordinador,false);
+ assert.equal(d.validadoCoordinacion,false);
+});

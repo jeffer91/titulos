@@ -48,13 +48,13 @@ function preparar(d,b,fecha){
    habilitadoInvestigacionPorAdmin:false,reiniciadoPorAdmin:false,
    tituloFinal:finalTexto,tituloFinalInvestigacion:null,fechaResolucion:fecha,
    tituloAdminSeleccionadoNumero:n,tituloAdminSeleccionadoTexto:finalTexto,
-   tituloSeleccionadoNumero:n,tituloSeleccionadoTexto:finalTexto,
    titulosEnviados:actualizados,propuestasDetalle:actualizados,propuestas:actualizados
   });
   [1,2,3].forEach(k=>{const item=actualizados.find(x=>x.numero===k);c['titulo'+k]=item?item.tituloFinal:'';});
   if(!valida)Object.assign(c,{revisionCoordinador:null,revision:null,estadoCoordinador:'',
    coordinadorRevisado:false,validadoCoordinador:false,validadoCoordinacion:false,
    tituloCoordinador:null,tituloCoordinadorNumero:null,resultadoCoordinador:null,
+   tituloSeleccionadoNumero:null,tituloSeleccionadoTexto:'',
    fechaValidacionCoordinador:null,coordinador:'',ultimoCoordinador:'',revisadoPor:'',revisadoPorNombre:''});
   break;
  }
