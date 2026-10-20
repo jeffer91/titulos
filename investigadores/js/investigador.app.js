@@ -603,12 +603,26 @@
   function crearExpediente(titulo) {
     var article = document.createElement('article');
     var coordinador = titulo.revisionCoordinador || {};
-    var seleccionadoNumero = Number(
-      (titulo.habilitadoInvestigacionPorAdmin ? titulo.tituloAdminSeleccionadoNumero : 0) ||
-      titulo.tituloCoordinadorNumero ||
-      coordinador.tituloSeleccionadoNumero ||
-      0
+    var propuestasGuardadas=(titulo.titulosEnviados||[]).filter(function(p){
+      return p&&String(p.tituloFinal||p.titulo||'').trim();
+    });
+    var numeroCoordinacion=Number(titulo.tituloCoordinadorNumero||coordinador.tituloSeleccionadoNumero||0);
+    var seleccionadoNumero=Number(
+      (titulo.habilitadoInvestigacionPorAdmin?titulo.tituloAdminSeleccionadoNumero:0) ||
+      numeroCoordinacion || 0
     );
+    // Expedientes antiguos pueden guardar solo el texto de la selección de Coordinación.
+    // Inferir el número únicamente cuando existe UNA coincidencia exacta.
+    if(!numeroCoordinacion){
+      var textoCoordinacion=String(coordinador.tituloSeleccionadoTexto||titulo.tituloCoordinador||'')
+        .replace(/\s+/g,' ').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+      var coincidencias=textoCoordinacion?propuestasGuardadas.filter(function(p){
+        return String(p.tituloFinal||p.titulo||'').replace(/\s+/g,' ').trim()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()===textoCoordinacion;
+      }):[];
+      if(coincidencias.length===1)numeroCoordinacion=Number(coincidencias[0].numero);
+      if(!seleccionadoNumero&&numeroCoordinacion)seleccionadoNumero=numeroCoordinacion;
+    }
 
     article.className = 'title-card queue-title-card';
 
@@ -639,7 +653,8 @@
     (titulo.titulosEnviados || []).forEach(function (p) {
       var item = document.createElement('article');
       var numero = Number(p.numero || 0);
-      var seleccionado = numero === seleccionadoNumero;
+      var seleccionado = numero === (titulo.habilitadoInvestigacionPorAdmin
+        ? seleccionadoNumero : numeroCoordinacion);
       var corregido = Boolean(
         p.corregidoCoordinacion ||
         (seleccionado && titulo.resultadoCoordinador === 'APROBADO_CON_CORRECCION')
@@ -665,6 +680,18 @@
     });
 
     article.appendChild(proposals);
+    var estadoCoordinacion=document.createElement('p');
+    estadoCoordinacion.className='coord-note';
+    if(titulo.habilitadoInvestigacionPorAdmin){
+      estadoCoordinacion.textContent=seleccionadoNumero?
+        'Administración remitió el Título '+seleccionadoNumero+' como referencia. Investigación puede elegir otro.':
+        'Expediente remitido por Administración. Investigación debe elegir una propuesta.';
+    }else{
+      estadoCoordinacion.textContent=numeroCoordinacion?
+        'Coordinación seleccionó el Título '+numeroCoordinacion+'. Investigación puede aprobar este u otro de los tres.':
+        'Coordinación habilitó la revisión, pero el expediente no identifica qué título eligió. Investigación puede elegir cualquiera.';
+    }
+    article.appendChild(estadoCoordinacion);
 
     // Investigación decide de forma independiente del favorito del estudiante y de Coordinación.
     var disponibles=(titulo.titulosEnviados||[]).filter(function(p){return p && String(p.tituloFinal||p.titulo||'').trim();});

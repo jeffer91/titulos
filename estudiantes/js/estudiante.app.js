@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261020-investigacion-eleccion';
+  var BUILD = '20261020-4';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
