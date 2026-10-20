@@ -1467,3 +1467,10 @@ button.admin-proposal:focus-visible{outline:3px solid #d6aa54;outline-offset:3px
 .admin-history small{display:block;color:var(--muted);margin-top:4px}.admin-history p{font-size:.85rem}
 @media(max-width:680px){.admin-actions__buttons{grid-template-columns:1fr 1fr}.admin-stages{grid-template-columns:1fr}#modalDetalleEstudiante .modal__panel{padding:16px}}
 @media(max-width:380px){.admin-actions__buttons{grid-template-columns:1fr}}
+
+/* Edición definitiva desde Administración. */
+.admin-actions__editor{border-color:#a9cfc2;background:#f5faf8;gap:10px;padding:14px}
+.admin-actions__editor>strong{font-size:.91rem;color:#145c4c}
+.admin-actions__editor textarea{line-height:1.5;resize:vertical}
+.admin-actions__final-button{width:100%;min-height:44px;background:#176452;border-color:#176452;color:#fff;font-weight:800}
+.admin-stage--resolution{margin-bottom:16px}

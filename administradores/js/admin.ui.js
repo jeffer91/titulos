@@ -319,7 +319,15 @@
         (r.origen==='ADMINISTRACION'?'<small>Registrado por Administración</small>':'')+
         (e[3]||r.observacion?'<p>'+escapeHtml(e[3]||r.observacion)+'</p>':'');etapas.appendChild(celda);
     });
-    estado.prepend(etapas);
+    if (esFinal && titulo.aprobadoPorAdministracion === true) {
+      var resolucion = document.createElement('div');
+      resolucion.className = 'admin-stage is-approved admin-stage--resolution';
+      resolucion.innerHTML = '<small>Resolución administrativa</small><strong>Aprobado definitivamente por Administración</strong>' +
+        '<p>No requiere aprobaciones adicionales de Coordinación o Investigación.</p>';
+      estado.prepend(resolucion);
+    } else {
+      estado.prepend(etapas);
+    }
     container.appendChild(estado);
 
     var section = document.createElement('section');

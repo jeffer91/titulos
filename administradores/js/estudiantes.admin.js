@@ -244,6 +244,10 @@
     agregarAccionesDetalle(item);
   }
 
+  var resolucionesAdministracion = {
+    APROBAR: 'Aprobar definitivamente por Administración',
+    CORREGIR_APROBAR: 'Guardar y aprobar definitivamente'
+  };
   var accionesDetalle = {
     APROBAR_COORDINACION: 'Aprobar por Coordinación',
     APROBAR_INVESTIGACION: 'Aprobar por Investigación',
@@ -264,8 +268,12 @@
     box.innerHTML='<div class="admin-actions__head"><div><small>GESTIÓN DEL EXPEDIENTE</small><h3>Acciones administrativas</h3></div><span class="admin-proposal__tag">Historial conservado</span></div>'+
       (!propuestas.length?'<p>No hay propuestas activas para gestionar.</p>':
       '<div class="admin-actions__form"><label for="adminAccionPropuesta">Título sobre el que actuarás</label><select id="adminAccionPropuesta"></select><p id="adminTituloActivo" class="admin-active-title"></p>'+
+      '<div class="admin-actions__editor"><strong>Editar y aprobar definitivamente como Administrador</strong>'+
+      '<label for="adminTituloCorregido">Título definitivo (puedes reemplazarlo por completo)</label><textarea id="adminTituloCorregido" rows="3" maxlength="260"></textarea>'+
+      '<label for="adminAccionMotivo">Motivo u observación</label><textarea id="adminAccionMotivo" rows="2" maxlength="1000" placeholder="Justifica la intervención (mínimo 8 caracteres)"></textarea>'+
+      '<button type="button" id="adminAprobarFinal" class="btn btn--primary admin-actions__final-button">Guardar y aprobar definitivamente</button>'+
+      '<small>La aprobación del Administrador cierra el expediente sin requerir Coordinación ni Investigación. Si no cambias el texto, aprueba la propuesta original.</small></div>'+
       '<div class="admin-actions__buttons">'+Object.keys(accionesDetalle).map(function(k){return '<button type="button" class="btn '+(k==='BORRAR_TITULO'?'btn--danger':k.indexOf('APROBAR')===0?'btn--primary':'btn--secondary')+'" data-admin-decision="'+k+'">'+accionesDetalle[k]+'</button>';}).join('')+'</div>'+
-      '<label for="adminAccionMotivo">Motivo u observación</label><textarea id="adminAccionMotivo" rows="2" maxlength="1000" placeholder="Explica la intervención (mínimo 8 caracteres)"></textarea>'+
       (cerrado?'<label class="admin-reopen"><input id="adminReabrirAprobado" type="checkbox">Confirmo modificar la aprobación vigente. La decisión anterior quedará en el historial.</label>':'')+
       '<p class="admin-actions__availability"'+(disponible?' hidden':'')+'>Las decisiones no están disponibles en esta sesión.</p><p id="adminAccionResultado" role="status" aria-live="polite" class="admin-actions__status"></p></div>');
     container.prepend(box);
@@ -277,11 +285,21 @@
     function seleccionar(){
       var p=propuestas.find(function(p,i){return Number(p.numero||i+1)===Number(select.value);})||{};
       box.querySelector('#adminTituloActivo').textContent=p.tituloFinal||p.titulo||'';
+      box.querySelector('#adminTituloCorregido').value=p.tituloFinal||p.titulo||'';
       container.querySelectorAll('[data-propuesta-numero]').forEach(function(card){var chosen=card.dataset.propuestaNumero===select.value;card.classList.toggle('is-selected',chosen);card.setAttribute('aria-pressed',String(chosen));});
     }
     select.addEventListener('change',seleccionar);
     container.querySelectorAll('[data-propuesta-numero]').forEach(function(card){card.addEventListener('click',function(){select.value=card.dataset.propuestaNumero;seleccionar();});});
     seleccionar();
+    var botonFinal=box.querySelector('#adminAprobarFinal');
+    if(!disponible)botonFinal.disabled=true;
+    botonFinal.addEventListener('click',function(){
+      var p=propuestas.find(function(p,i){return Number(p.numero||i+1)===Number(select.value);})||{};
+      var antes=String(p.tituloFinal||p.titulo||'').replace(/\s+/g,' ').trim();
+      var despues=box.querySelector('#adminTituloCorregido').value.replace(/\s+/g,' ').trim();
+      var clave=function(s){return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();};
+      confirmarDecision(clave(antes)===clave(despues)?'APROBAR':'CORREGIR_APROBAR',item,box);
+    });
     box.querySelectorAll('[data-admin-decision]').forEach(function(button){
       if(!disponible)button.disabled = true;
       button.addEventListener('click',function(){confirmarDecision(button.dataset.adminDecision,item,box);});
@@ -304,10 +322,13 @@
       estadoEsperado:String(d.estado||''),procesoEsperado:String(d.estadoProceso||''),
       tituloOriginalEsperado:String(p.tituloFinal||p.titulo||'').trim(),
       actualizacionEsperada:typeof d.actualizadoEnLocal==='string'?d.actualizadoEnLocal:null};
+    if(accion==='CORREGIR_APROBAR')body.tituloCorregido=box.querySelector('#adminTituloCorregido').value.replace(/\s+/g,' ').trim();
     try{window.TAAdminWorkflow.preparar(Object.assign({},d,{titulosEnviados:item.titulosEnviados}),body,new Date().toISOString());}
     catch(e){mostrarEstadoAccion(box,e.message,true);return;}
-    ui.confirmar({titulo:accionesDetalle[accion],mensaje:'Propuesta '+numero+' de '+item.nombres+'. '+
-      (accion==='BORRAR_TITULO'?'Se retirará solo esta propuesta. Si está vinculada a una aprobación, se reabrirá la revisión. ':accion==='DEVOLVER_ESTUDIANTE'?'Podrá corregir y reenviar sus propuestas. ':'')+'Se conservará el historial. ¿Confirmas?',
+    var nombreAccion=resolucionesAdministracion[accion]||accionesDetalle[accion];
+    var esFinalAdmin=Boolean(resolucionesAdministracion[accion]);
+    ui.confirmar({titulo:nombreAccion,mensaje:'Propuesta '+numero+' de '+item.nombres+'. '+
+      (esFinalAdmin?'Se guardará el título definitivo y el expediente quedará APROBADO FINAL por Administración, sin requerir otras aprobaciones. ':accion==='BORRAR_TITULO'?'Se retirará solo esta propuesta. Si está vinculada a una aprobación, se reabrirá la revisión. ':accion==='DEVOLVER_ESTUDIANTE'?'Podrá corregir y reenviar sus propuestas. ':'')+'Se conservará el historial. ¿Confirmas?',
       onConfirm:function(){
         if(box.dataset.busy==='true')return;
         box.dataset.busy='true';box.querySelectorAll('button,select,textarea,input').forEach(function(e){e.disabled=true;});
@@ -317,7 +338,7 @@
           return cargarEstudiantes().then(function(){
             var actualizado=estado.estudiantes.find(function(x){return x.cedula===item.cedula&&x.periodoId===item.periodoId;});
             if(actualizado)verMas(actualizado);
-            ui.showStatus('#estudiantesMensaje',accionesDetalle[accion]+': cambio guardado.','success');
+            ui.showStatus('#estudiantesMensaje',nombreAccion+': cambio guardado.','success');
           });
         }).catch(function(e){mostrarEstadoAccion(box,obtenerMensaje(e,'No se pudo guardar el cambio.'),true);ui.showStatus('#estudiantesMensaje',obtenerMensaje(e,'No se pudo guardar el cambio.'),'error');})
         .finally(function(){box.dataset.busy='false';box.querySelectorAll('button,select,textarea,input').forEach(function(e){e.disabled=false;});});
