@@ -37,3 +37,31 @@ test('Administración exige texto válido y reapertura para modificar uno aproba
  assert.equal(d.tituloFinal,'Otro título académico completo y corregido');
  assert.equal(d.historialProceso.length,2);assert.equal(d.historialProceso[1].tituloOriginal,corregido);
 });
+
+test('la aprobación directa limpia observaciones obsoletas pero mantiene su historial',()=>{
+ const previa=initial();
+ previa.estado='DEVUELTO';previa.estadoProceso='DEVUELTO';
+ previa.estadoCoordinador='DEVUELTO';previa.comentarioCoordinador='Motivo antiguo coordinador';
+ previa.observacionInvestigacion='Nota antigua de investigador';
+ previa.ultimoCoordinador='Responsable anterior';
+ previa.revisionCoordinador={estado:'DEVUELTO',observacion:'Motivo antiguo coordinador'};
+ const d=run(previa,'CORREGIR_APROBAR',1,{tituloCorregido:'Evaluación del modelo de seguridad comunitaria en Quito'});
+ assert.equal(d.estado,'APROBADO_FINAL');assert.equal(d.estadoCoordinador,'');
+ assert.equal(d.comentarioCoordinador,'');assert.equal(d.observacionInvestigacion,'');
+ assert.equal(d.ultimoCoordinador,'');assert.equal(d.revisionCoordinador,null);
+ assert.equal(d.historialProceso[0].revisionCoordinadorAnterior.observacion,'Motivo antiguo coordinador');
+});
+test('las correcciones sucesivas conservan la primera propuesta original y las versiones anteriores',()=>{
+ let d=run(initial(),'CORREGIR_APROBAR',1,{tituloCorregido:'Primera redacción corregida del título académico'});
+ d=run(d,'CORREGIR_APROBAR',1,{tituloCorregido:'Segunda redacción corregida del título académico',reabrirAprobado:true});
+ assert.equal(d.titulosEnviados[0].tituloOriginalAdministracion,'Propuesta de prueba 1');
+ assert.equal(d.historialProceso[1].tituloOriginal,'Primera redacción corregida del título académico');
+ assert.equal(d.tituloFinal,'Segunda redacción corregida del título académico');
+});
+test('la reapertura de un título aprobado exige justificación suficiente',()=>{
+ const d=run(initial(),'APROBAR',1);
+ assert.throws(()=>run(d,'CORREGIR_APROBAR',1,{
+  tituloCorregido:'Título profesional corregido para la reapertura',
+  reabrirAprobado:true,motivo:'Muy corto'
+ }),/15 caracteres/);
+});

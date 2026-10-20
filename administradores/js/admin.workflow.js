@@ -16,6 +16,7 @@ function preparar(d,b,fecha){
  }else if(corregido)throw Error('La edición solo se permite al aprobar definitivamente desde Administración.');
  const cerrado=d.procesoCerrado===true||d.estado==='APROBADO_FINAL'||d.estadoProceso==='APROBADO_FINAL';
  if(cerrado&&!b.reabrirAprobado)throw Error('Confirma la reapertura del expediente aprobado.');
+ if(cerrado&&text(b.motivo).length<15)throw Error('Justifica la reapertura con al menos 15 caracteres.');
  const coord=d.revisionCoordinador||{},nc=Number(d.tituloCoordinadorNumero||coord.tituloSeleccionadoNumero||0);
  const valida=['VALIDADO','APROBADO','APROBADO_CON_OBSERVACION'].includes(d.estadoCoordinador||coord.estado);
  if(['APROBAR_INVESTIGACION','ENVIAR_INVESTIGACION'].includes(b.accion)&&(!valida||nc!==n))throw Error('Aprueba primero esta misma propuesta por Coordinación.');
@@ -31,7 +32,7 @@ function preparar(d,b,fecha){
   // Decisión final de Administración sin simular aprobaciones de otros roles.
   const actualizados=items.map(item=>{
    if(item.numero!==n||b.accion!=='CORREGIR_APROBAR')return item;
-   return Object.assign({},item,{tituloOriginalAdministracion:item.tituloFinal,
+   return Object.assign({},item,{tituloOriginalAdministracion:item.tituloOriginalAdministracion||item.tituloFinal,
     tituloCorregidoAdministracion:finalTexto,corregidoAdministracion:true,
     tituloFinal:finalTexto,titulo:finalTexto});
   });
@@ -40,6 +41,7 @@ function preparar(d,b,fecha){
    requiereAccionDe:'',requiereRevision:false,aprobadoPorAdministracion:true,
    permitirReenvio:false,puedeReenviar:false,devueltoPor:'',
    observacionDevolucion:'',motivoDevolucion:'',ultimaObservacion:'',
+   comentarioCoordinador:'',observacionInvestigacion:'',
    estadoInvestigador:'',revisionInvestigador:null,investigacionRevisada:false,
    investigacionRevisadaEn:null,resultadoInvestigacion:null,observacionInvestigacion:'',
    fechaResolucionInvestigacion:null,fechaColaInvestigacion:null,
@@ -53,7 +55,7 @@ function preparar(d,b,fecha){
   if(!valida)Object.assign(c,{revisionCoordinador:null,revision:null,estadoCoordinador:'',
    coordinadorRevisado:false,validadoCoordinador:false,validadoCoordinacion:false,
    tituloCoordinador:null,tituloCoordinadorNumero:null,resultadoCoordinador:null,
-   fechaValidacionCoordinador:null});
+   fechaValidacionCoordinador:null,coordinador:'',ultimoCoordinador:'',revisadoPor:'',revisadoPorNombre:''});
   break;
  }
  case 'APROBAR_COORDINACION':{
