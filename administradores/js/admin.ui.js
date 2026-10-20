@@ -359,7 +359,17 @@
     if(eventos.length){
       var historial=document.createElement('details');historial.className='admin-history';
       historial.innerHTML='<summary>Historial del proceso · '+eventos.length+' movimiento(s)</summary>';
-      eventos.slice().reverse().forEach(function(e){var row=document.createElement('div');row.innerHTML='<strong>'+escapeHtml(String(e.accion||e.tipo||'Revisión').replace(/_/g,' '))+'</strong><small>'+escapeHtml(formatoFechaAdministrativa(e.fechaLocal||e.fecha))+'</small><p>'+escapeHtml(e.motivo||e.observacion||'')+'</p>';historial.appendChild(row);});
+      eventos.slice().reverse().forEach(function(e){
+        var row=document.createElement('div');
+        row.innerHTML='<strong>'+escapeHtml(String(e.accion||e.tipo||'Revisión').replace(/_/g,' '))+
+          '</strong><small>'+escapeHtml(formatoFechaAdministrativa(e.fechaLocal||e.fecha))+
+          '</small><p>'+escapeHtml(e.motivo||e.observacion||'')+'</p>';
+        if(e.accion==='CORREGIR_APROBAR'&&e.tituloOriginal&&e.tituloResultante){
+          row.innerHTML+='<p><strong>Título anterior:</strong> '+escapeHtml(e.tituloOriginal)+'</p>'+
+            '<p><strong>Título definitivo:</strong> '+escapeHtml(e.tituloResultante)+'</p>';
+        }
+        historial.appendChild(row);
+      });
       container.appendChild(historial);
     }
   }

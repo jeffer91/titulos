@@ -280,7 +280,7 @@
     if(!propuestas.length)return;
     var select=box.querySelector('#adminAccionPropuesta');
     propuestas.forEach(function(p,i){var o=document.createElement('option');o.value=String(p.numero||i+1);o.textContent='Propuesta '+o.value+(Number(o.value)===Number(item.tituloPreferidoNumero)?' · Preferida':'');select.appendChild(o);});
-    var elegido=Number(d.tituloCoordinadorNumero||d.tituloAdminSeleccionadoNumero||item.tituloPreferidoNumero||propuestas[0].numero||1);
+    var elegido=Number(d.tituloAdminSeleccionadoNumero||d.tituloCoordinadorNumero||item.tituloPreferidoNumero||propuestas[0].numero||1);
     if(propuestas.some(function(p,i){return Number(p.numero||i+1)===elegido;}))select.value=String(elegido);
     function seleccionar(){
       var p=propuestas.find(function(p,i){return Number(p.numero||i+1)===Number(select.value);})||{};
