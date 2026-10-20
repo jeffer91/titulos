@@ -367,7 +367,10 @@
       resultadoCoordinador: limpiar(data.resultadoCoordinador || (data.revisionCoordinador && data.revisionCoordinador.resultado) || ''),
       tituloPreferidoTexto: limpiar(data.tituloPreferidoTexto || data.tituloElegido || data.tituloCoordinador || preferida.tituloFinal || ''),
       tituloElegido: limpiar(data.tituloElegido || ''),
-      tituloCoordinador: limpiar(data.tituloCoordinador || ''),
+      tituloCoordinador: limpiar(data.tituloCoordinador || (data.revisionCoordinador&&data.revisionCoordinador.tituloSeleccionadoTexto) || ''),
+      tituloCoordinadorAntes: limpiar(data.tituloCoordinadorAntes||(data.revisionCoordinador&&data.revisionCoordinador.tituloSeleccionadoTextoOriginal)||''),
+      tituloCoordinadorCorregido: limpiar(data.tituloCoordinadorCorregido||''),
+
       titulosEnviados: propuestas,
       revisionCoordinador: data.revisionCoordinador || null,
       coordinadorRevisado: Boolean(data.coordinadorRevisado || data.validadoCoordinador),

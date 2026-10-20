@@ -607,6 +607,16 @@
       return p&&String(p.tituloFinal||p.titulo||'').trim();
     });
     var numeroCoordinacion=Number(titulo.tituloCoordinadorNumero||coordinador.tituloSeleccionadoNumero||0);
+    var textoCoordinacionGuardado=String(titulo.tituloCoordinador||coordinador.tituloSeleccionadoTexto||'').trim();
+    var originalCoordinacion=String(titulo.tituloCoordinadorAntes||
+      coordinador.tituloSeleccionadoTextoOriginal||'').trim();
+    var fueCorreccion=Boolean(coordinador.corrigioTitulo===true||
+      titulo.resultadoCoordinador==='APROBADO_CON_CORRECCION'||titulo.tituloCoordinadorCorregido);
+    function claveTitulo(valor){return String(valor||'').replace(/\s+/g,' ').trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();}
+    // No atribuir una propuesta sin coincidencia inequívoca.
+    if(numeroCoordinacion&&!propuestasGuardadas.some(function(p){return Number(p.numero)===numeroCoordinacion;}))
+      numeroCoordinacion=0;
     var seleccionadoNumero=Number(
       (titulo.habilitadoInvestigacionPorAdmin?titulo.tituloAdminSeleccionadoNumero:0) ||
       numeroCoordinacion || 0
@@ -614,11 +624,11 @@
     // Expedientes antiguos pueden guardar solo el texto de la selección de Coordinación.
     // Inferir el número únicamente cuando existe UNA coincidencia exacta.
     if(!numeroCoordinacion){
-      var textoCoordinacion=String(coordinador.tituloSeleccionadoTexto||titulo.tituloCoordinador||'')
-        .replace(/\s+/g,' ').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+      var textoCoordinacion=claveTitulo(textoCoordinacionGuardado);
       var coincidencias=textoCoordinacion?propuestasGuardadas.filter(function(p){
-        return String(p.tituloFinal||p.titulo||'').replace(/\s+/g,' ').trim()
-          .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()===textoCoordinacion;
+        return claveTitulo(p.tituloFinal||p.titulo)===textoCoordinacion ||
+          (fueCorreccion&&claveTitulo(p.tituloOriginalCoordinacion)===claveTitulo(originalCoordinacion)&&
+           claveTitulo(p.tituloCorregidoCoordinacion)===textoCoordinacion);
       }):[];
       if(coincidencias.length===1)numeroCoordinacion=Number(coincidencias[0].numero);
       if(!seleccionadoNumero&&numeroCoordinacion)seleccionadoNumero=numeroCoordinacion;
@@ -655,10 +665,13 @@
       var numero = Number(p.numero || 0);
       var seleccionado = numero === (titulo.habilitadoInvestigacionPorAdmin
         ? seleccionadoNumero : numeroCoordinacion);
-      var corregido = Boolean(
-        p.corregidoCoordinacion ||
-        (seleccionado && titulo.resultadoCoordinador === 'APROBADO_CON_CORRECCION')
-      );
+      var corregido = Boolean(p.corregidoCoordinacion ||
+        (numero===numeroCoordinacion&&fueCorreccion));
+      var antes=String(p.tituloOriginalCoordinacion||
+        (numero===numeroCoordinacion&&fueCorreccion?originalCoordinacion:'')||'').trim();
+      var despues=String(p.tituloCorregidoCoordinacion||
+        (numero===numeroCoordinacion&&fueCorreccion?textoCoordinacionGuardado:'')||
+        p.tituloFinal||p.titulo||'').trim();
 
       item.className =
         'proposal' +
@@ -672,8 +685,10 @@
           (corregido ? '<span class="proposal__corrected">Corregido</span>' : '') +
         '</div>' +
         '<p>' + escapeHtml(p.tituloFinal || p.titulo || 'Sin título') + '</p>' +
-        (corregido && p.tituloOriginalCoordinacion
-          ? '<small><b>Original:</b> ' + escapeHtml(p.tituloOriginalCoordinacion) + '</small>'
+        (corregido
+          ? '<div class="coord-correction"><strong>Corrección de Coordinación</strong>'+
+            (antes?'<small><b>Antes:</b> '+escapeHtml(antes)+'</small>':'')+
+            '<small><b>Después:</b> '+escapeHtml(despues)+'</small></div>'
           : '')+
         '<label class="proposal__choose"><input type="radio" name="tituloElegidoInvestigacion" value="'+numero+'"> Elegir como título definitivo</label>';
       proposals.appendChild(item);
@@ -692,10 +707,23 @@
         'Coordinación habilitó la revisión, pero el expediente no identifica qué título eligió. Investigación puede elegir cualquiera.';
     }
     article.appendChild(estadoCoordinacion);
+    var detalleCoordinacion=document.createElement('div');
+    detalleCoordinacion.className='coord-selection-summary';
+    if(numeroCoordinacion){
+      detalleCoordinacion.innerHTML='<strong>Elección de Coordinación · Título '+numeroCoordinacion+'</strong>'+
+        '<p>'+escapeHtml(textoCoordinacionGuardado||
+          (propuestasGuardadas.find(function(p){return Number(p.numero)===numeroCoordinacion;})||{}).tituloFinal||'')+'</p>'+
+        (fueCorreccion?(originalCoordinacion?
+          '<small>Antes: '+escapeHtml(originalCoordinacion)+'</small>':'')+
+          '<small>Después: '+escapeHtml(textoCoordinacionGuardado)+'</small>':'');
+    }else{
+      detalleCoordinacion.textContent='La selección de Coordinación no está identificada en este expediente.';
+    }
+    article.appendChild(detalleCoordinacion);
 
     // Investigación decide de forma independiente del favorito del estudiante y de Coordinación.
     var disponibles=(titulo.titulosEnviados||[]).filter(function(p){return p && String(p.tituloFinal||p.titulo||'').trim();});
-    var elegido=disponibles.find(function(p){return Number(p.numero)===seleccionadoNumero;})||disponibles[0]||null;
+    var elegido=disponibles.find(function(p){return seleccionadoNumero>0&&Number(p.numero)===seleccionadoNumero;})||null;
     var numeroInvestigacion=elegido?Number(elegido.numero):0;
     var editorTitulo=document.createElement('div');
     editorTitulo.className='research-title-editor';

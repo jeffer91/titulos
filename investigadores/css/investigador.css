@@ -894,3 +894,12 @@ textarea { resize: vertical; }
 .proposals--review .proposal.is-selected-by-investigation.is-corrected-by-coord {
   border:2px solid #13845e; background:#f1faf6; box-shadow:inset 3px 0 0 #13845e;
 }
+
+/* Distinguir la elección histórica de Coordinación de la selección activa de Investigación. */
+.coord-selection-summary{margin-top:10px;padding:12px;border:1px solid #a4c3e9;background:#f1f6ff;border-radius:10px;color:#184b86}
+.coord-selection-summary>strong{display:block;font-size:.88rem}
+.coord-selection-summary p{margin:6px 0;line-height:1.5;font-size:.86rem}
+.coord-selection-summary small,.coord-correction small{display:block;margin-top:5px;line-height:1.45}
+.coord-correction{margin-top:8px;padding:9px;border-left:3px solid #b88713;background:#fff7e2;border-radius:5px}
+.coord-correction strong{font-size:.76rem;color:#805710}
+.proposals--review .proposal.is-selected-by-coord.is-selected-by-investigation{outline:2px solid #477abd;outline-offset:2px}
