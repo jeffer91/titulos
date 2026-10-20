@@ -43,6 +43,7 @@ jobs:
           node tests/arquitectura-administrador.test.js
           node tests/investigacion-cola.test.js
           node --test tests/investigacion-transaccion.test.js
+          node --test tests/investigacion-coordinacion-vista.test.js
           node tests/auditoria-e2e.test.js
           node --test tests/coordinacion-consistencia.test.js
           node tests/administrador-faltantes.test.js

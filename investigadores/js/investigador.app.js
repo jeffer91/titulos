@@ -611,7 +611,9 @@
     var originalCoordinacion=String(titulo.tituloCoordinadorAntes||
       coordinador.tituloSeleccionadoTextoOriginal||'').trim();
     var fueCorreccion=Boolean(coordinador.corrigioTitulo===true||
-      titulo.resultadoCoordinador==='APROBADO_CON_CORRECCION'||titulo.tituloCoordinadorCorregido);
+      titulo.resultadoCoordinador==='APROBADO_CON_CORRECCION'||titulo.tituloCoordinadorCorregido||
+      (originalCoordinacion&&textoCoordinacionGuardado&&
+       originalCoordinacion.replace(/\s+/g,' ').trim()!==textoCoordinacionGuardado.replace(/\s+/g,' ').trim()));
     function claveTitulo(valor){return String(valor||'').replace(/\s+/g,' ').trim()
       .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();}
     // No atribuir una propuesta sin coincidencia inequívoca.
@@ -627,7 +629,8 @@
       var textoCoordinacion=claveTitulo(textoCoordinacionGuardado);
       var coincidencias=textoCoordinacion?propuestasGuardadas.filter(function(p){
         return claveTitulo(p.tituloFinal||p.titulo)===textoCoordinacion ||
-          (fueCorreccion&&claveTitulo(p.tituloOriginalCoordinacion)===claveTitulo(originalCoordinacion)&&
+          (fueCorreccion&&originalCoordinacion&&
+           claveTitulo(p.tituloOriginalCoordinacion)===claveTitulo(originalCoordinacion)&&
            claveTitulo(p.tituloCorregidoCoordinacion)===textoCoordinacion);
       }):[];
       if(coincidencias.length===1)numeroCoordinacion=Number(coincidencias[0].numero);
@@ -694,7 +697,6 @@
       proposals.appendChild(item);
     });
 
-    article.appendChild(proposals);
     var estadoCoordinacion=document.createElement('p');
     estadoCoordinacion.className='coord-note';
     if(titulo.habilitadoInvestigacionPorAdmin){
@@ -710,16 +712,17 @@
     var detalleCoordinacion=document.createElement('div');
     detalleCoordinacion.className='coord-selection-summary';
     if(numeroCoordinacion){
-      detalleCoordinacion.innerHTML='<strong>Elección de Coordinación · Título '+numeroCoordinacion+'</strong>'+
+      detalleCoordinacion.innerHTML='<strong>Elegido por Coordinación · Título '+numeroCoordinacion+'</strong>'+
         '<p>'+escapeHtml(textoCoordinacionGuardado||
           (propuestasGuardadas.find(function(p){return Number(p.numero)===numeroCoordinacion;})||{}).tituloFinal||'')+'</p>'+
         (fueCorreccion?(originalCoordinacion?
           '<small>Antes: '+escapeHtml(originalCoordinacion)+'</small>':'')+
           '<small>Después: '+escapeHtml(textoCoordinacionGuardado)+'</small>':'');
     }else{
-      detalleCoordinacion.textContent='La selección de Coordinación no está identificada en este expediente.';
+      detalleCoordinacion.textContent='Coordinación validó el expediente, pero no consta una propuesta identificable. Elige explícitamente uno de los títulos antes de aprobar.';
     }
     article.appendChild(detalleCoordinacion);
+    article.appendChild(proposals);
 
     // Investigación decide de forma independiente del favorito del estudiante y de Coordinación.
     var disponibles=(titulo.titulosEnviados||[]).filter(function(p){return p && String(p.tituloFinal||p.titulo||'').trim();});

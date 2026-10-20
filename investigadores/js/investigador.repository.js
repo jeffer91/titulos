@@ -320,6 +320,11 @@
     var estado = String(data.estado || 'PENDIENTE_REVISION').toUpperCase();
     var proceso = String(data.estadoProceso || '').toUpperCase();
     var estadoCoord = String(data.estadoCoordinador || '').toUpperCase();
+    var revisionCoordinador = data.revisionCoordinador ||
+      (data.revision && (
+        data.revision.coordinadorId ||
+        ['VALIDAR','VALIDAR_CORRECCION'].includes(String(data.revision.accion||'').toUpperCase())
+      ) ? data.revision : null);
     if (!estadoCoord && data.habilitadoInvestigacionPorAdmin !== true &&
         (data.validadoCoordinador === true || estado === 'PENDIENTE_INVESTIGADOR' || proceso === 'PENDIENTE_INVESTIGADOR')) estadoCoord = 'VALIDADO';
 
@@ -359,20 +364,20 @@
       estadoProceso: proceso,
       estadoCoordinador: estadoCoord,
       tituloPreferidoNumero: preferido,
-      tituloCoordinadorNumero: Number(data.tituloCoordinadorNumero || (data.revisionCoordinador && data.revisionCoordinador.tituloSeleccionadoNumero) || 0),
+      tituloCoordinadorNumero: Number(data.tituloCoordinadorNumero || (revisionCoordinador && revisionCoordinador.tituloSeleccionadoNumero) || 0),
       tituloAdminSeleccionadoNumero: Number(data.tituloAdminSeleccionadoNumero || 0),
       tituloAdminSeleccionadoTexto: limpiar(data.tituloAdminSeleccionadoTexto || ''),
       habilitadoInvestigacionPorAdmin: data.habilitadoInvestigacionPorAdmin === true,
       revisionAdministrativa: data.revisionAdministrativa || null,
-      resultadoCoordinador: limpiar(data.resultadoCoordinador || (data.revisionCoordinador && data.revisionCoordinador.resultado) || ''),
+      resultadoCoordinador: limpiar(data.resultadoCoordinador || (revisionCoordinador && revisionCoordinador.resultado) || ''),
       tituloPreferidoTexto: limpiar(data.tituloPreferidoTexto || data.tituloElegido || data.tituloCoordinador || preferida.tituloFinal || ''),
       tituloElegido: limpiar(data.tituloElegido || ''),
-      tituloCoordinador: limpiar(data.tituloCoordinador || (data.revisionCoordinador&&data.revisionCoordinador.tituloSeleccionadoTexto) || ''),
-      tituloCoordinadorAntes: limpiar(data.tituloCoordinadorAntes||(data.revisionCoordinador&&data.revisionCoordinador.tituloSeleccionadoTextoOriginal)||''),
+      tituloCoordinador: limpiar(data.tituloCoordinador || (revisionCoordinador&&revisionCoordinador.tituloSeleccionadoTexto) || ''),
+      tituloCoordinadorAntes: limpiar(data.tituloCoordinadorAntes||(revisionCoordinador&&revisionCoordinador.tituloSeleccionadoTextoOriginal)||''),
       tituloCoordinadorCorregido: limpiar(data.tituloCoordinadorCorregido||''),
 
       titulosEnviados: propuestas,
-      revisionCoordinador: data.revisionCoordinador || null,
+      revisionCoordinador: revisionCoordinador || null,
       coordinadorRevisado: Boolean(data.coordinadorRevisado || data.validadoCoordinador),
       validadoCoordinador: Boolean(data.validadoCoordinador),
       estadoInvestigador: String(data.estadoInvestigador || '').toUpperCase(),

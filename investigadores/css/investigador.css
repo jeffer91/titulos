@@ -903,3 +903,10 @@ textarea { resize: vertical; }
 .coord-correction{margin-top:8px;padding:9px;border-left:3px solid #b88713;background:#fff7e2;border-radius:5px}
 .coord-correction strong{font-size:.76rem;color:#805710}
 .proposals--review .proposal.is-selected-by-coord.is-selected-by-investigation{outline:2px solid #477abd;outline-offset:2px}
+
+/* La elección previa de Coordinación va arriba y conserva su identificación azul. */
+.queue-title-card>.coord-selection-summary{border-left:5px solid #245fa8;background:#edf5ff}
+.proposals--review .proposal.is-selected-by-coord .proposal__head>span:first-of-type{background:#deebff;color:#164c8c}
+.proposals--review .proposal.is-selected-by-coord.is-selected-by-investigation{
+  outline:2px solid #245fa8;outline-offset:2px;border-left:5px solid #14865d
+}
