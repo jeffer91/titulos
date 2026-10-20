@@ -767,6 +767,31 @@
       });
     }
 
+    // Respaldo desde el expediente: no perder correcciones si falla la lectura
+    // de workflow_events, o si la revisión todavía no aparece en el índice.
+    var revisionInv=envio.revisionInvestigador||{};
+    if(revisionInv.corrigioTitulo===true) {
+      agregarHistorialCompacto(salida,vistos,{
+        titulo:'Aprobado con corrección',
+        fecha:revisionInv.fechaLocal||envio.fechaResolucionInvestigacion||envio.actualizadoEnLocal||'',
+        estado:'APROBADO_CON_CORRECCION',
+        observacion:limpiar(revisionInv.observacion||envio.observacionInvestigacion||''),
+        tituloAnterior:limpiar(revisionInv.tituloSeleccionadoTextoOriginal||envio.tituloOriginalInvestigacion||''),
+        tituloNuevo:limpiar(revisionInv.tituloSeleccionadoTexto||envio.tituloFinalInvestigacion||'')
+      });
+    }
+    var revisionAdmin=envio.revisionAdministrativa||{};
+    if(revisionAdmin.accion==='CORREGIR_APROBAR') {
+      agregarHistorialCompacto(salida,vistos,{
+        titulo:'Aprobado por Administración con corrección',
+        fecha:revisionAdmin.fechaLocal||envio.fechaAccionAdministrativa||envio.actualizadoEnLocal||'',
+        estado:'APROBADO_CON_CORRECCION',
+        observacion:limpiar(revisionAdmin.motivo||''),
+        tituloAnterior:limpiar(revisionAdmin.tituloOriginal||''),
+        tituloNuevo:limpiar(revisionAdmin.tituloResultante||envio.tituloFinal||'')
+      });
+    }
+
     var canonico = resolverEstadoCanonico(envio);
     if (canonico === 'DEVUELTO_COORDINACION' || canonico === 'DEVUELTO_INVESTIGACION') {
       var rev = canonico === 'DEVUELTO_COORDINACION'
