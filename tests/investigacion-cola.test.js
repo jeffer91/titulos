@@ -181,6 +181,20 @@ async function run() {
     assert.strictEqual(admin.obtenerEtapaRevision(doc)==='INVESTIGACION',esperado,JSON.stringify(extra));
     assert.strictEqual(backend.pendiente(doc),esperado,JSON.stringify(extra));
   }
+
+  const legacy=[
+    {id:'solo-titulo1',titulo1:'Título de formato histórico'},
+    {id:'solo-detalles',propuestasDetalle:[{numero:2,tituloFinal:'Título en detalle'}]},
+    {id:'estado-temporal',titulosEnviados:[{numero:1,tituloFinal:'Título en validación'}],estadoInvestigador:'EN_REVISION'},
+    {id:'periodo-incompleto',periodoCanonicoId:'2026-05',titulosEnviados:[{numero:1,tituloFinal:'Título con periodo válido'}]}
+  ];
+  for (const caso of legacy){
+    const doc={id:caso.id,periodoId:'2026-05__2026-11',estado:'PENDIENTE_REVISION',
+      estadoProceso:'PENDIENTE_INVESTIGADOR',estadoCoordinador:'VALIDADO',...caso};
+    assert.strictEqual(repository.estaPendienteInvestigacion(doc),true,caso.id);
+    assert.strictEqual(admin.obtenerEtapaRevision(doc),'INVESTIGACION',caso.id);
+    assert.strictEqual(backend.pendiente(doc),true,caso.id);
+  }
   const revisado = await repository.revisarTitulo(titulos[1], 'APROBAR', '', investigador);
   assert.strictEqual(revisado.estado,'APROBADO_FINAL');
   assert.strictEqual(revisado.revisionInvestigador.investigadorId,investigador.id);

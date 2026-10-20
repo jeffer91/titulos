@@ -29,7 +29,7 @@
         return repository.buscarInvestigador('').then(function(perfil){
           investigador=perfil;
           abrirPanel();
-          return cargarTitulos(false);
+          return cargarTitulos(false).then(function(){return cargarRevisiones();});
         });
       }).catch(function(error){
         investigador=null;
@@ -203,7 +203,7 @@
 
         valueSet('pinInput', '');
         abrirPanel();
-        return cargarTitulos(false);
+        return cargarTitulos(false).then(function(){return cargarRevisiones();});
       })
       .catch(function (error) {
         mensaje('accesoMensaje', errorMensaje(error, 'No se pudo iniciar sesión.'), 'error');
@@ -480,11 +480,9 @@
   function renderResumen() {
     var pendientes = titulos.filter(esPendiente);
     var carreras = agruparCarreras(pendientes);
-    var revisados = titulos.filter(estaRevisadoPorMi).length;
-
     setText('totalPendientes', pendientes.length);
     setText('totalCarrerasPendientes', carreras.length);
-    setText('totalRevisados', revisados);
+    setText('totalRevisados', revisiones.length);
   }
 
   function renderCarreras(error) {
@@ -496,7 +494,7 @@
 
     setText(
       'periodoActualTexto',
-      'Todos los períodos · revisión por orden de validación de Coordinación.'
+      'Todos los períodos activos · revisión por orden de validación de Coordinación.'
     );
 
     body.innerHTML = '';
@@ -709,7 +707,7 @@
       repository.revisarTitulo(titulo, accion, obs.value, investigador)
         .then(function () {
           mensaje('revisionMensaje', 'Revisión guardada. Cargando el siguiente expediente...', 'success');
-          return cargarTitulos(true);
+          return cargarTitulos(true).then(function(){return cargarRevisiones();});
         })
         .catch(function (error) {
           mensaje('revisionMensaje', errorMensaje(error, 'No se pudo guardar la revisión.'), 'error');

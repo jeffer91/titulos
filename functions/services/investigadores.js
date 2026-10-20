@@ -46,12 +46,17 @@ function pendiente(t){
  const coord=clave(t.estadoCoordinador||(t.revisionCoordinador&&t.revisionCoordinador.estado));
  const inv=clave(t.estadoInvestigador||(t.revisionInvestigador&&t.revisionInvestigador.estado));
  const cerrados=['APROBADO_FINAL','DEVUELTO','ARCHIVADO','BORRADOR_REINICIADO'];
- if(cerrados.includes(estado)||cerrados.includes(proceso)||coord==='DEVUELTO')return false;
- if(t.investigacionRevisada===true||(inv&&inv!=='PENDIENTE'))return false;
+ const cerrado=v=>/^(APROBADO_FINAL|DEVUELTO(?:_.*)?|ARCHIVADO(?:_.*)?|BORRADOR_REINICIADO|SIN_ENVIO|SIN_ENVIAR)$/.test(v);
+ if(cerrado(estado)||cerrado(proceso)||coord==='DEVUELTO')return false;
+ if(/^(PENDIENTE_COORDINADOR|COORDINACION_PENDIENTE)$/.test(proceso))return false;
+ if(t.investigacionRevisada===true||/^(APROBADO(?:_CON_OBSERVACION)?|DEVUELTO)$/.test(inv))return false;
  const validado=t.validadoCoordinador===true||t.validadoCoordinacion===true||t.coordinadorRevisado===true||
   ['VALIDADO','APROBADO','APROBADO_CON_OBSERVACION'].includes(coord)||
   estado==='PENDIENTE_INVESTIGADOR'||proceso==='PENDIENTE_INVESTIGADOR';
- return validado&&Array.isArray(t.titulosEnviados)&&t.titulosEnviados.length>0;
+ const tieneTexto=p=>Boolean(p&&limpiar(typeof p==='string'?p:p.tituloFinal||p.titulo||p.texto||''));
+ const hayTitulo=[t.titulosEnviados,t.propuestasDetalle,t.propuestas].some(lista=>Array.isArray(lista)&&lista.some(tieneTexto))||
+  [t.titulo1,t.titulo2,t.titulo3].some(x=>Boolean(limpiar(x)));
+ return Boolean(validado&&hayTitulo);
 }
 function fecha(t){
  const v=t.fechaColaInvestigacion||t.fechaValidacionCoordinador||t.revisionCoordinador&&t.revisionCoordinador.fechaLocal||t.revisadoEnLocal||t.fechaResolucion||t.fechaEnvio||t.creadoEn;

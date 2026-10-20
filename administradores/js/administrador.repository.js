@@ -12,7 +12,9 @@
     var global = [estado, proceso];
     if (global.some(function(v) { return /^(ARCHIVADO|ARCHIVADO_ADMIN|BORRADOR_REINICIADO|SIN_ENVIO|SIN_ENVIAR)$/.test(v); })) return 'SIN_ENVIO';
     if (global.indexOf('APROBADO_FINAL') !== -1 || d.procesoCerrado === true) return 'APROBADOS';
-    var propuestas = [d.titulosEnviados, d.propuestas, d.propuestasDetalle].some(function(v) { return Array.isArray(v) && v.length; }) || d.titulo1 || d.titulo2 || d.titulo3;
+    function tieneTitulo(p){return Boolean(p&&String(typeof p==='string'?p:p.tituloFinal||p.titulo||p.texto||'').trim());}
+    var propuestas=[d.titulosEnviados,d.propuestasDetalle,d.propuestas].some(function(v){return Array.isArray(v)&&v.some(tieneTitulo);}) ||
+      [d.titulo1,d.titulo2,d.titulo3].some(function(v){return Boolean(String(v||'').trim());});
     if (!propuestas) return 'SIN_ENVIO';
     // El reenvío explícito inicia una nueva revisión aunque conserve metadatos anteriores.
     if (/^(PENDIENTE_COORDINADOR|COORDINACION_PENDIENTE)$/.test(proceso)) return 'POR_REVISAR';

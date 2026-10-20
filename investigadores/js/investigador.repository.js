@@ -64,23 +64,22 @@
     });
   }
   function canonicoPeriodo(id){
-    return String(id||'').trim().replace(/_/g,'-').replace(/-+/g,'-');
+    if(id&&typeof id==='object')id=id.id||id.periodoId||'';
+    var m=/^(\d{4})[-_](0?[1-9]|1[0-2])(?:__|[-_\s]+)(\d{4})[-_](0?[1-9]|1[0-2])$/.exec(String(id||'').trim());
+    return m?m[1]+'-'+String(m[2]).padStart(2,'0')+'__'+m[3]+'-'+String(m[4]).padStart(2,'0'):'';
   }
-  function periodoHabilitado(t,activos){
+  function periodoDocumento(t){
     var d=t&&t.raw||t||{};
-    return activos.has(canonicoPeriodo(d.periodoCanonicoId||d.periodoId||''));
+    return canonicoPeriodo(d.periodoCanonicoId)||canonicoPeriodo(d.periodoId)||canonicoPeriodo(d.periodo&&d.periodo.id||d.periodo)||'';
   }
+  function periodoHabilitado(t,activos){return activos.has(periodoDocumento(t));}
 
   function listarTitulosHabilitados(investigador) {
     if(modoSeguro())return seguro.cola().then(function(result){
       if(result.truncado)console.warn('[Investigadores][LIMIT] Cola truncada por límite del backend.');
       return (result.titulos||[]).map(normalizarTitulo);
     });
-    /*
-      Investigación trabaja por estado, no por el período activo global.
-      Un expediente entra a esta cola cuando Coordinación lo habilita,
-      aunque pertenezca a un período académico anterior o simultáneo.
-    */
+    // Consulta todas las carreras en los períodos activos, sin reabrir períodos desactivados.
     if (!investigador || investigador.activo === false || !investigador.pinActivo)
       return Promise.reject(new Error('El acceso del investigador no está activo.'));
     return periodosHabilitados().then(function(activos){
@@ -231,10 +230,11 @@
     var estado = normalizarTexto(t.estado), proceso = normalizarTexto(t.estadoProceso);
     var coord = normalizarTexto(t.estadoCoordinador || (t.revisionCoordinador && t.revisionCoordinador.estado));
     var inv = normalizarTexto(t.estadoInvestigador || (t.revisionInvestigador && t.revisionInvestigador.estado));
-    var cerrados = ['APROBADO_FINAL', 'DEVUELTO', 'ARCHIVADO', 'BORRADOR_REINICIADO'];
-    if (cerrados.indexOf(estado) !== -1 || cerrados.indexOf(proceso) !== -1 || coord === 'DEVUELTO') return false;
-    if (t.investigacionRevisada === true || (inv && inv !== 'PENDIENTE')) return false;
-    return Array.isArray(t.titulosEnviados) && t.titulosEnviados.length > 0;
+    var cerrado=function(v){return /^(APROBADO_FINAL|DEVUELTO(?:_.*)?|ARCHIVADO(?:_.*)?|BORRADOR_REINICIADO|SIN_ENVIO|SIN_ENVIAR)$/.test(v);};
+    if(cerrado(estado)||cerrado(proceso)||coord==='DEVUELTO')return false;
+    if(/^(PENDIENTE_COORDINADOR|COORDINACION_PENDIENTE)$/.test(proceso))return false;
+    if(t.investigacionRevisada===true||/^(APROBADO(?:_CON_OBSERVACION)?|DEVUELTO)$/.test(inv))return false;
+    return construirPropuestas(t).length>0;
   }
 
   function fechaIso(valor) {
@@ -291,7 +291,7 @@
       nombres: limpiar(data.nombres || data.nombreCompleto || ''),
       carrera: limpiar(data.carreraNombre || data.carrera || data.nombreCarrera || ''),
       codigoCarrera: limpiar(data.carreraCodigo || data.codigoCarrera || ''),
-      periodoId: limpiar(data.periodoId || data.periodoCanonicoId || data.periodoNombre || data.periodoLabel || ''),
+      periodoId: periodoDocumento(data),
       periodoLabel: limpiar(data.periodoNombre || data.periodoLabel || data.periodoId || data.periodoCanonicoId || ''),
       fechaEnvio: fechaIso(data.fechaEnvio || data.actualizadoEnLocal || data.creadoEn || data.actualizadoEn),
       fechaColaInvestigacion: fechaIso(
@@ -341,13 +341,22 @@
   }
 
   function construirPropuestas(data) {
-    if (Array.isArray(data.titulosEnviados) && data.titulosEnviados.length) return data.titulosEnviados;
-    var detalles = Array.isArray(data.propuestasDetalle) ? data.propuestasDetalle : [];
-    return [1, 2, 3].map(function (numero) {
-      var titulo = limpiar(data['titulo' + numero]);
-      if (!titulo) return null;
-      var detalle = detalles.filter(function (item) { return Number(item.numero) === numero; })[0] || {};
-      return Object.assign({}, detalle, { numero: numero, tituloFinal: titulo, preferido: Number(data.tituloPreferidoNumero) === numero });
+    data=data||{};
+    function lista(src){
+      if(!Array.isArray(src))return [];
+      return src.map(function(p,i){
+        if(!p)return null;
+        var numero=Number(p.numero||i+1),titulo=limpiar(typeof p==='string'?p:p.tituloFinal||p.titulo||p.texto||'');
+        if(![1,2,3].includes(numero)||!titulo)return null;
+        return Object.assign({},typeof p==='object'?p:{},{numero:numero,tituloFinal:titulo});
+      }).filter(Boolean);
+    }
+    var v=lista(data.titulosEnviados);if(v.length)return v;
+    v=lista(data.propuestasDetalle);if(v.length)return v;
+    v=lista(data.propuestas);if(v.length)return v;
+    return [1,2,3].map(function(numero){
+      var titulo=limpiar(data['titulo'+numero]);
+      return titulo?{numero:numero,tituloFinal:titulo,preferido:Number(data.tituloPreferidoNumero)===numero}:null;
     }).filter(Boolean);
   }
 
