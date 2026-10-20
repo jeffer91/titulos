@@ -125,8 +125,11 @@
       });
   }
 
-  function revisarTitulo(titulo, accion, observacion, investigador) {
-    if(modoSeguro())return seguro.revisar({tituloId:titulo&&titulo.id,accion:accion,observacion:observacion}).then(normalizarTitulo);
+  function revisarTitulo(titulo, accion, observacion, investigador, numeroElegido, textoEditado) {
+    if(modoSeguro())return seguro.revisar({
+      tituloId:titulo&&titulo.id,accion:accion,observacion:observacion,
+      tituloSeleccionadoNumero:numeroElegido,tituloCorregidoTexto:textoEditado
+    }).then(normalizarTitulo);
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título.'));
     if (!estaPendienteInvestigacion(titulo)) return Promise.reject(new Error('Este título ya no está pendiente de Investigación.'));
     if (!investigador || investigador.activo === false || !investigador.pinActivo) return Promise.reject(new Error('El acceso del investigador no está activo.'));
@@ -138,7 +141,27 @@
     }
 
     var ahora = new Date().toISOString();
-    var tituloFinal = limpiar(titulo.tituloCoordinador || titulo.tituloPreferidoTexto || titulo.tituloElegido || '');
+    var propuestas=(titulo.titulosEnviados||[]);
+    var numero=Number(numeroElegido||0);
+    var seleccion=propuestas.find(function(p){return Number(p.numero)===numero;})||null;
+    if(numeroElegido!==undefined && numeroElegido!==null && (!Number.isInteger(numero)||numero<1||numero>3||!seleccion))
+      return Promise.reject(new Error('Selecciona una de las propuestas registradas.'));
+    var original=seleccion?limpiar(seleccion.tituloFinal||seleccion.titulo):'';
+    var tituloFinal=seleccion?limpiar(textoEditado===undefined?original:textoEditado):
+      limpiar(titulo.habilitadoInvestigacionPorAdmin&&titulo.tituloAdminSeleccionadoTexto||
+      titulo.tituloCoordinador||titulo.tituloPreferidoTexto||titulo.tituloElegido||'');
+    var corrigio=estadoRevision!=='DEVUELTO'&&Boolean(seleccion)&&tituloFinal!==original;
+    if(estadoRevision!=='DEVUELTO'&&!tituloFinal)return Promise.reject(new Error('No hay un título válido seleccionado.'));
+    if(corrigio&&(tituloFinal.length<20||tituloFinal.length>260))return Promise.reject(new Error('El título corregido debe tener entre 20 y 260 caracteres.'));
+    if(corrigio&&comentario.length<8)return Promise.reject(new Error('Explica la corrección del título (mínimo 8 caracteres).'));
+    var propuestasActualizadas=propuestas.map(function(p){
+      if(!corrigio||Number(p.numero)!==numero)return p;
+      return Object.assign({},p,{
+        tituloOriginalInvestigacion:p.tituloOriginalInvestigacion||original,
+        tituloCorregidoInvestigacion:tituloFinal,corregidoInvestigacion:true,
+        tituloFinal:tituloFinal,titulo:tituloFinal
+      });
+    });
     var revision = {
       estado: estadoRevision,
       accion: accion,
@@ -147,6 +170,11 @@
       investigadorCedula: investigador.cedula,
       investigadorNombre: investigador.nombre,
       investigadorEmail: investigador.email,
+      tituloSeleccionadoNumero:numero||Number(titulo.tituloCoordinadorNumero||0)||null,
+      tituloSeleccionadoTextoOriginal:original||titulo.tituloCoordinador||'',
+      tituloSeleccionadoTexto:estadoRevision==='DEVUELTO'?'':tituloFinal,
+      corrigioTitulo:corrigio,
+      seleccionDiferenteCoordinacion:Boolean(numero&&Number(titulo.tituloCoordinadorNumero||0)!==numero),
       fechaLocal: ahora
     };
 
@@ -178,7 +206,13 @@
       Object.assign(payload, {
         estado: 'APROBADO_FINAL',
         estadoProceso: 'APROBADO_FINAL',
-        resultadoInvestigacion: estadoRevision === 'APROBADO_CON_OBSERVACION' ? 'APROBADO_CON_CORRECCION' : 'APROBADO_SIN_CAMBIOS',
+        resultadoInvestigacion: corrigio?'APROBADO_CON_CORRECCION':estadoRevision === 'APROBADO_CON_OBSERVACION'?'APROBADO_CON_OBSERVACION':'APROBADO_SIN_CAMBIOS',
+        tituloInvestigadorNumero:revision.tituloSeleccionadoNumero,
+        tituloInvestigador:tituloFinal,
+        tituloOriginalInvestigacion:revision.tituloSeleccionadoTextoOriginal,
+        tituloCorregidoInvestigacion:corrigio?tituloFinal:'',
+        titulosEnviados:propuestasActualizadas,
+        propuestasDetalle:propuestasActualizadas,
         tituloFinalInvestigacion: tituloFinal,
         tituloFinal: tituloFinal,
         requiereAccionDe: '',
@@ -187,6 +221,10 @@
         puedeReenviar: false,
         devueltoPor: '',
         fechaResolucion: ahora
+      });
+      [1,2,3].forEach(function(n){
+        var item=propuestasActualizadas.find(function(p){return Number(p.numero)===n;});
+        if(item)payload['titulo'+n]=item.tituloFinal||item.titulo||'';
       });
     }
 
@@ -208,6 +246,9 @@
           periodoId: titulo.periodoId,
           estado: payload.estado,
           revision: revision,
+          tituloSeleccionadoNumero:revision.tituloSeleccionadoNumero,
+          tituloSeleccionadoTexto:revision.tituloSeleccionadoTexto,
+          tituloSeleccionadoTextoOriginal:revision.tituloSeleccionadoTextoOriginal,
           fechaLocal: ahora
         }).catch(function () { return null; });
       })

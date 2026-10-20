@@ -649,7 +649,7 @@
         'proposal' +
         (seleccionado ? ' is-selected-by-coord' : '') +
         (corregido ? ' is-corrected-by-coord' : '');
-
+      item.dataset.propuestaNumero=String(numero);
       item.innerHTML =
         '<div class="proposal__head">' +
           '<strong>Título ' + escapeHtml(numero || '') + '</strong>' +
@@ -659,12 +659,52 @@
         '<p>' + escapeHtml(p.tituloFinal || p.titulo || 'Sin título') + '</p>' +
         (corregido && p.tituloOriginalCoordinacion
           ? '<small><b>Original:</b> ' + escapeHtml(p.tituloOriginalCoordinacion) + '</small>'
-          : '');
-
+          : '')+
+        '<label class="proposal__choose"><input type="radio" name="tituloElegidoInvestigacion" value="'+numero+'"> Elegir como título definitivo</label>';
       proposals.appendChild(item);
     });
 
     article.appendChild(proposals);
+
+    // Investigación decide de forma independiente del favorito del estudiante y de Coordinación.
+    var disponibles=(titulo.titulosEnviados||[]).filter(function(p){return p && String(p.tituloFinal||p.titulo||'').trim();});
+    var elegido=disponibles.find(function(p){return Number(p.numero)===seleccionadoNumero;})||disponibles[0]||null;
+    var numeroInvestigacion=elegido?Number(elegido.numero):0;
+    var editorTitulo=document.createElement('div');
+    editorTitulo.className='research-title-editor';
+    var labelTitulo=document.createElement('label');
+    labelTitulo.htmlFor='tituloDefinitivoInvestigacion';
+    labelTitulo.textContent='Título que aprobará Investigación (puedes corregir su redacción)';
+    var tituloTexto=document.createElement('textarea');
+    tituloTexto.id='tituloDefinitivoInvestigacion';
+    tituloTexto.rows=3;
+    tituloTexto.maxLength=260;
+    tituloTexto.placeholder='Selecciona uno de los tres títulos.';
+    function elegirPropuesta(numero){
+      var elegidoActual=disponibles.find(function(p){return Number(p.numero)===numero;});
+      if(!elegidoActual)return;
+      numeroInvestigacion=numero;
+      tituloTexto.value=String(elegidoActual.tituloFinal||elegidoActual.titulo||'').trim();
+      proposals.querySelectorAll('.proposal').forEach(function(card){
+        card.classList.toggle('is-selected-by-investigation',Number(card.dataset.propuestaNumero)===numero);
+      });
+      proposals.querySelectorAll('input[name="tituloElegidoInvestigacion"]').forEach(function(radio){
+        radio.checked=Number(radio.value)===numero;
+      });
+    }
+    proposals.querySelectorAll('input[name="tituloElegidoInvestigacion"]').forEach(function(radio){
+      radio.addEventListener('change',function(){elegirPropuesta(Number(radio.value));});
+    });
+    editorTitulo.appendChild(labelTitulo);
+    editorTitulo.appendChild(tituloTexto);
+    var ayuda=document.createElement('small');
+    ayuda.textContent='Selecciona una propuesta arriba. Puedes aprobarla tal cual o corregirla; si la corriges, explica el motivo.';
+    editorTitulo.appendChild(ayuda);
+    article.appendChild(editorTitulo);
+    if(numeroInvestigacion)elegirPropuesta(numeroInvestigacion);
+    function seleccionActual(){
+      return {numero:numeroInvestigacion,texto:tituloTexto.value.trim()};
+    }
 
     var decision = document.createElement('div');
     decision.className = 'decision queue-decision';
@@ -683,9 +723,9 @@
 
     var actions = document.createElement('div');
     actions.className = 'actions actions--review';
-    actions.appendChild(botonDecision('Aprobar', 'APROBAR', 'btn--success', titulo, obs));
-    actions.appendChild(botonDecision('Aprobar con observación', 'APROBAR_OBSERVACION', 'btn--secondary', titulo, obs));
-    actions.appendChild(botonDecision('Devolver', 'DEVOLVER', 'btn--danger', titulo, obs));
+    actions.appendChild(botonDecision('Aprobar título elegido', 'APROBAR', 'btn--success', titulo, obs, seleccionActual));
+    actions.appendChild(botonDecision('Aprobar con observación', 'APROBAR_OBSERVACION', 'btn--secondary', titulo, obs, seleccionActual));
+    actions.appendChild(botonDecision('Devolver', 'DEVOLVER', 'btn--danger', titulo, obs, seleccionActual));
 
     decision.appendChild(actions);
     article.appendChild(decision);
@@ -693,7 +733,7 @@
     return article;
   }
 
-  function botonDecision(texto, accion, clase, titulo, obs) {
+  function botonDecision(texto, accion, clase, titulo, obs, seleccionActual) {
     var button = document.createElement('button');
 
     button.type = 'button';
@@ -701,10 +741,30 @@
     button.textContent = texto;
 
     button.addEventListener('click', function () {
+      var decision=seleccionActual(),numero=Number(decision.numero||0);
+      var propuesta=(titulo.titulosEnviados||[]).find(function(p){return Number(p.numero)===numero;});
+      var original=String(propuesta&& (propuesta.tituloFinal||propuesta.titulo)||'').replace(/\s+/g,' ').trim();
+      var corregido=String(decision.texto||'').replace(/\s+/g,' ').trim();
+      var cambia=accion!=='DEVOLVER' && corregido!==original;
+      if(accion!=='DEVOLVER'){
+        if(!propuesta){mensaje('revisionMensaje','Debes elegir un título antes de aprobar.','error');return;}
+        if(!corregido){mensaje('revisionMensaje','No puedes aprobar un título vacío.','error');return;}
+        if(cambia && (corregido.length<20||corregido.length>260)){
+          mensaje('revisionMensaje','El título corregido debe tener entre 20 y 260 caracteres.','error');return;
+        }
+        if(cambia && obs.value.trim().length<8){
+          mensaje('revisionMensaje','Explica por qué corriges el título (mínimo 8 caracteres).','error');return;
+        }
+      }
+      if((accion==='DEVOLVER'||accion==='APROBAR_OBSERVACION')&&!obs.value.trim()){
+        mensaje('revisionMensaje','Esta decisión necesita una observación.','error');return;
+      }
+      if(accion!=='DEVOLVER' && !window.confirm('¿Aprobar definitivamente el Título '+numero+' de '+titulo.nombres+
+          (cambia?' con la redacción corregida':'')+'? La decisión quedará registrada.'))return;
       setLoading(button, true, 'Guardando...');
       bloquearDecisiones(true);
 
-      repository.revisarTitulo(titulo, accion, obs.value, investigador)
+      repository.revisarTitulo(titulo, accion, obs.value, investigador,numero,accion==='DEVOLVER'?'':corregido)
         .then(function () {
           mensaje('revisionMensaje', 'Revisión guardada. Cargando el siguiente expediente...', 'success');
           return cargarTitulos(true).then(function(){return cargarRevisiones();});

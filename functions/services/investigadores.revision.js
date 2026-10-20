@@ -5,11 +5,34 @@ function fail(status,code){const e=new Error(code);e.status=status;e.code=code;t
 const str=v=>String(v===undefined||v===null?'':v).replace(/\s+/g,' ').trim();
 const upper=v=>str(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
 function doc(snap){return snap&&snap.exists?{...snap.data(),id:snap.id}:null;}
-function tituloSeleccionado(t){
- const n=Number(t.habilitadoInvestigacionPorAdmin&&t.tituloAdminSeleccionadoNumero||t.tituloCoordinadorNumero||t.revisionCoordinador&&t.revisionCoordinador.tituloSeleccionadoNumero||0);
- const list=Array.isArray(t.titulosEnviados)?t.titulosEnviados:[];
- const item=list.find(x=>Number(x.numero)===n);
- return str(t.habilitadoInvestigacionPorAdmin&&t.tituloAdminSeleccionadoTexto||t.tituloCoordinador||item&&(item.tituloFinal||item.titulo)||'');
+function propuestas(t){
+ const fuente=[t.titulosEnviados,t.propuestasDetalle,t.propuestas].find(lista=>Array.isArray(lista)&&lista.length)||[];
+ let arr=fuente.map((p,i)=>({...(p&&typeof p==='object'?p:{}),
+   numero:Number(p&&p.numero||i+1),
+   tituloFinal:str(typeof p==='string'?p:p&& (p.tituloFinal||p.titulo||p.texto)||'')
+ })).filter(p=>[1,2,3].includes(p.numero)&&p.tituloFinal);
+ if(!arr.length)arr=[1,2,3].map(numero=>({numero,tituloFinal:str(t['titulo'+numero])})).filter(p=>p.tituloFinal);
+ return arr;
+}
+function elegirTitulo(t,body){
+ const lista=propuestas(t);
+ const huboEleccion=body.tituloSeleccionadoNumero!==undefined&&body.tituloSeleccionadoNumero!==null;
+ const numero=Number(body.tituloSeleccionadoNumero||0);
+ if(huboEleccion&&(!Number.isInteger(numero)||numero<1||numero>3))fail(422,'TITULO_SELECCION_INVALIDA');
+ const propuesta=lista.find(p=>p.numero===numero);
+ if(huboEleccion&&!propuesta)fail(422,'TITULO_PROPUESTA_NO_ENCONTRADA');
+ const original=str(propuesta&&propuesta.tituloFinal||'');
+ const historico=str(t.habilitadoInvestigacionPorAdmin&&t.tituloAdminSeleccionadoTexto||
+   t.tituloCoordinador||lista.find(p=>p.numero===Number(t.tituloCoordinadorNumero||0))?.tituloFinal||'');
+ const texto=huboEleccion ? (body.tituloCorregidoTexto===undefined?original:str(body.tituloCorregidoTexto)) : historico;
+ const correccion=Boolean(huboEleccion&&texto!==original);
+ if(!texto)fail(422,'TITULO_FINAL_REQUERIDO');
+ if(correccion&&(texto.length<20||texto.length>260))fail(422,'TITULO_CORREGIDO_LONGITUD_INVALIDA');
+ const items=lista.map(p=>correccion&&p.numero===numero?
+   {...p,tituloOriginalInvestigacion:p.tituloOriginalInvestigacion||original,
+    tituloCorregidoInvestigacion:texto,corregidoInvestigacion:true,tituloFinal:texto,titulo:texto}:p);
+ return {numero:huboEleccion?numero:Number(t.tituloCoordinadorNumero||0)||null,
+   original:huboEleccion?original:historico,texto,correccion,items};
 }
 async function revisar(db,perfil,actor,body,h){
  if(!body||typeof body!=='object'||Array.isArray(body))fail(400,'REVISION_INVALIDA');
@@ -35,12 +58,17 @@ async function revisar(db,perfil,actor,body,h){
    periodos.validar(titulo,periodos.activos(configSnap.data()));
   if(!h.permitida(titulo,actual))fail(403,'CARRERA_NO_AUTORIZADA');
   if(!h.pendiente(titulo))fail(409,'REVISION_NO_DISPONIBLE');
-  const final=tituloSeleccionado(titulo);
-  if(estado!=='DEVUELTO'&&!final)fail(422,'TITULO_COORDINADOR_NO_DISPONIBLE');
+  const seleccion=estado==='DEVUELTO'?null:elegirTitulo(titulo,body);
+  if(seleccion&&seleccion.correccion&&observacion.length<8)fail(422,'CORRECCION_REQUIERE_MOTIVO');
   const pub=h.perfilPublico(actual);
   const revision={estado,accion,observacion,investigadorId:actual.id,
    investigadorCedula:pub.cedula,investigadorNombre:pub.nombre,
-   investigadorEmail:pub.email,fechaLocal:ahora};
+   investigadorEmail:pub.email,fechaLocal:ahora,
+   tituloSeleccionadoNumero:seleccion&&seleccion.numero||null,
+   tituloSeleccionadoTextoOriginal:seleccion&&seleccion.original||'',
+   tituloSeleccionadoTexto:seleccion&&seleccion.texto||'',
+   corrigioTitulo:Boolean(seleccion&&seleccion.correccion),
+   seleccionDiferenteCoordinacion:Boolean(seleccion&&seleccion.numero&&Number(titulo.tituloCoordinadorNumero||0)!==seleccion.numero)};
   const payload={estadoInvestigador:estado,revisionInvestigador:revision,investigacionRevisada:true,
    investigacionRevisadaEn:ahora,observacionInvestigacion:observacion,
    fechaResolucionInvestigacion:ahora,actualizadoEnLocal:ahora,actualizadoPorModulo:'investigadores'};
@@ -52,11 +80,16 @@ async function revisar(db,perfil,actor,body,h){
   });
   else Object.assign(payload,{
    estado:'APROBADO_FINAL',estadoProceso:'APROBADO_FINAL',
-   resultadoInvestigacion:estado==='APROBADO_CON_OBSERVACION'?'APROBADO_CON_CORRECCION':'APROBADO_SIN_CAMBIOS',
-   tituloFinalInvestigacion:final,tituloFinal:final,requiereAccionDe:'',
+   resultadoInvestigacion:seleccion.correccion?'APROBADO_CON_CORRECCION':estado==='APROBADO_CON_OBSERVACION'?'APROBADO_CON_OBSERVACION':'APROBADO_SIN_CAMBIOS',
+   tituloInvestigadorNumero:seleccion.numero,tituloInvestigador:seleccion.texto,
+   tituloOriginalInvestigacion:seleccion.original,
+   tituloCorregidoInvestigacion:seleccion.correccion?seleccion.texto:'',
+   titulosEnviados:seleccion.items,propuestasDetalle:seleccion.items,
+   tituloFinalInvestigacion:seleccion.texto,tituloFinal:seleccion.texto,requiereAccionDe:'',
    requiereRevision:false,permitirReenvio:false,puedeReenviar:false,
    devueltoPor:'',fechaResolucion:ahora
   });
+  if(seleccion)seleccion.items.forEach(p=>{payload['titulo'+p.numero]=p.tituloFinal;});
   tx.set(ref,payload,{merge:true});
   tx.set(db.collection('workflow_events').doc(),{
    tipo:'REVISION_TITULO_INVESTIGADOR',accion:'REVISION_TITULO_INVESTIGADOR',
@@ -64,7 +97,11 @@ async function revisar(db,perfil,actor,body,h){
    cedula:titulo.cedula||titulo.numeroIdentificacion||'',
    carrera:titulo.carreraNombre||titulo.carrera||'',
    periodoId:titulo.periodoId||titulo.periodoCanonicoId||'',
-   estado:payload.estado,revision,fechaLocal:ahora,creadoEn:ahora,realizadoPorUid:actor.uid
+   estado:payload.estado,revision,
+   tituloSeleccionadoNumero:revision.tituloSeleccionadoNumero,
+   tituloSeleccionadoTexto:revision.tituloSeleccionadoTexto,
+   tituloSeleccionadoTextoOriginal:revision.tituloSeleccionadoTextoOriginal,
+   fechaLocal:ahora,creadoEn:ahora,realizadoPorUid:actor.uid
   });
   return {...titulo,...payload};
  });

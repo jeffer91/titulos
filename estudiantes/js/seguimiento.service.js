@@ -642,8 +642,13 @@
     var tags = [];
 
     if (numero && Number(envio.tituloPreferidoNumero || 0) === numero) tags.push('Preferido por ti');
-    if (texto && tituloCoord && normalizarComparacion(texto) === normalizarComparacion(tituloCoord)) tags.push('Seleccionado en revisión');
-    if (texto && tituloFinal && normalizarComparacion(texto) === normalizarComparacion(tituloFinal)) tags.push('Título final');
+    var numeroCoordinacion=Number(envio.tituloCoordinadorNumero||envio.revisionCoordinador&&envio.revisionCoordinador.tituloSeleccionadoNumero||0);
+    var numeroInvestigacion=Number(envio.tituloInvestigadorNumero||envio.revisionInvestigador&&envio.revisionInvestigador.tituloSeleccionadoNumero||0);
+    var numeroAdministracion=Number(envio.aprobadoPorAdministracion&&envio.tituloAdminSeleccionadoNumero||0);
+    if(numero && numeroCoordinacion===numero || (!numeroCoordinacion&&texto&&tituloCoord&&normalizarComparacion(texto)===normalizarComparacion(tituloCoord)))tags.push('Elegido por Coordinación');
+    if(numero && numeroInvestigacion===numero)tags.push('Elegido por Investigación');
+    if((numero && (numeroAdministracion||numeroInvestigacion)===numero && tituloFinal) ||
+      (!numeroAdministracion&&!numeroInvestigacion&&texto&&tituloFinal&&normalizarComparacion(texto)===normalizarComparacion(tituloFinal)))tags.push('Título final');
 
     return [
       '<article class="seguimiento-propuesta">',

@@ -91,6 +91,13 @@ textarea { resize: vertical; }
 }
 
 .proposal.is-selected-by-coord { border-color: #7db1e8; background: #f4f8ff; box-shadow: inset 3px 0 0 #1557d6; }
+.proposal.is-selected-by-investigation { border:2px solid #13845e; background:#f1faf6; box-shadow:inset 3px 0 0 #13845e; }
+.proposal__choose { display:flex; align-items:center; gap:7px; padding:8px 0 1px; margin-top:8px; cursor:pointer; font-size:.77rem; font-weight:800; color:#145d46; }
+.proposal__choose input { width:16px; height:16px; accent-color:#13845e; cursor:pointer; }
+.research-title-editor { margin-top:13px; border:1px solid #a4d6bf; background:#f5fbf8; border-radius:12px; padding:12px; }
+.research-title-editor>label { display:block; font-size:.85rem; font-weight:900; color:#145d46; margin-bottom:7px; }
+.research-title-editor textarea { width:100%; min-height:80px; padding:10px; line-height:1.5; resize:vertical; }
+.research-title-editor small { display:block; margin-top:7px; color:#56695f; font-size:.75rem; }
 .proposal.is-corrected-by-coord { border-color: #e0b84f; background: #fffaf0; box-shadow: inset 3px 0 0 #d39a12; }
 .proposal__head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .proposal__head span { display:inline-flex; padding:3px 6px; border-radius:999px; background:#e8f1ff; color:#1557d6; font-size:.64rem; font-weight:900; }
@@ -880,4 +887,10 @@ textarea { resize: vertical; }
   .review-filters {
     grid-template-columns: 1fr;
   }
+}
+
+/* La elección vigente de Investigación tiene prioridad visual frente a cualquier marca anterior. */
+.proposals--review .proposal.is-selected-by-investigation,
+.proposals--review .proposal.is-selected-by-investigation.is-corrected-by-coord {
+  border:2px solid #13845e; background:#f1faf6; box-shadow:inset 3px 0 0 #13845e;
 }

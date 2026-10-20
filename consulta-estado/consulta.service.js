@@ -486,7 +486,7 @@
       'resultadoCoordinador', 'resultadoInvestigacion', 'requiereAccionDe', 'requiereRevision',
       'validadoCoordinador', 'validadoCoordinacion', 'coordinadorRevisado', 'investigacionRevisada',
       'titulo1', 'titulo2', 'titulo3', 'tituloElegido', 'tituloPreferidoTexto', 'tituloPreferidoNumero',
-      'tituloCoordinador', 'tituloCoordinadorNumero', 'tituloFinal', 'tituloFinalInvestigacion', 'tituloSeleccionadoNumero', 'tituloSeleccionadoTexto',
+      'tituloCoordinador', 'tituloCoordinadorNumero', 'tituloInvestigadorNumero', 'tituloInvestigador', 'tituloOriginalInvestigacion', 'tituloCorregidoInvestigacion', 'tituloFinal', 'tituloFinalInvestigacion', 'tituloSeleccionadoNumero', 'tituloSeleccionadoTexto',
       'comentarioCoordinador', 'comentarioInvestigador', 'observacionDevolucion', 'observacionInvestigacion',
       'devueltoPor', 'permitirReenvio', 'puedeReenviar', 'intentosUsados', 'numeroEnvios', 'numeroReenvios',
       'versionActual', 'fechaEnvio', 'fechaValidacionCoordinador', 'fechaResolucionInvestigacion',
@@ -515,7 +515,7 @@
       if (!item || typeof item !== 'object') return item;
       var salida = {};
       [
-        'numero', 'titulo', 'tituloFinal', 'preferido', 'enfoque',
+        'numero', 'titulo', 'tituloFinal', 'preferido', 'tituloOriginalInvestigacion', 'tituloCorregidoInvestigacion', 'corregidoInvestigacion', 'enfoque',
         'temaGeneral', 'grupoEstudio', 'lugarContexto', 'anioPeriodo',
         'problemaNecesidad', 'objetivo'
       ].forEach(function (key) {
@@ -531,7 +531,7 @@
     [
       'estado', 'resultado', 'responsable', 'nombre', 'nombres', 'coordinador', 'investigador',
       'coordinadorNombre', 'coordinadorEmail', 'investigadorNombre', 'investigadorEmail',
-      'comentario', 'observacion', 'tituloSeleccionadoTexto', 'tituloSeleccionadoNumero',
+      'comentario', 'observacion', 'tituloSeleccionadoTexto', 'tituloSeleccionadoNumero', 'tituloSeleccionadoTextoOriginal', 'corrigioTitulo', 'seleccionDiferenteCoordinacion',
       'tituloFinal', 'fecha', 'fechaLocal', 'fechaRevision', 'fechaValidacion', 'fechaResolucion'
     ].forEach(function (key) {
       if (Object.prototype.hasOwnProperty.call(revision, key)) salida[key] = revision[key];

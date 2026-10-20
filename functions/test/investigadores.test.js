@@ -124,7 +124,7 @@ test('aprobar con observación requiere comentario',async()=>{
   tituloId:'b1',accion:'APROBAR_OBSERVACION',observacion:'Observación metodológica importante.'
  }});
  assert.equal(data.estadoInvestigador,'APROBADO_CON_OBSERVACION');
- assert.equal(data.resultadoInvestigacion,'APROBADO_CON_CORRECCION');
+ assert.equal(data.resultadoInvestigacion,'APROBADO_CON_OBSERVACION');
 });
 test('devolver exige motivo, registra reenvío autorizado y evento',async()=>{
  const {rutas,db}=setup();
@@ -206,4 +206,64 @@ test('paginación conserva pendientes después de más de 2500 expedientes cerra
  base.envios.z= titulo('z','Otra carrera','2026-05__2026-11','2026-01-02');
  const {rutas}=setup(base);
  assert.deepEqual((await rutas['/cola'].handle({usuario:actor})).titulos.map(t=>t.id),['z']);
+});
+
+test('Investigación puede elegir propuesta diferente a Coordinación sin cambiar preferido',async()=>{
+ const base=datos();
+ base.envios.b1.tituloCoordinadorNumero=1;
+ base.envios.b1.tituloPreferidoNumero=3;
+ base.envios.b1.titulosEnviados=[
+  {numero:1,tituloFinal:'Primer título enviado al proceso'},
+  {numero:2,tituloFinal:'Segundo título diferente y autorizado'},
+  {numero:3,tituloFinal:'Tercer título preferido por el estudiante'}
+ ];
+ const {rutas,db}=setup(base);
+ const d=await rutas['/revision'].handle({usuario:actor,body:{
+   tituloId:'b1',accion:'APROBAR',tituloSeleccionadoNumero:2
+ }});
+ assert.equal(d.estado,'APROBADO_FINAL');
+ assert.equal(d.tituloFinal,'Segundo título diferente y autorizado');
+ assert.equal(d.tituloInvestigadorNumero,2);
+ assert.equal(d.tituloPreferidoNumero,3);
+ assert.equal(d.tituloCoordinadorNumero,1);
+ assert.equal(d.revisionInvestigador.tituloSeleccionadoNumero,2);
+ assert.equal(d.revisionInvestigador.corrigioTitulo,false);
+ assert.equal((await rutas['/cola'].handle({usuario:actor})).titulos.some(t=>t.id==='b1'),false);
+ assert.equal(db.tablas.workflow_events.size,1);
+});
+test('Investigación puede corregir redacción con motivo, conservando original y otras dos propuestas',async()=>{
+ const base=datos();
+ base.envios.b1.tituloCoordinadorNumero=1;
+ base.envios.b1.titulosEnviados=[
+  {numero:1,tituloFinal:'Título primero'},
+  {numero:2,tituloFinal:'Título segundo, antes de corregir'},
+  {numero:3,tituloFinal:'Título tercero'}
+ ];
+ const {rutas,db}=setup(base);
+ const nuevo='Diagnóstico de procesos administrativos y gestión comercial en Sangolquí';
+ await assert.rejects(()=>rutas['/revision'].handle({usuario:actor,body:{
+   tituloId:'b1',accion:'APROBAR',tituloSeleccionadoNumero:2,tituloCorregidoTexto:nuevo
+ }}),e=>e.code==='CORRECCION_REQUIERE_MOTIVO');
+ const d=await rutas['/revision'].handle({usuario:actor,body:{
+   tituloId:'b1',accion:'APROBAR',tituloSeleccionadoNumero:2,tituloCorregidoTexto:nuevo,
+   observacion:'Se precisó la finalidad y delimitación académica.'
+ }});
+ assert.equal(d.tituloFinal,nuevo);
+ assert.equal(d.titulo2,nuevo);
+ assert.equal(d.titulosEnviados[1].tituloOriginalInvestigacion,'Título segundo, antes de corregir');
+ assert.equal(d.titulosEnviados[0].tituloFinal,'Título primero');
+ assert.equal(d.titulosEnviados[2].tituloFinal,'Título tercero');
+ assert.equal(d.revisionInvestigador.tituloSeleccionadoTextoOriginal,'Título segundo, antes de corregir');
+ assert.equal(d.revisionInvestigador.tituloSeleccionadoNumero,2);
+ assert.equal(d.revisionInvestigador.corrigioTitulo,true);
+ assert.equal(d.resultadoInvestigacion,'APROBADO_CON_CORRECCION');
+ assert.equal(db.tablas.workflow_events.size,1);
+});
+test('Investigación rechaza selección inexistente y no escribe en Firebase',async()=>{
+ const {rutas,db}=setup();
+ await assert.rejects(()=>rutas['/revision'].handle({usuario:actor,body:{
+  tituloId:'b1',accion:'APROBAR',tituloSeleccionadoNumero:3
+ }}),e=>e.code==='TITULO_PROPUESTA_NO_ENCONTRADA');
+ assert.equal(db.tablas.workflow_events.size,0);
+ assert.equal(db.tablas.envios.get('b1').estado,'PENDIENTE_INVESTIGADOR');
 });
