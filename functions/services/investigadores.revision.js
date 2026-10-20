@@ -6,13 +6,17 @@ const str=v=>String(v===undefined||v===null?'':v).replace(/\s+/g,' ').trim();
 const upper=v=>str(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
 function doc(snap){return snap&&snap.exists?{...snap.data(),id:snap.id}:null;}
 function propuestas(t){
- const fuente=[t.titulosEnviados,t.propuestasDetalle,t.propuestas].find(lista=>Array.isArray(lista)&&lista.length)||[];
- let arr=fuente.map((p,i)=>({...(p&&typeof p==='object'?p:{}),
+ function leer(lista){
+  return (Array.isArray(lista)?lista:[]).map((p,i)=>({
+   ...(p&&typeof p==='object'?p:{}),
    numero:Number(p&&p.numero||i+1),
-   tituloFinal:str(typeof p==='string'?p:p&& (p.tituloFinal||p.titulo||p.texto)||'')
- })).filter(p=>[1,2,3].includes(p.numero)&&p.tituloFinal);
- if(!arr.length)arr=[1,2,3].map(numero=>({numero,tituloFinal:str(t['titulo'+numero])})).filter(p=>p.tituloFinal);
- return arr;
+   tituloFinal:str(typeof p==='string'?p:p&&(p.tituloFinal||p.titulo||p.texto)||'')
+  })).filter(p=>[1,2,3].includes(p.numero)&&p.tituloFinal);
+ }
+ for(const lista of [t.titulosEnviados,t.propuestasDetalle,t.propuestas]){
+  const items=leer(lista);if(items.length)return items;
+ }
+ return [1,2,3].map(numero=>({numero,tituloFinal:str(t['titulo'+numero])})).filter(p=>p.tituloFinal);
 }
 function elegirTitulo(t,body){
  const lista=propuestas(t);
@@ -58,6 +62,9 @@ async function revisar(db,perfil,actor,body,h){
    periodos.validar(titulo,periodos.activos(configSnap.data()));
   if(!h.permitida(titulo,actual))fail(403,'CARRERA_NO_AUTORIZADA');
   if(!h.pendiente(titulo))fail(409,'REVISION_NO_DISPONIBLE');
+  // La revisión se compara dentro de la transacción, no solo en el navegador.
+  if(body.revisionEsperada&&str(titulo.actualizadoEnLocal)!==str(body.revisionEsperada))
+   fail(409,'EXPEDIENTE_DESACTUALIZADO');
   const seleccion=estado==='DEVUELTO'?null:elegirTitulo(titulo,body);
   if(seleccion&&seleccion.correccion&&observacion.length<8)fail(422,'CORRECCION_REQUIERE_MOTIVO');
   const pub=h.perfilPublico(actual);

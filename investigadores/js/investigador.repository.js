@@ -128,7 +128,8 @@
   function revisarTitulo(titulo, accion, observacion, investigador, numeroElegido, textoEditado) {
     if(modoSeguro())return seguro.revisar({
       tituloId:titulo&&titulo.id,accion:accion,observacion:observacion,
-      tituloSeleccionadoNumero:numeroElegido,tituloCorregidoTexto:textoEditado
+      tituloSeleccionadoNumero:numeroElegido,tituloCorregidoTexto:textoEditado,
+      revisionEsperada:titulo&&titulo.raw&&titulo.raw.actualizadoEnLocal||''
     }).then(normalizarTitulo);
     if (!titulo || !titulo.id) return Promise.reject(new Error('No se encontró el título.'));
     if (!estaPendienteInvestigacion(titulo)) return Promise.reject(new Error('Este título ya no está pendiente de Investigación.'));
@@ -231,28 +232,24 @@
     return periodosHabilitados().then(function(activos){
       if(!periodoHabilitado(titulo,activos))
         throw new Error('El período académico está desactivado.');
-      return firebaseService.guardarDocumento(config.collections.titulos, titulo.id, payload, { merge: true });
-    })
-      .then(function () {
-        return firebaseService.agregarDocumento(config.collections.logs, {
-          tipo: 'REVISION_TITULO_INVESTIGADOR',
-          accion: 'REVISION_TITULO_INVESTIGADOR',
-          modulo: 'investigadores',
-          entidad: 'envios',
-          entidadId: titulo.id,
-          tituloId: titulo.id,
-          cedula: titulo.cedula,
-          carrera: titulo.carrera,
-          periodoId: titulo.periodoId,
-          estado: payload.estado,
-          revision: revision,
-          tituloSeleccionadoNumero:revision.tituloSeleccionadoNumero,
-          tituloSeleccionadoTexto:revision.tituloSeleccionadoTexto,
-          tituloSeleccionadoTextoOriginal:revision.tituloSeleccionadoTextoOriginal,
-          fechaLocal: ahora
-        }).catch(function () { return null; });
-      })
-      .then(function () { return normalizarTitulo(Object.assign({}, titulo.raw || titulo, payload)); });
+      // No sustituir la transacción por guardarDocumento/agregarDocumento: permitiría
+      // sobrescribir una aprobación anterior desde una pestaña desactualizada.
+      if(!firebaseService.guardarRevisionAtomica)
+        throw new Error('Actualiza la aplicación de Investigación para guardar con seguridad.');
+      var evento={
+        tipo:'REVISION_TITULO_INVESTIGADOR',accion:'REVISION_TITULO_INVESTIGADOR',
+        modulo:'investigadores',entidad:'envios',entidadId:titulo.id,tituloId:titulo.id,
+        cedula:titulo.cedula,carrera:titulo.carrera,periodoId:titulo.periodoId,
+        estado:payload.estado,revision:revision,
+        tituloSeleccionadoNumero:revision.tituloSeleccionadoNumero,
+        tituloSeleccionadoTexto:revision.tituloSeleccionadoTexto,
+        tituloSeleccionadoTextoOriginal:revision.tituloSeleccionadoTextoOriginal,fechaLocal:ahora
+      };
+      return firebaseService.guardarRevisionAtomica(config.collections.titulos,titulo.id,
+        payload,evento,titulo.raw||titulo,investigador);
+    }).then(function(){
+      return normalizarTitulo(Object.assign({},titulo.raw||titulo,payload));
+    });
   }
 
   function estaHabilitadoPorCoordinador(titulo) {

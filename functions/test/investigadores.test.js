@@ -267,3 +267,15 @@ test('Investigación rechaza selección inexistente y no escribe en Firebase',as
  assert.equal(db.tablas.workflow_events.size,0);
  assert.equal(db.tablas.envios.get('b1').estado,'PENDIENTE_INVESTIGADOR');
 });
+
+test('un primer arreglo vacío de títulos no oculta propuestas históricas válidas',async()=>{
+ const base=datos();
+ base.envios.b1.titulosEnviados=[{numero:1,tituloFinal:''}];
+ base.envios.b1.propuestasDetalle=[{numero:2,tituloFinal:'Propuesta histórica de gestión de procesos'}];
+ const {rutas}=setup(base);
+ const r=await rutas['/revision'].handle({usuario:actor,body:{
+  tituloId:'b1',accion:'APROBAR',tituloSeleccionadoNumero:2
+ }});
+ assert.equal(r.tituloInvestigadorNumero,2);
+ assert.equal(r.tituloFinal,'Propuesta histórica de gestión de procesos');
+});

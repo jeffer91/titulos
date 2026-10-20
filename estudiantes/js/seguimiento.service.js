@@ -808,9 +808,13 @@
 
     if (
       accion === 'VALIDAR_CORRECCION' ||
-      normalizarEstado(revision.resultado) === 'APROBADO_CON_CORRECCION'
+      normalizarEstado(revision.resultado) === 'APROBADO_CON_CORRECCION' ||
+      revision.corrigioTitulo === true
     ) {
-      return { titulo: 'Aprobado con corrección', fecha: fecha, estado: 'APROBADO_CON_CORRECCION', observacion: observacion };
+      var viejo=limpiar(revision.tituloSeleccionadoTextoOriginal||evento.tituloSeleccionadoTextoOriginal||'');
+      var nuevo=limpiar(revision.tituloSeleccionadoTexto||evento.tituloSeleccionadoTexto||'');
+      return {titulo:'Aprobado con corrección',fecha:fecha,estado:'APROBADO_CON_CORRECCION',
+        observacion:observacion,tituloAnterior:viejo,tituloNuevo:nuevo};
     }
 
     if (
@@ -871,6 +875,9 @@
             '<time>' + escapar(formatearFechaHistorial(item.fecha)) + '</time>',
           '</div>',
           item.observacion ? '<p class="seguimiento-history__obs">' + escapar(item.observacion) + '</p>' : '',
+          item.tituloAnterior&&item.tituloNuevo?
+            '<p class="seguimiento-history__obs"><strong>Antes:</strong> '+escapar(item.tituloAnterior)+
+            '</p><p class="seguimiento-history__obs"><strong>Definitivo:</strong> '+escapar(item.tituloNuevo)+'</p>':'',
         '</div>',
       '</article>'
     ].join('');

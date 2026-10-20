@@ -300,6 +300,64 @@
       });
   }
 
+  // Los títulos son resoluciones definitivas: lectura, validación y dos escrituras
+  // en una sola transacción. Nunca volver a una escritura directa al fallar.
+  function guardarRevisionAtomica(collectionName, id, cambios, evento, anterior, investigador) {
+    asegurarEscritura(collectionName);
+    asegurarEscritura('workflow_events');
+    asegurarLectura('configuracion');
+    asegurarLectura('investigadores');
+    var db=getDb(), ref=db.collection(collectionName).doc(String(id));
+    var registro=db.collection('workflow_events').doc();
+    var perfilRef=db.collection('investigadores').doc(String(investigador&&investigador.id||''));
+    var campos=['estado','estadoProceso','estadoCoordinador','estadoInvestigador','procesoCerrado',
+      'investigacionRevisada','revisionCoordinador','revisionInvestigador',
+      'tituloCoordinador','tituloCoordinadorNumero','tituloAdminSeleccionadoNumero',
+      'tituloAdminSeleccionadoTexto','habilitadoInvestigacionPorAdmin','titulosEnviados',
+      'propuestasDetalle','propuestas','titulo1','titulo2','titulo3','numeroEnvios',
+      'fechaEnvio','actualizadoEnLocal','ultimaAccionAdministrativa'];
+    function huella(d){return JSON.stringify(campos.map(function(c){return d&&d[c]===undefined?null:d&&d[c];}));}
+    function periodo(id){
+      if(id&&typeof id==='object')id=id.id||id.periodoId||'';
+      var m=/^(\d{4})[-_](0?[1-9]|1[0-2])(?:__|[-_\s]+)(\d{4})[-_](0?[1-9]|1[0-2])$/.exec(String(id||'').trim());
+      return m?m[1]+'-'+String(m[2]).padStart(2,'0')+'__'+m[3]+'-'+String(m[4]).padStart(2,'0'):'';
+    }
+    return db.runTransaction(function(tx){
+      // Todas las lecturas se realizan ANTES de cualquier escritura.
+      return Promise.all([tx.get(ref),tx.get(perfilRef),tx.get(db.collection('configuracion').doc('general'))])
+      .then(function(snapshots){
+        var snap=snapshots[0], perfil=snapshots[1], config=snapshots[2];
+        if(!snap.exists)throw new Error('El expediente ya no está disponible. Actualiza la cola.');
+        if(!perfil.exists||perfil.data().activo===false||perfil.data().pinActivo!==true)
+          throw new Error('Tu acceso de Investigación ya no está habilitado.');
+        if(!config.exists)throw new Error('No se pudo verificar el período académico.');
+        var actual=snap.data()||{},previo=anterior||{};
+        var estado=String(actual.estado||'').toUpperCase(),proceso=String(actual.estadoProceso||'').toUpperCase();
+        var inv=String(actual.estadoInvestigador||'').toUpperCase();
+        if(actual.procesoCerrado===true||actual.investigacionRevisada===true||
+          ['APROBADO_FINAL','DEVUELTO','ARCHIVADO','BORRADOR_REINICIADO'].includes(estado)||
+          ['APROBADO_FINAL','DEVUELTO','ARCHIVADO','BORRADOR_REINICIADO','PENDIENTE_COORDINADOR'].includes(proceso)||
+          ['APROBADO','APROBADO_CON_OBSERVACION','DEVUELTO'].includes(inv))
+          throw new Error('Este expediente ya fue resuelto o dejó de estar pendiente. Actualiza la cola.');
+        if(huella(actual)!==huella(previo))
+          throw new Error('El expediente cambió desde que lo abriste. Actualiza la cola antes de decidir.');
+        var c=config.data()||{};
+        var ids=Array.isArray(c.periodosActivos)?c.periodosActivos:
+          c.periodoActivoDesactivado===true?[]:
+          [c.periodoActivoId||(c.periodoActivo&&c.periodoActivo.id)||c.periodoActivo||''];
+        var idPeriodo=periodo(actual.periodoCanonicoId)||periodo(actual.periodoId)||
+          periodo(actual.periodo&&actual.periodo.id||actual.periodo);
+        if(!idPeriodo||!ids.some(function(x){return periodo(x)===idPeriodo;}))
+          throw new Error('El período académico está desactivado.');
+        tx.set(ref,Object.assign({},cambios,{actualizadoEn:serverTimestamp()}),{merge:true});
+        tx.set(registro,Object.assign({},evento,{creadoEn:serverTimestamp(),actualizadoEn:serverTimestamp()}));
+        return true;
+      });
+    }).catch(function(error){
+      throw crearErrorOperacion('GUARDAR_REVISION_ATOMICA',collectionName,error);
+    });
+  }
+
   function agregarDocumento(collectionName, data) {
     asegurarEscritura(collectionName);
 
@@ -363,6 +421,7 @@
     listarDocumentos: listarDocumentos,
     listarDocumentosServidor: listarDocumentosServidor,
     guardarDocumento: guardarDocumento,
+    guardarRevisionAtomica: guardarRevisionAtomica,
     agregarDocumento: agregarDocumento,
     serverTimestamp: serverTimestamp
   });

@@ -277,9 +277,12 @@
     var esFinal = normalizarTexto(titulo.estadoProceso || titulo.estado) === 'APROBADO_FINAL' ||
       titulo.procesoCerrado === true;
     var preferido = Number(data.tituloPreferidoNumero || titulo.tituloPreferidoNumero || 0);
-    var seleccionado = Number(titulo.tituloAdminSeleccionadoNumero ||
-      titulo.tituloCoordinadorNumero ||
-      titulo.revisionCoordinador && titulo.revisionCoordinador.tituloSeleccionadoNumero || 0);
+    var seleccionadoCoordinador=Number(titulo.tituloCoordinadorNumero||
+      titulo.revisionCoordinador&&titulo.revisionCoordinador.tituloSeleccionadoNumero||0);
+    var seleccionadoInvestigacion=Number(titulo.tituloInvestigadorNumero||
+      titulo.revisionInvestigador&&titulo.revisionInvestigador.tituloSeleccionadoNumero||0);
+    var seleccionadoAdmin=Number(titulo.aprobadoPorAdministracion&&titulo.tituloAdminSeleccionadoNumero||0);
+    var seleccionado=seleccionadoAdmin||seleccionadoInvestigacion||seleccionadoCoordinador;
     var final = esFinal ? String(titulo.tituloFinal || titulo.tituloFinalInvestigacion || '') : '';
     var procedencia = titulo.aprobadoPorAdministracion === true
       ? 'Resolución administrativa' : 'Revisión académica';
@@ -304,8 +307,12 @@
         escapeHtml(data.estado || 'Sin enviar') + '</span></div>' +
       '<div class="admin-review-summary__fields">' +
       '<div><small>Preferido por el estudiante</small><p>' + escapeHtml(data.tituloPreferidoTexto || '—') + '</p></div>' +
-      '<div><small>Seleccionado para revisión</small><p>' +
-        escapeHtml(titulo.tituloAdminSeleccionadoTexto || titulo.tituloCoordinador || '—') + '</p></div>' +
+      '<div><small>Seleccionado por Coordinación</small><p>'+
+        escapeHtml(titulo.tituloCoordinador||'—')+'</p></div>'+
+      (seleccionadoInvestigacion?'<div><small>Elegido por Investigación · Título '+seleccionadoInvestigacion+
+        '</small><p>'+escapeHtml(titulo.tituloInvestigador||titulo.tituloFinalInvestigacion||'—')+'</p></div>':'')+
+      (seleccionadoAdmin?'<div><small>Resolución del Administrador · Título '+seleccionadoAdmin+
+        '</small><p>'+escapeHtml(titulo.tituloAdminSeleccionadoTexto||'—')+'</p></div>':'')+
       (final ? '<div class="admin-final-title"><small>Título definitivo · ' + escapeHtml(procedencia) +
         '</small><p>' + escapeHtml(final) + '</p></div>' : '') +
       '</div>' +
@@ -346,7 +353,10 @@
         box.className = 'admin-proposal';
         box.innerHTML = '<div class="admin-proposal__head"><strong>Propuesta ' + numero + '</strong>' +
           (numero === preferido ? '<span class="admin-proposal__tag">Preferida</span>' : '') +
-          (numero === seleccionado ? '<span class="admin-proposal__tag admin-proposal__tag--selected">Seleccionada en revisión</span>' : '') +
+          (numero === seleccionadoCoordinador?'<span class="admin-proposal__tag">Coordinación</span>':'')+
+          (numero === seleccionadoInvestigacion?'<span class="admin-proposal__tag">Investigación</span>':'')+
+          (numero === seleccionadoAdmin?'<span class="admin-proposal__tag">Administración</span>':'')+
+          (esFinal&&numero === seleccionado?'<span class="admin-proposal__tag admin-proposal__tag--selected">Título final</span>':'')+
           '</div><p>' + escapeHtml(title) + '</p>' +
           (propuesta.tituloOriginalAdministracion
             ? '<small>Antes de corrección administrativa: ' + escapeHtml(propuesta.tituloOriginalAdministracion) + '</small>'

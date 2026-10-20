@@ -100,8 +100,8 @@ assert(
 });
 
 assert(
-  repository.includes('firebaseService.guardarDocumento') &&
-  repository.includes('firebaseService.agregarDocumento') &&
+  repository.includes('firebaseService.guardarRevisionAtomica') &&
+  firebaseService.includes('runTransaction') &&
   !repository.includes('.collection('),
   'Repository de Investigadores debe pasar por su backend y no escribir directo en Firestore.'
 );

@@ -63,6 +63,12 @@ async function run() {
     guardarDocumento: async function (collection, id, payload) {
       Object.assign(docs.find(d=>d.id===id),payload);
     },
+    guardarRevisionAtomica: async function(collection,id,payload,evento,previo){
+      const actual=docs.find(d=>d.id===id);
+      assert(actual && actual.estadoProceso!=='APROBADO_FINAL');
+      assert.strictEqual(actual.estado,previo.estado);
+      Object.assign(actual,payload);
+    },
     agregarDocumento: async function () {},
     listarDocumentos: async function (collection, options) {
       assert.strictEqual(collection, 'envios');
