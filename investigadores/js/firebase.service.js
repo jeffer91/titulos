@@ -334,7 +334,14 @@
         var actual=snap.data()||{},previo=anterior||{};
         var estado=String(actual.estado||'').toUpperCase(),proceso=String(actual.estadoProceso||'').toUpperCase();
         var inv=String(actual.estadoInvestigador||'').toUpperCase();
-        if(actual.procesoCerrado===true||actual.investigacionRevisada===true||
+        // Una ronda nueva pendiente puede tener marcas legadas de la devolucion previa.
+        var coord=String(actual.estadoCoordinador||
+          (actual.revisionCoordinador&&actual.revisionCoordinador.estado)||'').toUpperCase();
+        var rondaVigente=/^(PENDIENTE_INVESTIGADOR|INVESTIGACION_PENDIENTE)$/.test(proceso)&&
+          inv==='PENDIENTE'&&
+          (['VALIDADO','APROBADO','APROBADO_CON_OBSERVACION'].includes(coord)||
+           actual.validadoCoordinador===true||actual.validadoCoordinacion===true);
+        if(actual.procesoCerrado===true||(actual.investigacionRevisada===true&&!rondaVigente)||
           ['APROBADO_FINAL','DEVUELTO','ARCHIVADO','BORRADOR_REINICIADO'].includes(estado)||
           ['APROBADO_FINAL','DEVUELTO','ARCHIVADO','BORRADOR_REINICIADO','PENDIENTE_COORDINADOR'].includes(proceso)||
           ['APROBADO','APROBADO_CON_OBSERVACION','DEVUELTO'].includes(inv))
