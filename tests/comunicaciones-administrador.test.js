@@ -112,11 +112,11 @@ test('si el navegador bloquea pestañas no se pierden los destinatarios no abier
 test('no permite cantidades negativas, fraccionarias ni mayores a 30',async()=>{
  const filas=[item('1700000001')],{app,ui}=montar(filas,15);
  await app.abrirMasivo();
- ui.qs=()=>({value:'31'});
+ ui.qs=selector=>selector==='#comCantidad'?({value:'31'}):null;
  assert.equal(app.abrirLote(()=>({})).abiertos,0);
- ui.qs=()=>({value:'1.5'});
+ ui.qs=selector=>selector==='#comCantidad'?({value:'1.5'}):null;
  assert.equal(app.abrirLote(()=>({})).abiertos,0);
- ui.qs=()=>({value:'-1'});
+ ui.qs=selector=>selector==='#comCantidad'?({value:'-1'}):null;
  assert.equal(app.abrirLote(()=>({})).abiertos,0);
 });
 test('W sigue generando WhatsApp con mensaje, y plantilla C distingue aprobados',()=>{
