@@ -262,7 +262,14 @@
   function abrirMasivo(){
     if(procesando)return;
     mostrar();mensaje('Preparando el listado sin realizar nuevas lecturas si los datos siguen en memoria.','info');
-    scriptGis().catch(function(){/* conexión opcional, no bloquea la revisión de la lista */});
+    var botonGmail=ui.qs('#comBtnGmail');
+    if(botonGmail)botonGmail.disabled=true;
+    scriptGis().then(function(){
+      if(botonGmail)botonGmail.disabled=false;
+    }).catch(function(error){
+      ui.setText('#comGmailEstado','Google no disponible');
+      mensaje('El listado se puede revisar, pero Gmail no está disponible: '+error.message,'warning');
+    });
     return repo.listarPeriodos().then(function(lista){
       var select=ui.qs('#comPeriodo');if(!select)return;
       select.textContent='';
@@ -278,11 +285,21 @@
     if(window.google&&window.google.accounts&&window.google.accounts.oauth2)return Promise.resolve(true);
     return new Promise(function(resolve,reject){
       var existing=document.querySelector('#comGoogleIdentity');
-      if(existing){existing.addEventListener('load',function(){resolve(true);},{once:true});
-        existing.addEventListener('error',reject,{once:true});return;}
+      function disponible(){
+        if(window.google&&window.google.accounts&&window.google.accounts.oauth2)resolve(true);
+        else reject(new Error('La biblioteca de autorización de Google no se ha iniciado.'));
+      }
+      if(existing){
+        if(existing.dataset.cargado==='si'){disponible();return;}
+        if(existing.dataset.error==='si'){reject(new Error('No se pudo cargar la biblioteca de Google.'));return;}
+        existing.addEventListener('load',disponible,{once:true});
+        existing.addEventListener('error',function(){reject(new Error('Google Identity no disponible.'));},{once:true});
+        return;
+      }
       var script=document.createElement('script');script.id='comGoogleIdentity';
       script.src='https://accounts.google.com/gsi/client';script.async=true;script.defer=true;
-      script.onload=function(){resolve(true);};script.onerror=function(){reject(new Error('Google Identity no disponible.'));};
+      script.onload=function(){script.dataset.cargado='si';disponible();};
+      script.onerror=function(){script.dataset.error='si';reject(new Error('Google Identity no disponible.'));};
       document.head.appendChild(script);
     });
   }
