@@ -42,6 +42,7 @@ jobs:
           node tests/arquitectura-investigadores.test.js
           node tests/arquitectura-administrador.test.js
           node tests/investigacion-cola.test.js
+          node --test tests/flujo-ronda-vigente.test.js
           node --test tests/investigacion-transaccion.test.js
           node --test tests/investigacion-coordinacion-vista.test.js
           node tests/auditoria-e2e.test.js
