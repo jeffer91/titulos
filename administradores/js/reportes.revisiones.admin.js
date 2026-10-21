@@ -17,7 +17,10 @@
     var btnPdf = ui.qs('#btnDescargarReportesRevisionPdf');
     var btnLimpiar = ui.qs('#btnLimpiarReportesRevision');
 
-    if (btnActualizar) btnActualizar.addEventListener('click', cargar);
+    if (btnActualizar) btnActualizar.addEventListener('click', function(){
+      if(repository.invalidarDatosCompartidos)repository.invalidarDatosCompartidos();
+      cargar();
+    });
     if (btnPdf) btnPdf.addEventListener('click', descargarPdf);
     if (btnLimpiar) btnLimpiar.addEventListener('click', limpiarFiltros);
 
