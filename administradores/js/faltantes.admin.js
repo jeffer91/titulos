@@ -15,7 +15,10 @@
     var btn = ui.qs('#btnActualizarFaltantes');
     var select = ui.qs('#faltantesPeriodoSelect');
 
-    if (btn) btn.addEventListener('click', cargarDatos);
+    if (btn) btn.addEventListener('click', function(){
+      if(repository.invalidarDatosCompartidos)repository.invalidarDatosCompartidos();
+      cargarDatos();
+    });
 
     if (select) {
       select.addEventListener('change', function () {
