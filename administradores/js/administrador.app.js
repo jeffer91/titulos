@@ -188,6 +188,10 @@
         console.error('No se pudo iniciar el módulo ' + nombre, error);
       }
     });
+    // Comunicaciones no es un tab: sus botones viven en la lista de estudiantes.
+    if (window.TAAdminComunicaciones && typeof window.TAAdminComunicaciones.iniciar === 'function') {
+      window.TAAdminComunicaciones.iniciar();
+    }
   }
 
   function ejecutarNormalizacionAutomatica() {
