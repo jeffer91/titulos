@@ -71,6 +71,9 @@ test('sin titulo excluye inscritos en complexivo, aprobados, devueltos y título
  assert.equal(app.sinTitulo(item('1700000003',{titulo:{estadoProceso:'APROBADO_FINAL'}})),false);
  assert.equal(app.sinTitulo(item('1700000004',{titulo:{titulo1:'Titulo original'}})),false);
  assert.equal(app.sinTitulo(item('1700000005',{titulo:{estadoProceso:'DEVUELTO'},titulosEnviados:[{tituloFinal:'X'}]})),false);
+ assert.equal(app.sinTitulo(item('1700000006',{titulo:{estadoProceso:'PENDIENTE_INVESTIGADOR'},titulosEnviados:[]})),false);
+ assert.equal(app.sinTitulo(item('1700000007',{titulo:{estadoProceso:'PENDIENTE_COORDINADOR'},titulosEnviados:[]})),false);
+ assert.equal(app.sinTitulo(item('1700000008',{titulo:{propuestasDetalle:[{titulo:'Propuesta'}]},titulosEnviados:[]})),false);
 });
 test('solo cuenta los filtrados visibles y elimina duplicados por cedula',async()=>{
  const uno=item('1700000001'),repetido=item('1700000001',{periodoId:'2026-04__2026-09'});
