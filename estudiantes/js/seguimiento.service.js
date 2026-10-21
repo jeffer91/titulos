@@ -608,6 +608,11 @@
     var responsable = esRevisionInicial
       ? (revision.coordinadorNombre || revision.coordinadorEmail || envio.ultimoCoordinador || envio.coordinador || '')
       : (revision.investigadorNombre || revision.investigadorEmail || '');
+    // No adjudicar una revisión pendiente al investigador que devolvió una versión anterior.
+    if (!esRevisionInicial && (estadoPaso.tipo === 'pending' || estadoPaso.tipo === 'muted')) {
+      responsable = '';
+      fecha = null;
+    }
 
     return [
       '<article class="seguimiento-step">',
@@ -698,7 +703,11 @@
   function renderObservaciones(envio, coord, inv, estados, seguimiento) {
     var items=[],actual=obtenerObservacionDevolucion(envio,seguimiento,estados);
     var obsCoord=limpiar(coord.observacion||coord.comentario||envio.comentarioCoordinador||'');
-    var obsInv=limpiar(inv.observacion||inv.comentario||envio.observacionInvestigacion||'');
+    // La observación de una ronda cerrada pertenece al historial, no a la cola actual.
+    var investigacionSinDecisionActual = estados.investigacion.tipo === 'pending' ||
+      estados.investigacion.tipo === 'muted';
+    var obsInv=investigacionSinDecisionActual ? '' :
+      limpiar(inv.observacion||inv.comentario||envio.observacionInvestigacion||'');
     if(actual)items.push({titulo:'Observación de '+actual.origen,texto:actual.texto});
     if(obsCoord&&!items.some(function(i){return i.texto===obsCoord;}))
       items.push({titulo:'Observación de Coordinación',texto:obsCoord});
