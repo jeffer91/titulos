@@ -1,15 +1,13 @@
-/* Comunicaciones académicas desde Administración.
- * Los envíos reales requieren OAuth explícito a Gmail y un PDF seleccionado por el operador.
- * No contiene credenciales ni transmite teléfonos o correos a servicios distintos de sus destinatarios.
+/* Comunicaciones de titulacion: borradores personalizados en Outlook web.
+ * Ninguna accion envia correos: el administrador revisa y pulsa Enviar en Outlook.
+ * No necesita OAuth ni almacena correos personales en localStorage.
  */
 (function(){
   'use strict';
   var repo=window.TAAdministradorRepository,ui=window.TAAdminUI;
-  var token='',tokenHasta=0,oauthClient=null,archivoGuia=null;
-  var candidatos=[],seleccionados=[],enviadosSesion=new Set(),cancelar=false,procesando=false;
-  var contactosImportados=new Map();
-  var API='https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
-  var TIPO='application/pdf';
+  var candidatos=[],abiertosSesion=new Set(),contactosImportados=new Map();
+  var maxTanda=30;
+  var OUTLOOK='https://outlook.office.com/mail/deeplink/compose';
   var ASUNTO='ITSQMET | Envío pendiente de títulos de titulación';
   var TITULOS_URL='https://jeffer91.github.io/titulos/estudiantes/';
   function texto(v){return String(v===undefined||v===null?'':v).replace(/\s+/g,' ').trim();}
@@ -109,345 +107,245 @@
     document.body.appendChild(anchor);anchor.click();anchor.remove();
     return true;
   }
-  function abrirCorreo(item){
+
+  function enlaceOutlook(item,correo){
     var emails=contactos(item).emails;
-    if(!emails.length){
-      var nuevo=texto(window.prompt('El estudiante no tiene correo registrado. Escribe una dirección válida para este mensaje:')).toLowerCase();
-      if(!correoValido(nuevo)){if(nuevo)alert('El correo ingresado no es válido.');return false;}
-      emails=[nuevo];
+    var destino=texto(correo||emails[0]).toLowerCase();
+    if(!correoValido(destino))return '';
+    // Outlook on the web admite to, subject y body codificados en la URL.
+    // El borrador nunca es enviado desde GitHub Pages.
+    return OUTLOOK+
+      '?to='+encodeURIComponent(destino)+
+      '&subject='+encodeURIComponent(ASUNTO)+
+      '&body='+encodeURIComponent(plantilla(item,false)+'\r\n ');
+  }
+  function abrirCorreo(item){
+    var correo=contactos(item).emails[0]||'';
+    if(!correo){
+      var escrito=window.prompt('El estudiante no tiene correo registrado. Introduce un correo válido para Outlook:');
+      if(escrito===null)return false;
+      correo=texto(escrito).toLowerCase();
+      if(!correoValido(correo)){window.alert('Correo inválido.');return false;}
     }
-    // No remitir copias innecesarias a dos cuentas de una misma persona.
-    // El otro correo sigue disponible en la vista de contactos.
-    emails=emails.slice(0,1);
-    var mailto='mailto:'+emails.map(encodeURIComponent).join(',')+
-      '?subject='+encodeURIComponent(ASUNTO)+'&body='+encodeURIComponent(plantilla(item,false));
-    // mailto: abre un borrador editable: el navegador NO adjunta archivos automáticamente.
-    window.location.href=mailto;
+    var destino=enlaceOutlook(item,correo);
+    var nueva=window.open(destino,'_blank');
+    if(!nueva){
+      // El usuario aún puede abrirlo desde un enlace voluntario.
+      window.alert('Tu navegador bloqueó la pestaña. Permite ventanas emergentes para jeffer91.github.io e inténtalo.');
+      return false;
+    }
+    try{nueva.opener=null;}catch(e){}
     return true;
   }
-  function mensaje(s,tipo){
-    var node=ui.qs('#comMensaje');
-    if(node){node.textContent=s||'';node.className='status-message'+(tipo?' is-'+tipo:'');}
-  }
   function modal(){return ui.qs('#modalComunicaciones');}
-  function ocultar(){
-    if(procesando){mensaje('Detén primero el envío en curso.','warning');return;}
-    var m=modal();if(m){m.classList.add('is-hidden');m.setAttribute('aria-hidden','true');}
+  function mensaje(msg,tipo){
+    var out=ui.qs('#comMensaje');
+    if(out){out.textContent=msg;out.dataset.tipo=tipo||'info';}
   }
-  function mostrar(){
-    var m=modal();if(m){m.classList.remove('is-hidden');m.setAttribute('aria-hidden','false');}
+  function abrirModal(){
+    var m=modal();
+    if(!m)return;
+    m.classList.remove('is-hidden');
+    m.setAttribute('aria-hidden','false');
+  }
+  function cerrarModal(){
+    var m=modal();
+    if(!m)return;
+    m.classList.add('is-hidden');
+    m.setAttribute('aria-hidden','true');
   }
   function parseCsvLine(line,sep){
-    var resultado=[],actual='',entre=false;
+    var result=[],actual='',quoted=false;
     for(var i=0;i<line.length;i++){
       var ch=line[i];
       if(ch==='"'){
-        if(entre&&line[i+1]==='"'){actual+='"';i++;}
-        else entre=!entre;
-      } else if(ch===sep&&!entre){resultado.push(actual);actual='';}
+        if(quoted && line[i+1]==='"'){actual+='"';i++;}
+        else quoted=!quoted;
+      }else if(ch===sep&&!quoted){result.push(actual);actual='';}
       else actual+=ch;
     }
-    resultado.push(actual);return resultado;
+    result.push(actual);return result;
   }
   function importarCsv(file){
-    if(!file)return;
-    file.text().then(function(content){
-      // Excel exporta CSV UTF-8 con separador ; o , según configuración.
-      content=content.replace(/^\uFEFF/,'');
-      var lines=content.split(/\r?\n/).filter(function(l){return texto(l);});
-      if(lines.length<2)throw new Error('El CSV debe tener encabezados y por lo menos un estudiante.');
-      var sep=[';',',','\t'].sort(function(a,b){
-        return lines[0].split(b).length-lines[0].split(a).length;
+    if(!file)return Promise.resolve();
+    return file.text().then(function(content){
+      var lines=content.replace(/^\uFEFF/,'').split(/\r?\n/).filter(function(line){return texto(line);});
+      if(lines.length<2)throw Error('El CSV no contiene estudiantes.');
+      var header=lines[0],sep=[';',',','\t'].sort(function(a,b){
+        return header.split(b).length-header.split(a).length;
       })[0];
-      var keys=parseCsvLine(lines[0],sep).map(function(x){
-        return texto(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      var names=parseCsvLine(header,sep).map(function(v){
+        return texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+          .replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
       });
-      function idx(names){return keys.findIndex(function(k){return names.indexOf(k)>=0;});}
-      var ci=idx(['CEDULA','IDENTIFICACION','NUMEROIDENTIFICACION']);
-      var ep=idx(['CORREO','EMAIL','CORREOPERSONAL','EMAILPERSONAL']);
-      var ei=idx(['CORREOINSTITUCIONAL','EMAILINSTITUCIONAL']);
-      var tel=idx(['CELULAR','TELEFONO','WHATSAPP','TELEFONOCELULAR']);
-      if(ci<0||ep<0&&ei<0)throw new Error('El archivo necesita las columnas cedula y correo o correoInstitucional.');
+      var indice=function(list){return names.findIndex(function(n){return list.indexOf(n)>=0;});};
+      var id=indice(['CEDULA','IDENTIFICACION','NUMEROIDENTIFICACION']);
+      var cp=indice(['CORREO','EMAIL','CORREOPERSONAL','EMAILPERSONAL']);
+      var ci=indice(['CORREOINSTITUCIONAL','EMAILINSTITUCIONAL']);
+      var tel=indice(['CELULAR','TELEFONO','WHATSAPP']);
+      if(id<0||(cp<0&&ci<0))throw Error('CSV requiere cedula y correo o correoInstitucional.');
       var count=0;
       lines.slice(1).forEach(function(line){
-        var cols=parseCsvLine(line,sep);
-        var cedula=texto(cols[ci]).replace(/\D/g,'');
-        if(!cedula)return;
-        var c={correoPersonal:ep>=0?texto(cols[ep]):'',
-          correoInstitucional:ei>=0?texto(cols[ei]):'',
-          celular:tel>=0?texto(cols[tel]):''};
-        if(!c.correoPersonal&&!c.correoInstitucional&&!c.celular)return;
-        contactosImportados.set(cedula,c);count++;
-      });
-      // Mantener las selecciones anteriores; incluir nuevos correos válidos.
-      candidatos.forEach(function(c,i){
-        if(contactos(c).emails.length&&!enviadosSesion.has(texto(c.cedula))&&!seleccionados.includes(i))seleccionados.push(i);
+        var cells=parseCsvLine(line,sep),cedula=texto(cells[id]).replace(/\D/g,'');
+        if(!/^\d{10}$/.test(cedula))return;
+        var data={correoPersonal:cp>=0?texto(cells[cp]):'',
+          correoInstitucional:ci>=0?texto(cells[ci]):'',celular:tel>=0?texto(cells[tel]):''};
+        if(!data.correoPersonal&&!data.correoInstitucional&&!data.celular)return;
+        contactosImportados.set(cedula,data);
+        count++;
       });
       render();
-      mensaje('Se importaron contactos temporales de '+count+' estudiante(s). No se guardan en Firebase ni en el navegador.','success');
-    }).catch(function(e){mensaje('No se pudo importar el CSV: '+e.message,'error');});
+      mensaje('Contactos adicionales cargados de '+count+' estudiantes. Se usan solo en esta sesión.','success');
+    }).catch(function(error){mensaje('CSV no válido: '+error.message,'error');});
+  }
+  function llave(item){return texto(item&&item.cedula);}
+  function calcularCandidatos(estudiantes){
+    // No enviar recordatorio a quien tiene propuestas, incluso de periodos anteriores.
+    // El filtro visible define la población. Nunca duplicar una cédula.
+    var vistos=new Set(),salida=[];
+    (estudiantes||[]).filter(sinTitulo).forEach(function(item){
+      var key=llave(item);
+      if(!key||vistos.has(key))return;
+      vistos.add(key);salida.push(item);
+    });
+    return salida.sort(function(a,b){return nombre(a).localeCompare(nombre(b),'es');});
+  }
+  function elegibles(){
+    return candidatos.filter(function(item){
+      return contactos(item).emails.length>0&&!abiertosSesion.has(llave(item));
+    });
+  }
+  function resumen(){
+    var listos=candidatos.filter(function(item){return contactos(item).emails.length>0;}).length;
+    var abiertos=candidatos.filter(function(item){return abiertosSesion.has(llave(item));}).length;
+    ui.setText('#comTotal',String(candidatos.length));
+    ui.setText('#comConCorreo',String(listos));
+    ui.setText('#comSinContacto',String(candidatos.length-listos));
+    ui.setText('#comAbiertos',String(abiertos));
+    ui.setText('#comPendientes',String(elegibles().length));
+    var cantidad=ui.qs('#comCantidad');
+    var btn=ui.qs('#comBtnPreparar');
+    if(btn)btn.disabled=elegibles().length===0;
+    if(cantidad&&cantidad.value==='')cantidad.value=String(Math.min(15,elegibles().length));
+  }
+  function linkOutlook(item){
+    var el=document.createElement('a');
+    el.className='btn btn--small btn--secondary com-open-link';
+    el.target='_blank';el.rel='noopener noreferrer';
+    el.textContent='Abrir en Outlook';
+    el.href=enlaceOutlook(item);
+    el.addEventListener('click',function(){
+      // Significa pestaña solicitada por clic, no mensaje enviado.
+      abiertosSesion.add(llave(item));
+      render();
+      mensaje('Se abrió o solicitó un borrador de Outlook. Revisa y pulsa Enviar allí; aquí no se registra el envío.','info');
+    });
+    return el;
   }
   function render(){
-    var tbody=ui.qs('#comDestinatarios');if(!tbody)return;
+    var tbody=ui.qs('#comDestinatarios');
+    if(!tbody)return;
     tbody.textContent='';
-    var totalSinCorreo=0, totalElegidos=0;
-    candidatos.forEach(function(c,i){
-      var emails=contactos(c).emails;
-      if(!emails.length)totalSinCorreo++;
-      var permitido=emails.length>0&&!enviadosSesion.has(texto(c.cedula));
+    candidatos.forEach(function(item){
       var tr=document.createElement('tr');
-      var td=document.createElement('td'),cb=document.createElement('input');
-      cb.type='checkbox';cb.className='com-check';cb.dataset.index=String(i);
-      cb.checked=permitido && seleccionados.includes(i);cb.disabled=!permitido;
-      cb.addEventListener('change',function(){
-        if(cb.checked&&!seleccionados.includes(i))seleccionados.push(i);
-        else seleccionados=seleccionados.filter(function(n){return n!==i;});
-        actualizarResumen();
+      var emails=contactos(item).emails,cedula=llave(item);
+      var created=abiertosSesion.has(cedula);
+      var columnas=[nombre(item)+' · '+cedula,
+        texto(item.carrera||item.nombreCarrera||''),
+        emails[0]||'SIN CORREO',
+        created?'Pestaña solicitada':emails.length?'Pendiente de abrir':'Sin correo'];
+      columnas.forEach(function(val){
+        var td=document.createElement('td');td.textContent=val;tr.appendChild(td);
       });
-      td.appendChild(cb);tr.appendChild(td);
-      var n=document.createElement('td');n.textContent=nombre(c)+' ('+texto(c.cedula)+')';tr.appendChild(n);
-      var d=document.createElement('td');d.textContent=texto(c.carrera||c.nombreCarrera);tr.appendChild(d);
-      var e=document.createElement('td');
-      e.textContent=emails.length>0?emails[0]+(emails.length>1?' (+'+(emails.length-1)+' contacto alternativo)':''):'SIN CORREO';
-      e.title=emails.length>1?'El mensaje se enviará solo al correo principal. Alternativos: '+emails.slice(1).join(', '):'';
-      tr.appendChild(e);
-      var status=document.createElement('td');
-      status.textContent=enviadosSesion.has(texto(c.cedula))?'Enviado en esta sesión':
-        (permitido?'Pendiente':'Sin correo');tr.appendChild(status);
-      var vista=document.createElement('button');
-      vista.type='button';vista.className='btn btn--small btn--ghost';
-      vista.textContent='Vista';vista.title='Ver el mensaje personalizado';
-      vista.addEventListener('click',function(){
-        var panel=ui.qs('#comVistaPrevia');
-        if(panel)panel.textContent='Para: '+(emails[0]||'Sin destinatario')+
-          '\nAsunto: '+ASUNTO+'\nAdjunto: '+(archivoGuia?archivoGuia.name:'Guía institucional (pendiente de seleccionar)')+
-          '\n\n'+plantilla(c,false).replace(
-            'Si no dispone de la guía institucional en PDF, puede solicitarla a la Unidad de Titulación.',
-            'Se adjunta la guía institucional en PDF.');
-        var details=ui.qs('.com-preview');
-        if(details)details.open=true;
-      });
-      var action=document.createElement('td');action.appendChild(vista);tr.appendChild(action);
-      tbody.appendChild(tr);
-      if(cb.checked)totalElegidos++;
+      var action=document.createElement('td');
+      if(emails.length)action.appendChild(linkOutlook(item));
+      else action.textContent='Agrega correo en el CSV';
+      tr.appendChild(action);tbody.appendChild(tr);
     });
-    actualizarResumen();
-    ui.setText('#comSinContacto',String(totalSinCorreo));
-  }
-  function actualizarResumen(){
-    var cuantos=seleccionados.filter(function(i){
-      var c=candidatos[i];return c&&contactos(c).emails.length&&!enviadosSesion.has(texto(c.cedula));
-    }).length;
-    ui.setText('#comSeleccionados',String(cuantos));
-    ui.setText('#comTotal',String(candidatos.length));
+    resumen();
+    var primero=elegibles()[0]||candidatos[0];
+    var vista=ui.qs('#comVistaPrevia');
+    if(vista && primero){
+      vista.textContent='Para: '+(contactos(primero).emails[0]||'Correo no disponible')+
+        '\nAsunto: '+ASUNTO+'\n\n'+plantilla(primero,false);
+    }else if(vista)vista.textContent='No hay recordatorios pendientes en la selección.';
   }
   function obtenerCandidatos(){
-    var p=ui.value('#comPeriodo');
-    return Promise.all([repo.listarEstudiantesConTitulos(''),repo.listarPeriodos()]).then(function(results){
-      var rows=results[0]||[],periodos=results[1]||[];
-      var activos=new Set(periodos.filter(function(x){return x.activo;}).map(function(x){return String(x.id);}));
-      candidatos=rows.filter(function(item){
-        return sinTitulo(item)&& (p==='__ACTIVOS__'?activos.has(String(item.periodoId)):String(item.periodoId)===p);
-      });
-      // Un correo por cédula: si hay dos matrículas activas, se toma el período más reciente.
-      candidatos.sort(function(a,b){return texto(b.periodoId).localeCompare(texto(a.periodoId));});
-      var set=new Set();candidatos=candidatos.filter(function(c){
-        var clave=texto(c.cedula);
-        if(!clave||set.has(clave))return false;
-        set.add(clave);return true;
-      });
-      candidatos.sort(function(a,b){return nombre(a).localeCompare(nombre(b),'es');});
-      seleccionados=candidatos.map(function(c,i){
-        return contactos(c).emails.length&&!enviadosSesion.has(texto(c.cedula))?i:-1;
-      }).filter(function(i){return i>=0;});
-      render();
-    });
+    // Usar la tabla actual y sus filtros: no solicitar Firebase por segunda vez.
+    var modulo=window.TAAdminEstudiantes;
+    var filas=modulo&&typeof modulo.obtenerFiltrados==='function'?modulo.obtenerFiltrados():null;
+    if(!Array.isArray(filas)){
+      mensaje('Abre primero la sección Estudiantes y carga el listado.','error');
+      return Promise.resolve([]);
+    }
+    candidatos=calcularCandidatos(filas);
+    render();
+    return Promise.resolve(candidatos);
   }
   function abrirMasivo(){
-    if(procesando)return;
-    mostrar();mensaje('Preparando el listado sin realizar nuevas lecturas si los datos siguen en memoria.','info');
-    var botonGmail=ui.qs('#comBtnGmail');
-    if(botonGmail)botonGmail.disabled=true;
-    scriptGis().then(function(){
-      if(botonGmail)botonGmail.disabled=false;
-    }).catch(function(error){
-      ui.setText('#comGmailEstado','Google no disponible');
-      mensaje('El listado se puede revisar, pero Gmail no está disponible: '+error.message,'warning');
-    });
-    return repo.listarPeriodos().then(function(lista){
-      var select=ui.qs('#comPeriodo');if(!select)return;
-      select.textContent='';
-      var option=document.createElement('option');option.value='__ACTIVOS__';option.textContent='Todos los períodos activos';select.appendChild(option);
-      (lista||[]).filter(function(p){return p.activo;}).forEach(function(p){
-        var o=document.createElement('option');o.value=p.id;o.textContent=p.label;select.appendChild(o);
-      });
-      return obtenerCandidatos();
-    }).then(function(){mensaje('Revisa los destinatarios, conecta Gmail y selecciona la guía PDF antes de enviar.','info');})
-      .catch(function(e){mensaje('No se pudo preparar la lista: '+e.message,'error');});
-  }
-  function scriptGis(){
-    if(window.google&&window.google.accounts&&window.google.accounts.oauth2)return Promise.resolve(true);
-    return new Promise(function(resolve,reject){
-      var existing=document.querySelector('#comGoogleIdentity');
-      function disponible(){
-        if(window.google&&window.google.accounts&&window.google.accounts.oauth2)resolve(true);
-        else reject(new Error('La biblioteca de autorización de Google no se ha iniciado.'));
-      }
-      if(existing){
-        if(existing.dataset.cargado==='si'){disponible();return;}
-        if(existing.dataset.error==='si'){reject(new Error('No se pudo cargar la biblioteca de Google.'));return;}
-        existing.addEventListener('load',disponible,{once:true});
-        existing.addEventListener('error',function(){reject(new Error('Google Identity no disponible.'));},{once:true});
-        return;
-      }
-      var script=document.createElement('script');script.id='comGoogleIdentity';
-      script.src='https://accounts.google.com/gsi/client';script.async=true;script.defer=true;
-      script.onload=function(){script.dataset.cargado='si';disponible();};
-      script.onerror=function(){script.dataset.error='si';reject(new Error('Google Identity no disponible.'));};
-      document.head.appendChild(script);
+    abrirModal();
+    mensaje('Analizando los estudiantes visibles según los filtros de la tabla...','info');
+    return obtenerCandidatos().then(function(){
+      mensaje(candidatos.length+' estudiantes sin títulos en la selección. Indica cuántos borradores quieres abrir en Outlook.','success');
     });
   }
-  function conectarGmail(){
-    var id=texto(ui.value('#comGoogleClientId'));
-    if(!/^[\w-]+\.apps\.googleusercontent\.com$/.test(id)){
-      mensaje('Introduce el OAuth Client ID de tipo Web configurado para https://jeffer91.github.io.','error');return;
+  function abrirLote(abrirVentana){
+    // IMPORTANTÍSIMO: se ejecuta de forma síncrona desde el clic del usuario.
+    // Los navegadores pueden bloquear la apertura de múltiples pestañas.
+    var input=ui.qs('#comCantidad'),numero=Number(input&&input.value);
+    if(!Number.isInteger(numero)||numero<1||numero>maxTanda){
+      mensaje('Introduce una cantidad entera entre 1 y '+maxTanda+'.','error');
+      return {abiertos:0,bloqueados:false};
     }
-    // El client ID es identificador público. El token nunca se guarda.
-    try{sessionStorage.setItem('itsqmet.gmail.clientId',id);}catch(e){}
-    mensaje('Autorizando el envío en tu propia cuenta de Gmail…','info');
-    scriptGis().then(function(){
-      return new Promise(function(resolve,reject){
-        oauthClient=window.google.accounts.oauth2.initTokenClient({
-          client_id:id,scope:'https://www.googleapis.com/auth/gmail.send',
-          callback:function(resp){
-            if(!resp||resp.error||!resp.access_token){reject(new Error(resp&&resp.error||'Gmail no concedió acceso.'));return;}
-            token=resp.access_token;tokenHasta=Date.now()+Number(resp.expires_in||3000)*1000;
-            resolve(true);
-          },
-          error_callback:function(resp){reject(new Error(resp&&resp.type||'No se pudo conectar Gmail.'));}
-        });
-        oauthClient.requestAccessToken({prompt:'consent'});
-      });
-    }).then(function(){
-      ui.setText('#comGmailEstado','Gmail conectado (solo permiso de envío)');
-      mensaje('Cuenta de Gmail conectada. El envío requiere todavía una confirmación explícita.','success');
-    }).catch(function(e){mensaje('Gmail no conectado: '+e.message,'error');});
-  }
-  function b64bytes(buffer){
-    var data=new Uint8Array(buffer),pieces=[],paso=8192;
-    for(var i=0;i<data.length;i+=paso){
-      var slice=data.subarray(i,i+paso),str='';
-      for(var j=0;j<slice.length;j++)str+=String.fromCharCode(slice[j]);
-      pieces.push(str);
-    }
-    return btoa(pieces.join(''));
-  }
-  function b64utf8(s){return b64bytes(new TextEncoder().encode(s).buffer);}
-  function b64url(s){return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
-  function normalizarLineas64(s){return s.match(/.{1,76}/g).join('\r\n');}
-  function mime(item,pdf,filename){
-    var emails=contactos(item).emails.slice(0,1);
-    if(!emails.length)throw new Error('Destinatario sin correo válido.');
-    var nombreArchivo=filename.replace(/[^\w.()-]/g,'_')||'Guia_titulos_ITSQMET.pdf';
-    var boundary='=_itsqmet_'+Date.now()+'_'+Math.floor(Math.random()*999999);
-    var body=plantilla(item,false).replace('Si no dispone de la guía institucional en PDF, puede solicitarla a la Unidad de Titulación.','Se adjunta la Guía institucional para la formulación y aprobación de títulos de titulación (versión 1.0, octubre de 2026).');
-    var parts=[
-      'To: '+emails.join(', '),
-      'Subject: =?UTF-8?B?'+b64utf8(ASUNTO)+'?=',
-      'MIME-Version: 1.0',
-      'Content-Type: multipart/mixed; boundary="'+boundary+'"','',
-      '--'+boundary,
-      'Content-Type: text/plain; charset="UTF-8"',
-      'Content-Transfer-Encoding: base64','',
-      normalizarLineas64(b64utf8(body)),
-      '--'+boundary,
-      'Content-Type: '+TIPO+'; name="'+nombreArchivo+'"',
-      'Content-Disposition: attachment; filename="'+nombreArchivo+'"',
-      'Content-Transfer-Encoding: base64','',
-      normalizarLineas64(pdf),
-      '--'+boundary+'--',''
-    ];
-    return b64url(unescape(encodeURIComponent(parts.join('\r\n'))));
-  }
-  function confirmarEnvio(){
-    if(procesando)return;
-    var file=archivoGuia;
-    var items=seleccionados.map(function(i){return candidatos[i];}).filter(function(c){
-      return c&&contactos(c).emails.length&&!enviadosSesion.has(texto(c.cedula));
+    var targets=elegibles().slice(0,numero);
+    if(!targets.length){mensaje('No quedan estudiantes con correo pendientes de preparar.','info');return {abiertos:0,bloqueados:false};}
+    var abiertos=0,bloqueados=false;
+    targets.forEach(function(item){
+      if(bloqueados)return;
+      var url=enlaceOutlook(item);
+      if(!url)return;
+      var tab=abrirVentana(url,'_blank');
+      if(!tab){bloqueados=true;return;}
+      try{tab.opener=null;}catch(e){}
+      abiertosSesion.add(llave(item));
+      abiertos++;
     });
-    if(!items.length){mensaje('Selecciona al menos un estudiante con correo válido.','warning');return;}
-    if(!file||!(/\.pdf$/i.test(file.name))||file.size<=0||file.size>8*1024*1024){
-      mensaje('Selecciona la guía institucional original en formato PDF (máximo 8 MB).','error');return;}
-    if(!token||Date.now()>tokenHasta-45000){mensaje('Conecta Gmail o renueva la autorización antes de enviar.','error');return;}
-    var detalle=items.length+' correo(s) personalizado(s), cada uno con el PDF adjunto. No se incluirán estudiantes que ya tengan títulos enviados.';
-    if(!window.confirm('CONFIRMAR ENVÍO REAL\n\n'+detalle+'\n\n¿Enviar ahora desde tu Gmail a estos destinatarios?'))return;
-    enviarTodos(items,file);
+    render();
+    if(bloqueados){
+      mensaje('Se solicitaron '+abiertos+' de '+targets.length+' pestañas. El navegador bloqueó otras. '+
+        'Permite ventanas emergentes para jeffer91.github.io o abre las pendientes una a una con «Abrir en Outlook».','warning');
+    }else{
+      mensaje('Se solicitaron '+abiertos+' pestañas de Outlook. Revisa cada borrador y pulsa Enviar. '+
+        'No se han enviado correos desde esta aplicación.','success');
+    }
+    return {abiertos:abiertos,bloqueados:bloqueados};
   }
-  async function enviarTodos(items,file){
-    procesando=true;cancelar=false;
-    var btn=ui.qs('#comBtnEnviar');if(btn)btn.disabled=true;
-    var pdf='',hechos=0,errores=0;
-    try {
-      var buf=await file.arrayBuffer();
-      var signature=new TextDecoder('ascii').decode(buf.slice(0,5));
-      if(signature!=='%PDF-')throw new Error('El archivo seleccionado no es un PDF válido.');
-      pdf=b64bytes(buf);
-    }catch(error){
-      mensaje('No se puede enviar: '+error.message,'error');
-      procesando=false;if(btn)btn.disabled=false;
-      return;
-    }
-    for(var i=0;i<items.length;i++){
-      if(cancelar)break;
-      var item=items[i],clave=texto(item.cedula);
-      try{
-        if(Date.now()>tokenHasta-45000)throw new Error('La autorización de Gmail caducó.');
-        mensaje('Enviando '+(i+1)+' de '+items.length+' a '+nombre(item)+'…','info');
-        var respuesta=await fetch(API,{
-          method:'POST',
-          headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-          body:JSON.stringify({raw:mime(item,pdf,file.name)})
-        });
-        if(!respuesta.ok){
-          var err=await respuesta.json().catch(function(){return {};});
-          throw new Error(err.error&&err.error.message||'Error de Gmail '+respuesta.status);
-        }
-        enviadosSesion.add(clave);hechos++;
-      }catch(e){
-        errores++;
-        mensaje('Error al enviar a '+nombre(item)+': '+e.message+' (se detuvo la tanda).','error');
-        cancelar=true;
-      }
-      if((i+1)%5===0||cancelar||i===items.length-1)render();
-      if(!cancelar)await new Promise(function(resolve){setTimeout(resolve,550);});
-    }
-    procesando=false;if(btn)btn.disabled=false;render();
-    mensaje('Enviados: '+hechos+'. Errores: '+errores+(cancelar?'. Tanda detenida.':'. Tanda finalizada.')+
-      ' Los enviados en esta sesión no se volverán a seleccionar.',''+(errores?'warning':'success'));
-    // Nunca conservar el token fuera de memoria ni el contenido de PDF en almacenamiento.
+  function abrirTanda(){
+    return abrirLote(function(url,target){return window.open(url,target);});
+  }
+  function reiniciarPendientes(){
+    if(!window.confirm('¿Volver a incluir los borradores ya abiertos? Esto puede producir borradores duplicados en Outlook.'))return;
+    abiertosSesion.clear();render();
+    mensaje('Se restableció la lista de borradores pendientes, sin modificar correos ni registros de estudiantes.','info');
   }
   function iniciar(){
-    var btn=ui.qs('#btnCorreoMasivo');
-    if(btn)btn.addEventListener('click',abrirMasivo);
-    var close=ui.qs('#comCerrar');if(close)close.addEventListener('click',ocultar);
-    var pv=ui.qs('#comPeriodo');if(pv)pv.addEventListener('change',obtenerCandidatos);
-    var conect=ui.qs('#comBtnGmail');if(conect)conect.addEventListener('click',conectarGmail);
-    var send=ui.qs('#comBtnEnviar');if(send)send.addEventListener('click',confirmarEnvio);
-    var stop=ui.qs('#comBtnDetener');if(stop)stop.addEventListener('click',function(){cancelar=true;});
-    var importInput=ui.qs('#comCsvContactos');
-    if(importInput)importInput.addEventListener('change',function(){
+    var global=ui.qs('#btnCorreoMasivo');
+    if(global)global.addEventListener('click',abrirMasivo);
+    var close=ui.qs('#comCerrar');
+    if(close)close.addEventListener('click',cerrarModal);
+    var send=ui.qs('#comBtnPreparar');
+    if(send)send.addEventListener('click',abrirTanda);
+    var reset=ui.qs('#comBtnReiniciar');
+    if(reset)reset.addEventListener('click',reiniciarPendientes);
+    var input=ui.qs('#comCsvContactos');
+    if(input)input.addEventListener('change',function(){
       importarCsv(this.files&&this.files[0]);this.value='';
     });
-    var pdf=ui.qs('#comPdf');if(pdf)pdf.addEventListener('change',function(){
-      archivoGuia=this.files&&this.files[0]||null;
-      ui.setText('#comPdfInfo',archivoGuia?archivoGuia.name+' ('+Math.ceil(archivoGuia.size/1024)+' KB)':'Sin guía seleccionada');
-    });
-    try{var saved=sessionStorage.getItem('itsqmet.gmail.clientId');if(saved)ui.setValue('#comGoogleClientId',saved);}catch(e){}
   }
   window.TAAdminComunicaciones=Object.freeze({
     iniciar:iniciar,abrirMasivo:abrirMasivo,abrirCorreo:abrirCorreo,abrirWhatsapp:abrirWhatsapp,
     contactos:contactos,telefonoEcuador:telefonoEcuador,sinTitulo:sinTitulo,plantilla:plantilla,
-    generarMime:mime,parseCsvLine:parseCsvLine,
-    obtenerCandidatos:obtenerCandidatos
+    enlaceOutlook:enlaceOutlook,calcularCandidatos:calcularCandidatos,
+    abrirLote:abrirLote,parseCsvLine:parseCsvLine,obtenerCandidatos:obtenerCandidatos
   });
 })();
