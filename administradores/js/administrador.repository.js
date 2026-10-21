@@ -704,6 +704,10 @@
 
     return Object.assign({}, estudiante, {
       titulo: tieneTitulo ? titulo : null,
+      correoPersonal: estudiante.correoPersonal || (titulo && (titulo.correoPersonal || titulo.emailPersonal || titulo.correo || titulo.email)) || '',
+      correoInstitucional: estudiante.correoInstitucional || (titulo && (titulo.correoInstitucional || titulo.emailInstitucional)) || '',
+      celular: estudiante.celular || (titulo && (titulo.celular || titulo.telefonoCelular || titulo.whatsapp)) || '',
+      telefono: estudiante.telefono || (titulo && titulo.telefono) || '',
       tituloId: tieneTitulo ? titulo.id : '',
       estado: estado,
       estadoRaw: titulo && titulo.estado ? titulo.estado : '',
@@ -915,6 +919,10 @@
       periodoLabel: periodoLabel || 'Sin período',
       estadoMatricula: limpiarTexto(valor(source, ['estadomatricula', 'estado'])) || 'ACTIVO',
       sede: limpiarTexto(valor(source, ['sede', 'nombresede', 'campus'])) || '',
+      correoPersonal: limpiarTexto(valor(source, ['correopersonal', 'emailpersonal', 'correoelectronico', 'email', 'correo', 'mail'])) || '',
+      correoInstitucional: limpiarTexto(valor(source, ['correoinstitucional','emailinstitucional', 'correoestudiantil', 'mailinstitucional'])) || '',
+      celular: limpiarTexto(valor(source, ['celular','telefonocelular','numerocelular','movil','nromovil','whatsapp'])) || '',
+      telefono: limpiarTexto(valor(source, ['telefono','telefonocontacto','telefonoprincipal','numerotelefono'])) || '',
       modalidadEstudio: limpiarTexto(valor(source, ['modalidadestudio', 'modalidad', 'modalidadeducativa'])) || '',
       sinCarrera: normalizarTexto(carreraVista) === 'SIN CARRERA',
       raw: data
