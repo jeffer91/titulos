@@ -374,6 +374,7 @@
   window.TAAdminComunicaciones=Object.freeze({
     iniciar:iniciar,abrirMasivo:abrirMasivo,abrirCorreo:abrirCorreo,abrirWhatsapp:abrirWhatsapp,
     contactos:contactos,telefonoEcuador:telefonoEcuador,sinTitulo:sinTitulo,plantilla:plantilla,
+    generarMime:mime,parseCsvLine:parseCsvLine,
     obtenerCandidatos:obtenerCandidatos
   });
 })();
