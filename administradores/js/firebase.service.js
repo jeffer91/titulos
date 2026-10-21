@@ -555,8 +555,8 @@
   function listarEstudiantesAcademicos(options) {
     if (!dbAcademico) return Promise.resolve([]);
     return Promise.all([
-      ejecutarListadoCrudo(getDbAcademico(), 'Estudiante', { limit: 5000 }),
-      ejecutarListadoCrudo(getDbAcademico(), 'matriculas', { limit: 5000 })
+      ejecutarListadoCrudo(getDbAcademico(), 'Estudiante', { all: true }),
+      ejecutarListadoCrudo(getDbAcademico(), 'matriculas', { all: true })
     ]).then(function (resultados) {
       var estudiantes = resultados[0] || [];
       var matriculas = resultados[1] || [];
