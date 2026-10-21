@@ -44,6 +44,11 @@
   function nombre(item){return texto(item&&item.nombres||item&&item.nombre||'estudiante');}
   function sinTitulo(item){
     if(!item)return false;
+    // El examen complexivo no exige presentar títulos de trabajo de titulación.
+    var modalidad=texto(item.modalidadTitulacion ||
+      (item.raw && (item.raw.modalidadTitulacion || item.raw.modalidadTitulacionActual)) ||
+      (item.titulo && (item.titulo.modalidadTitulacion || item.titulo.tipoTrabajo)) || '');
+    if(/COMPLEXIVO/i.test(modalidad))return false;
     var t=item.titulo;
     var g=texto(t&&(t.estadoProceso||t.estado)).toUpperCase();
     if(g==='ARCHIVADO'||g==='BORRADOR_REINICIADO')return true;
