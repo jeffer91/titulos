@@ -7,6 +7,7 @@
   var repo=window.TAAdministradorRepository,ui=window.TAAdminUI;
   var token='',tokenHasta=0,oauthClient=null,archivoGuia=null;
   var candidatos=[],seleccionados=[],enviadosSesion=new Set(),cancelar=false,procesando=false;
+  var contactosImportados=new Map();
   var API='https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
   var TIPO='application/pdf';
   var ASUNTO='ITSQMET | Envío pendiente de títulos de titulación';
@@ -15,7 +16,8 @@
   function correoValido(s){return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(s);}
   function escape(s){return ui.escapeHtml?ui.escapeHtml(s):texto(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   function contactos(item){
-    var campos=[item||{},item&&item.raw||{},item&&item.titulo||{}];
+    var campos=[item||{},item&&item.raw||{},item&&item.titulo||{},
+      contactosImportados.get(texto(item&&item.cedula))||{}];
     var personal=['correoPersonal','emailPersonal','correoElectronico','correo','email','mail','CorreoPersonal','Email','EMAIL','Correo','CORREO'];
     var institucional=['correoInstitucional','emailInstitucional','correoEstudiantil','mailInstitucional','CorreoInstitucional','EmailInstitucional','correoITSQMET'];
     var celulares=['celular','telefonoCelular','numeroCelular','telefonoMovil','movil','whatsapp','WhatsApp','CELULAR','Celular','telefono','Telefono','telefonoContacto'];
@@ -70,7 +72,11 @@
   }
   function abrirWhatsapp(item){
     var phone=telefonoEcuador(contactos(item).telefono);
-    if(!phone){alert('El estudiante no tiene un número de WhatsApp válido registrado.');return false;}
+    if(!phone){
+      var nuevo=window.prompt('El estudiante no tiene un WhatsApp registrado. Introduce el número (ejemplo: 09xxxxxxxx).');
+      phone=telefonoEcuador(nuevo);
+      if(!phone){if(nuevo)alert('El número ingresado no es válido.');return false;}
+    }
     var msg=encodeURIComponent(plantilla(item,true));
     // Chrome/Windows puede preguntar si se abre la aplicación instalada.
     var anchor=document.createElement('a');
@@ -83,7 +89,11 @@
   }
   function abrirCorreo(item){
     var emails=contactos(item).emails;
-    if(!emails.length){alert('El estudiante no tiene correo electrónico registrado.');return false;}
+    if(!emails.length){
+      var nuevo=texto(window.prompt('El estudiante no tiene correo registrado. Escribe una dirección válida para este mensaje:')).toLowerCase();
+      if(!correoValido(nuevo)){if(nuevo)alert('El correo ingresado no es válido.');return false;}
+      emails=[nuevo];
+    }
     var mailto='mailto:'+emails.map(encodeURIComponent).join(',')+
       '?subject='+encodeURIComponent(ASUNTO)+'&body='+encodeURIComponent(plantilla(item,false));
     // mailto: abre un borrador editable: el navegador NO adjunta archivos automáticamente.
@@ -101,6 +111,52 @@
   }
   function mostrar(){
     var m=modal();if(m){m.classList.remove('is-hidden');m.setAttribute('aria-hidden','false');}
+  }
+  function parseCsvLine(line,sep){
+    var resultado=[],actual='',entre=false;
+    for(var i=0;i<line.length;i++){
+      var ch=line[i];
+      if(ch==='"'){
+        if(entre&&line[i+1]==='"'){actual+='"';i++;}
+        else entre=!entre;
+      } else if(ch===sep&&!entre){resultado.push(actual);actual='';}
+      else actual+=ch;
+    }
+    resultado.push(actual);return resultado;
+  }
+  function importarCsv(file){
+    if(!file)return;
+    file.text().then(function(content){
+      // Excel exporta CSV UTF-8 con separador ; o , según configuración.
+      content=content.replace(/^\uFEFF/,'');
+      var lines=content.split(/\r?\n/).filter(function(l){return texto(l);});
+      if(lines.length<2)throw new Error('El CSV debe tener encabezados y por lo menos un estudiante.');
+      var sep=[';',',','\t'].sort(function(a,b){
+        return lines[0].split(b).length-lines[0].split(a).length;
+      })[0];
+      var keys=parseCsvLine(lines[0],sep).map(function(x){
+        return texto(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      });
+      function idx(names){return keys.findIndex(function(k){return names.indexOf(k)>=0;});}
+      var ci=idx(['CEDULA','IDENTIFICACION','NUMEROIDENTIFICACION']);
+      var ep=idx(['CORREO','EMAIL','CORREOPERSONAL','EMAILPERSONAL']);
+      var ei=idx(['CORREOINSTITUCIONAL','EMAILINSTITUCIONAL']);
+      var tel=idx(['CELULAR','TELEFONO','WHATSAPP','TELEFONOCELULAR']);
+      if(ci<0||ep<0&&ei<0)throw new Error('El archivo necesita las columnas cedula y correo o correoInstitucional.');
+      var count=0;
+      lines.slice(1).forEach(function(line){
+        var cols=parseCsvLine(line,sep);
+        var cedula=texto(cols[ci]).replace(/\D/g,'');
+        if(!cedula)return;
+        var c={correoPersonal:ep>=0?texto(cols[ep]):'',
+          correoInstitucional:ei>=0?texto(cols[ei]):'',
+          celular:tel>=0?texto(cols[tel]):''};
+        if(!c.correoPersonal&&!c.correoInstitucional&&!c.celular)return;
+        contactosImportados.set(cedula,c);count++;
+      });
+      render();
+      mensaje('Se importaron contactos temporales de '+count+' estudiante(s). No se guardan en Firebase ni en el navegador.','success');
+    }).catch(function(e){mensaje('No se pudo importar el CSV: '+e.message,'error');});
   }
   function render(){
     var tbody=ui.qs('#comDestinatarios');if(!tbody)return;
@@ -302,6 +358,10 @@
     var conect=ui.qs('#comBtnGmail');if(conect)conect.addEventListener('click',conectarGmail);
     var send=ui.qs('#comBtnEnviar');if(send)send.addEventListener('click',confirmarEnvio);
     var stop=ui.qs('#comBtnDetener');if(stop)stop.addEventListener('click',function(){cancelar=true;});
+    var importInput=ui.qs('#comCsvContactos');
+    if(importInput)importInput.addEventListener('change',function(){
+      importarCsv(this.files&&this.files[0]);this.value='';
+    });
     var pdf=ui.qs('#comPdf');if(pdf)pdf.addEventListener('change',function(){
       archivoGuia=this.files&&this.files[0]||null;
       ui.setText('#comPdfInfo',archivoGuia?archivoGuia.name+' ('+Math.ceil(archivoGuia.size/1024)+' KB)':'Sin guía seleccionada');
