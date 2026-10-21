@@ -198,7 +198,10 @@
       td.appendChild(cb);tr.appendChild(td);
       var n=document.createElement('td');n.textContent=nombre(c)+' ('+texto(c.cedula)+')';tr.appendChild(n);
       var d=document.createElement('td');d.textContent=texto(c.carrera||c.nombreCarrera);tr.appendChild(d);
-      var e=document.createElement('td');e.textContent=emails.join(' / ')||'SIN CORREO';tr.appendChild(e);
+      var e=document.createElement('td');
+      e.textContent=emails.length>0?emails[0]+(emails.length>1?' (+'+(emails.length-1)+' contacto alternativo)':''):'SIN CORREO';
+      e.title=emails.length>1?'El mensaje se enviará solo al correo principal. Alternativos: '+emails.slice(1).join(', '):'';
+      tr.appendChild(e);
       var status=document.createElement('td');
       status.textContent=enviadosSesion.has(texto(c.cedula))?'Enviado en esta sesión':
         (permitido?'Pendiente':'Sin correo');tr.appendChild(status);
@@ -207,7 +210,7 @@
       vista.textContent='Vista';vista.title='Ver el mensaje personalizado';
       vista.addEventListener('click',function(){
         var panel=ui.qs('#comVistaPrevia');
-        if(panel)panel.textContent='Para: '+(emails.join(', ')||'Sin destinatario')+
+        if(panel)panel.textContent='Para: '+(emails[0]||'Sin destinatario')+
           '\nAsunto: '+ASUNTO+'\nAdjunto: '+(archivoGuia?archivoGuia.name:'Guía institucional (pendiente de seleccionar)')+
           '\n\n'+plantilla(c,false).replace(
             'Si no dispone de la guía institucional en PDF, puede solicitarla a la Unidad de Titulación.',
