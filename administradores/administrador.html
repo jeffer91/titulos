@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="css/administrador.css?v=20261020-aprobacion-admin" />
   <link rel="stylesheet" href="css/visibility-fixes.css?v=20261008-admin4" />
   <link rel="stylesheet" href="css/estadisticas.css?v=20261021-estadisticas-1" />
+  <link rel="stylesheet" href="css/comunicaciones.css?v=20261021-comunicaciones1" />
   <style>
     .admin-auth-pending .admin-shell{display:none!important}
     .admin-secure-only{display:none!important}
@@ -562,6 +563,7 @@
           <p class="muted">Filtra estudiantes por período, carrera, estado y envío de títulos.</p>
         </div>
         <div class="toolbar">
+          <button class="btn btn--secondary" type="button" id="btnCorreoMasivo">Enviar recordatorios por correo</button>
           <button class="btn btn--primary" type="button" id="btnActualizarEstudiantes">Actualizar estudiantes</button>
         </div>
       </div>
@@ -1059,6 +1061,59 @@
     </div>
   </section>
 
+  <section class="modal is-hidden" id="modalComunicaciones" aria-hidden="true">
+    <div class="modal__backdrop"></div>
+    <div class="modal__panel modal__panel--comunicaciones" role="dialog" aria-modal="true"
+      aria-labelledby="comTitulo">
+      <button type="button" id="comCerrar" class="modal__close" aria-label="Cerrar comunicaciones">×</button>
+      <p class="section-kicker">Comunicaciones de titulación</p>
+      <h2 id="comTitulo">Recordatorio global: envío de títulos pendientes</h2>
+      <p class="muted">Cada estudiante sin propuestas registradas recibirá un correo personalizado.
+        Las personas con títulos ya enviados quedan excluidas. El sistema NO enviará nada sin tu confirmación.</p>
+      <div class="com-fields">
+        <div class="field">
+          <label for="comPeriodo">Período</label>
+          <select id="comPeriodo"><option value="__ACTIVOS__">Todos los períodos activos</option></select>
+        </div>
+        <div class="field">
+          <label for="comPdf">Adjuntar la guía institucional original (PDF obligatorio)</label>
+          <input id="comPdf" type="file" accept=".pdf,application/pdf" />
+          <small id="comPdfInfo">Selecciona el PDF de siete páginas de la guía institucional que proporcionaste.</small>
+        </div>
+      </div>
+      <div class="com-gmail-config">
+        <div class="field">
+          <label for="comGoogleClientId">Client ID de Google OAuth (tipo Web)</label>
+          <input id="comGoogleClientId" type="text" autocomplete="off"
+            placeholder="xxxxxxxx.apps.googleusercontent.com" />
+          <small>Configura el origen autorizado https://jeffer91.github.io y habilita Gmail API en Google Cloud.
+            El navegador solicita permiso exclusivo gmail.send. No se guardan contraseñas ni tokens.</small>
+        </div>
+        <button type="button" class="btn btn--secondary" id="comBtnGmail">Conectar Gmail</button>
+        <span class="muted" id="comGmailEstado">Gmail no conectado</span>
+      </div>
+      <div class="com-overview">
+        <span>Estudiantes sin títulos: <strong id="comTotal">0</strong></span>
+        <span>Seleccionados con correo: <strong id="comSeleccionados">0</strong></span>
+        <span>Sin correo registrado: <strong id="comSinContacto">0</strong></span>
+      </div>
+      <div class="table-wrap com-table-wrap">
+        <table class="data-table data-table--compact">
+          <thead><tr><th>Enviar</th><th>Estudiante</th><th>Carrera</th><th>Destinatarios</th><th>Estado</th></tr></thead>
+          <tbody id="comDestinatarios"><tr><td colspan="5">Sin estudiantes cargados.</td></tr></tbody>
+        </table>
+      </div>
+      <div id="comMensaje" class="status-message" role="status" aria-live="polite"></div>
+      <div class="modal__actions">
+        <button type="button" id="comBtnDetener" class="btn btn--ghost">Detener envío</button>
+        <button type="button" id="comBtnEnviar" class="btn btn--primary">Confirmar y enviar seleccionados</button>
+      </div>
+      <p class="muted com-footnote">Solo se enviarán mensajes desde la cuenta de Gmail que autorices.
+        El PDF se adjunta a cada correo. El sistema detiene la tanda ante errores y evita reenvíos
+        duplicados durante la sesión. No envía mensajes automáticamente al abrir el panel.</p>
+    </div>
+  </section>
+
   <section class="modal is-hidden" id="modalConfirmacion" aria-hidden="true">
     <div class="modal__backdrop"></div>
     <div class="modal__panel modal__panel--small" role="dialog" aria-modal="true" aria-labelledby="modalConfirmacionTitulo">
@@ -1109,7 +1164,7 @@
   <script src="js/admin.ui.js?v=20261020-audit-1"></script>
 
   <script src="js/admin.workflow.js?v=20261020-aprobacion-admin4"></script>
-  <script src="js/administrador.repository.js?v=20261021-cache-stats1"></script>
+  <script src="js/administrador.repository.js?v=20261021-comunicaciones1"></script>
   <script src="js/inicio.admin.js?v=20261021-cache-stats1"></script>
   <script src="js/faltantes.admin.js?v=20261021-cache-stats1"></script>
   <script src="js/estadisticas.admin.js?v=20261021-estadisticas-1"></script>
@@ -1118,9 +1173,10 @@
   <script src="js/coordinadores.admin.js?v=20261013-colas-carreras"></script>
   <script src="js/investigadores.admin.js?v=20261015-conciliar-pines-v3"></script>
   <script src="js/admin.actions.service.js?v=20261019-sin-accesos4"></script>
-  <script src="js/estudiantes.admin.js?v=20261021-cache-stats1"></script>
+  <script src="js/estudiantes.admin.js?v=20261021-comunicaciones1"></script>
+  <script src="js/comunicaciones.admin.js?v=20261021-comunicaciones1"></script>
   <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>
-  <script src="js/administrador.app.js?v=20261021-cache-stats1"></script>
+  <script src="js/administrador.app.js?v=20261021-comunicaciones1"></script>
 </body>
 </html>
