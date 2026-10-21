@@ -196,6 +196,20 @@
       var status=document.createElement('td');
       status.textContent=enviadosSesion.has(texto(c.cedula))?'Enviado en esta sesión':
         (permitido?'Pendiente':'Sin correo');tr.appendChild(status);
+      var vista=document.createElement('button');
+      vista.type='button';vista.className='btn btn--small btn--ghost';
+      vista.textContent='Vista';vista.title='Ver el mensaje personalizado';
+      vista.addEventListener('click',function(){
+        var panel=ui.qs('#comVistaPrevia');
+        if(panel)panel.textContent='Para: '+(emails.join(', ')||'Sin destinatario')+
+          '\nAsunto: '+ASUNTO+'\nAdjunto: '+(archivoGuia?archivoGuia.name:'Guía institucional (pendiente de seleccionar)')+
+          '\n\n'+plantilla(c,false).replace(
+            'Si no dispone de la guía institucional en PDF, puede solicitarla a la Unidad de Titulación.',
+            'Se adjunta la guía institucional en PDF.');
+        var details=ui.qs('.com-preview');
+        if(details)details.open=true;
+      });
+      var action=document.createElement('td');action.appendChild(vista);tr.appendChild(action);
       tbody.appendChild(tr);
       if(cb.checked)totalElegidos++;
     });
