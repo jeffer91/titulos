@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261020-6';
+  var BUILD = '20261021-ronda1';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
