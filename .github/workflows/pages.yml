@@ -48,6 +48,7 @@ jobs:
           node tests/auditoria-e2e.test.js
           node --test tests/coordinacion-consistencia.test.js
           node tests/administrador-faltantes.test.js
+          node --test tests/administrador-cache-estadisticas.test.js
           node tests/reportes-revisiones.test.js
 
       - name: Probar aislamiento y permisos de los cuatro backends
