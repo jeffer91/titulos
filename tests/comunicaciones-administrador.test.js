@@ -2,118 +2,128 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const path=require('node:path');
 const vm=require('node:vm');
+const path=require('node:path');
 const root=path.resolve(__dirname,'..');
-const codigo=fs.readFileSync(path.join(root,'administradores/js/comunicaciones.admin.js'),'utf8');
-function modulo(){
- const window={TAAdministradorRepository:{},TAAdminUI:{},location:{href:''}};
- const context={window,console,Set,Map,TextEncoder,Uint8Array,Date,Promise,btoa,unescape,encodeURIComponent};
- vm.runInNewContext(codigo,context);
- return window.TAAdminComunicaciones;
+const source=fs.readFileSync(path.join(root,'administradores/js/comunicaciones.admin.js'),'utf8');
+const html=fs.readFileSync(path.join(root,'administradores/administrador.html'),'utf8');
+const studentsSource=fs.readFileSync(path.join(root,'administradores/js/estudiantes.admin.js'),'utf8');
+function item(cedula,extras={}){
+  return {cedula,nombres:'Estudiante '+cedula,carrera:'ENFERMERÍA',
+   periodoLabel:'Mayo 2026 a Noviembre 2026',periodoId:'2026-05__2026-11',
+   titulo:null,titulosEnviados:[],correoPersonal:cedula+'@example.com',...extras};
 }
-test('WhatsApp normaliza números de Ecuador y rechaza teléfonos dudosos',()=>{
- const x=modulo();
- assert.equal(x.telefonoEcuador('0984082332'),'593984082332');
- assert.equal(x.telefonoEcuador('+593 984 082 332'),'593984082332');
- assert.equal(x.telefonoEcuador('9876'),'');
- assert.equal(x.telefonoEcuador('022345678'),'');
- assert.equal(x.telefonoEcuador('1726155474'),'');
- assert.equal(x.telefonoEcuador('+573001234567'),'573001234567');
-});
-test('W abre un enlace de WhatsApp Web con mensaje individual, sin protocolo de escritorio',()=>{
- let opened='';
- const document={
-  body:{appendChild(){},removeChild(){}},
-  createElement(){return {click(){opened=this.href;},remove(){}};}
+function montar(filas=[],cantidad='15'){
+ const ui={
+   qs:selector=>selector==='#comCantidad'?{value:String(cantidad)}:null,
+   setText(){},escapeHtml:val=>String(val),
  };
- const window={TAAdministradorRepository:{},TAAdminUI:{},location:{}};
- vm.runInNewContext(codigo,{window,document,console,Set,Map,TextEncoder,Uint8Array,Date,Promise,btoa,unescape,encodeURIComponent});
- const ok=window.TAAdminComunicaciones.abrirWhatsapp({
-  nombres:'ESTUDIANTE DE PRUEBA',cedula:'1700000001',celular:'0991112222',carrera:'CONTABILIDAD',
-  periodoLabel:'Mayo 2026 a Noviembre 2026'
+ const win={
+  TAAdministradorRepository:{},TAAdminUI:ui,location:{},
+  TAAdminEstudiantes:{obtenerFiltrados:()=>filas},
+  prompt(){return null;},alert(){},confirm(){return true;},
+  open(){return {opener:{}};}
+ };
+ const context={window:win,document:{},console,Promise,Set,Map,Date,
+  Number,String,Uint8Array,encodeURIComponent,decodeURIComponent};
+ vm.runInNewContext(source,context);
+ return {app:win.TAAdminComunicaciones,window:win,ui};
+}
+test('botones W y C permanecen, pero C ya no usa Gmail ni mailto',()=>{
+ assert.match(studentsSource,/btnW\.textContent='W'/);
+ assert.match(studentsSource,/btnC\.textContent='C'/);
+ assert.match(source,/outlook\.office\.com\/mail\/deeplink\/compose/);
+ assert.doesNotMatch(source,/gmail\.googleapis|initTokenClient|mailto:|enviarTodos\(/);
+});
+test('panel pide cantidad por tanda, muestra pendientes y permite reabrir pendientes',()=>{
+ ['comTotal','comConCorreo','comSinContacto','comPendientes','comAbiertos',
+ 'comCantidad','comBtnPreparar','comBtnReiniciar','comDestinatarios','comVistaPrevia'].forEach(id=>{
+  assert(html.includes('id="'+id+'"'),'Falta '+id);
  });
- assert.equal(ok,true);
- assert.match(opened,/^https:\/\/wa\.me\/593991112222\?text=/);
- assert.match(decodeURIComponent(opened),/ESTUDIANTE DE PRUEBA/);
- assert(!opened.includes('whatsapp://'));
+ assert.match(html,/max="30"/);
+ assert.match(html,/value="15"/);
+ assert.match(html,/adjúntala manualmente/);
+ assert(!html.includes('id="comGoogleClientId"'));
+ assert(!html.includes('id="comBtnGmail"'));
+ assert(!html.includes('id="comPdf"'));
+ assert.match(studentsSource,/obtenerFiltrados: function/);
 });
-test('Gmail exige un archivo PDF real y destina cada envío a un solo correo',()=>{
- const x=modulo();
- const source=codigo;
- assert.match(source,/new TextDecoder\('ascii'\)/);
- assert.match(source,/signature!=='%PDF-'/);
- const email=x.generarMime({nombres:'EJEMPLO',correoPersonal:'personal@example.com',
-  correoInstitucional:'institucional@example.com'},btoa('%PDF-1.4'),'guia.pdf');
- const mime=Buffer.from(email.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8');
- assert.match(mime,/To: personal@example\.com/);
- assert.doesNotMatch(mime,/To: personal@example\.com, institucional@example\.com/);
+test('deeplink de Outlook codifica nombre, carrera, periodo, destinatario y asunto',()=>{
+ const {app}=montar();
+ const estudiante=item('1700000001',{nombres:'María Álava',
+  correoPersonal:'persona@example.com'});
+ const link=app.enlaceOutlook(estudiante);
+ const u=new URL(link);
+ assert.equal(u.origin,'https://outlook.office.com');
+ assert.equal(u.pathname,'/mail/deeplink/compose');
+ assert.equal(u.searchParams.get('to'),'persona@example.com');
+ assert.match(u.searchParams.get('subject'),/ITSQMET/);
+ assert.match(u.searchParams.get('body'),/María Álava/);
+ assert.match(u.searchParams.get('body'),/ENFERMERÍA/);
+ assert.match(u.searchParams.get('body'),/Mayo 2026 a Noviembre 2026/);
+ assert.match(u.searchParams.get('body'),/tres propuestas de títulos/);
+ assert.equal(app.enlaceOutlook(item('1700000002',{correoPersonal:''})),'');
 });
-test('extrae correos personales e institucionales sin duplicados ni destinos falsos',()=>{
- const x=modulo();
- const r=x.contactos({cedula:'1700000001',correoPersonal:'TEST@DOMINIO.COM',
-  correoInstitucional:'test@dominio.com',celular:'0991112222',
-  raw:{correoPersonal:'personal@example.org',telefono:'0984082332'}});
- assert.deepEqual(Array.from(r.emails),['test@dominio.com','personal@example.org']);
- assert.equal(r.telefono,'0991112222');
- const alternativo=x.contactos({telefono:'022345678',raw:{celular:'0984082332'}});
- assert.equal(alternativo.telefono,'0984082332');
+test('sin titulo excluye inscritos en complexivo, aprobados, devueltos y títulos legados',()=>{
+ const {app}=montar();
+ assert.equal(app.sinTitulo(item('1700000001')),true);
+ assert.equal(app.sinTitulo(item('1700000002',{raw:{modalidadTitulacion:'EXAMEN COMPLEXIVO'}})),false);
+ assert.equal(app.sinTitulo(item('1700000003',{titulo:{estadoProceso:'APROBADO_FINAL'}})),false);
+ assert.equal(app.sinTitulo(item('1700000004',{titulo:{titulo1:'Titulo original'}})),false);
+ assert.equal(app.sinTitulo(item('1700000005',{titulo:{estadoProceso:'DEVUELTO'},titulosEnviados:[{tituloFinal:'X'}]})),false);
 });
-test('correo personalizado incluye estudiante, carrera, periodo y enlace institucional',()=>{
- const x=modulo();
- const t=x.plantilla({nombres:'ESTUDIANTE EJEMPLO',carrera:'CONTABILIDAD',
-   periodoLabel:'Mayo 2026 a Noviembre 2026',cedula:'1700000001'},false);
- assert.match(t,/ESTUDIANTE EJEMPLO/);
- assert.match(t,/CONTABILIDAD/);
- assert.match(t,/Mayo 2026 a Noviembre 2026/);
- assert.match(t,/estudiantes\//);
- assert.match(t,/Una sola acción principal/);
- assert.doesNotMatch(t,/Se adjunta/);
+test('solo cuenta los filtrados visibles y elimina duplicados por cedula',async()=>{
+ const uno=item('1700000001'),repetido=item('1700000001',{periodoId:'2026-04__2026-09'});
+ const dos=item('1700000002'),tres=item('1700000003',{correoPersonal:''});
+ const aprobado=item('1700000004',{titulo:{estadoProceso:'APROBADO_FINAL'}});
+ const {app}=montar([uno,repetido,dos,tres,aprobado]);
+ await app.abrirMasivo();
+ const lista=await app.obtenerCandidatos();
+ assert.equal(lista.length,3);
+ assert.deepEqual(Array.from(lista.map(x=>x.cedula)),['1700000001','1700000002','1700000003']);
 });
-test('los botones individuales distinguen aprobados, devueltos y pendientes de revisión',()=>{
- const x=modulo();
- const base={nombres:'ESTUDIANTE',carrera:'CONTABILIDAD',periodoLabel:'Mayo 2026 a Noviembre 2026'};
- const aprobado=x.plantilla({...base,titulo:{estadoProceso:'APROBADO_FINAL',procesoCerrado:true}},false);
- assert.match(aprobado,/No necesita volver a enviar/);
- assert.doesNotMatch(aprobado,/remitir las tres propuestas/);
- const devuelto=x.plantilla({...base,titulo:{estadoProceso:'DEVUELTO',titulosEnviados:[{tituloFinal:'Ejemplo'}]},
-  titulosEnviados:[{tituloFinal:'Ejemplo'}]},true);
- assert.match(devuelto,/revise las observaciones/);
- const pendiente=x.plantilla({...base,titulo:{estadoProceso:'PENDIENTE_INVESTIGADOR'},
-  titulosEnviados:[{tituloFinal:'Ejemplo'}]},false);
- assert.match(pendiente,/No es necesario enviar nuevamente/);
+test('15 solicitados abre hasta 15 y la siguiente tanda continua sin duplicados',async()=>{
+ const filas=Array.from({length:18},(_,i)=>item(String(1700000000+i)));
+ const {app}=montar(filas,'15');
+ await app.abrirMasivo();
+ const urls=[];
+ const abrir=(url,target)=>{urls.push(url);assert.equal(target,'_blank');return {opener:'x'};};
+ const primero=app.abrirLote(abrir);
+ assert.equal(primero.abiertos,15);
+ assert.equal(primero.bloqueados,false);
+ assert.equal(urls.length,15);
+ assert.equal(new Set(urls).size,15);
+ const segundo=app.abrirLote(abrir);
+ assert.equal(segundo.abiertos,3);
+ assert.equal(urls.length,18);
+ assert.equal(app.abrirLote(abrir).abiertos,0);
 });
-test('solo se avisa a quien no envió propuestas, no a aprobados ni registros legados con título',()=>{
- const x=modulo();
- assert.equal(x.sinTitulo({titulo:null,titulosEnviados:[]}),true);
- assert.equal(x.sinTitulo({titulo:{estadoProceso:'BORRADOR_REINICIADO'},titulosEnviados:[]}),true);
- assert.equal(x.sinTitulo({titulo:{estadoProceso:'APROBADO_FINAL'},titulosEnviados:[]}),false);
- assert.equal(x.sinTitulo({titulo:{titulo1:'Propuesta previa'},titulosEnviados:[]}),false);
- assert.equal(x.sinTitulo({titulo:null,titulosEnviados:[],raw:{modalidadTitulacion:'EXAMEN COMPLEXIVO'}}),false);
- assert.equal(x.sinTitulo({titulo:{estadoProceso:'PENDIENTE_COORDINADOR'},titulosEnviados:[{tituloFinal:'Propuesta'}]}),false);
+test('si el navegador bloquea pestañas no se pierden los destinatarios no abiertos',async()=>{
+ const {app}=montar([item('1700000001'),item('1700000002'),item('1700000003')],'3');
+ await app.abrirMasivo();
+ let calls=0;
+ const blocked=app.abrirLote(()=>{calls++;return calls===1?{}:null;});
+ assert.equal(blocked.abiertos,1);
+ assert.equal(blocked.bloqueados,true);
+ const next=app.abrirLote(()=>({}));
+ assert.equal(next.abiertos,2);
+ assert.equal(app.abrirLote(()=>({})).abiertos,0);
 });
-test('el envío Gmail construye un mensaje MIME con PDF real adjunto y encabezados individuales',()=>{
- const x=modulo();
- const pdf=btoa('%PDF-1.4\n%%EOF\n');
- const raw=x.generarMime({nombres:'PERSONA DE PRUEBA',carrera:'CONTABILIDAD',
-   periodoLabel:'Mayo 2026 a Noviembre 2026',correoPersonal:'prueba@example.com'},
-   pdf,'Guia_institucional_titulos.pdf');
- const buf=Buffer.from(raw.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8');
- assert.match(buf,/To: prueba@example\.com/);
- assert.match(buf,/Content-Disposition: attachment; filename="Guia_institucional_titulos\.pdf"/);
- assert.match(buf,/Content-Type: application\/pdf/);
- assert(buf.includes(pdf),'El adjunto PDF debe conservar los mismos bytes en base64');
+test('no permite cantidades negativas, fraccionarias ni mayores a 30',async()=>{
+ const filas=[item('1700000001')],{app,ui}=montar(filas,15);
+ await app.abrirMasivo();
+ ui.qs=()=>({value:'31'});
+ assert.equal(app.abrirLote(()=>({})).abiertos,0);
+ ui.qs=()=>({value:'1.5'});
+ assert.equal(app.abrirLote(()=>({})).abiertos,0);
+ ui.qs=()=>({value:'-1'});
+ assert.equal(app.abrirLote(()=>({})).abiertos,0);
 });
-test('panel incorpora W/C, carga el PDF original y requiere confirmación antes de enviar',()=>{
- const html=fs.readFileSync(path.join(root,'administradores/administrador.html'),'utf8');
- const js=fs.readFileSync(path.join(root,'administradores/js/estudiantes.admin.js'),'utf8');
- assert.match(html,/id="btnCorreoMasivo"/);
- assert.match(html,/id="comPdf".*type="file"|id="comPdf" type="file"/);
- assert.match(html,/id="comBtnEnviar"/);
- assert.match(html,/id="comGoogleClientId"/);
- assert.match(js,/btnW\.textContent='W'/);
- assert.match(js,/btnC\.textContent='C'/);
- assert.match(codigo,/window\.confirm\('CONFIRMAR ENVÍO REAL/);
- assert.match(codigo,/https:\/\/www.googleapis.com\/auth\/gmail\.send/);
- assert(!codigo.includes('setInterval('));
+test('W sigue generando WhatsApp con mensaje, y plantilla C distingue aprobados',()=>{
+ const {app}=montar();
+ const a=app.telefonoEcuador('0984082332');
+ assert.equal(a,'593984082332');
+ assert.equal(app.telefonoEcuador('1726155474'),'');
+ const aprobado=item('1700000001',{titulo:{estadoProceso:'APROBADO_FINAL'}});
+ assert.match(app.plantilla(aprobado,false),/No necesita volver a enviar/);
 });
