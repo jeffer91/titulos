@@ -18,6 +18,13 @@
     if (!propuestas) return 'SIN_ENVIO';
     // El reenvío explícito inicia una nueva revisión aunque conserve metadatos anteriores.
     if (/^(PENDIENTE_COORDINADOR|COORDINACION_PENDIENTE)$/.test(proceso)) return 'POR_REVISAR';
+    // Una nueva ronda, marcada PENDIENTE tras Coordinación, prevalece sobre
+    // marcas historicas investigacionRevisada/revisionInvestigador sin reabrir finales.
+    var nuevaRondaInvestigacion = /^(PENDIENTE_INVESTIGADOR|INVESTIGACION_PENDIENTE)$/.test(proceso) &&
+      inv === 'PENDIENTE' &&
+      (/^(VALIDADO|APROBADO|APROBADO_CON_OBSERVACION)$/.test(coord) ||
+       d.validadoCoordinador === true || d.validadoCoordinacion === true);
+    if (nuevaRondaInvestigacion) return 'VALIDADOS';
     if (/^APROBADO(?:_CON_OBSERVACION)?$/.test(inv)) return 'APROBADOS';
     if (global.some(function(v) { return /^DEVUELTO(?:_.*)?$/.test(v); }) || coord === 'DEVUELTO' || inv === 'DEVUELTO') return 'DEVUELTOS';
     if (d.investigacionRevisada === true) return 'REVISADOS';
