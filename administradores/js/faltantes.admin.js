@@ -41,18 +41,18 @@
 
   function llenarPeriodos() {
     var activos = estado.periodos.filter(function (periodo) { return periodo.activo; });
-    var lista = activos.length ? activos : estado.periodos;
-
-    if (!estado.periodoSeleccionado && lista.length) {
-      estado.periodoSeleccionado = lista[0].id;
+    // La cola de Investigación es institucional: por defecto se cuentan todos
+    // los períodos activos, no solo el primer período del desplegable.
+    var lista = activos;
+    if (!estado.periodoSeleccionado || (estado.periodoSeleccionado !== '__TODOS_ACTIVOS__' &&
+        !lista.some(function(p){return p.id === estado.periodoSeleccionado;}))) {
+      estado.periodoSeleccionado = '__TODOS_ACTIVOS__';
     }
-
-    ui.llenarSelect('#faltantesPeriodoSelect', lista.map(function (periodo) {
-      return {
-        value: periodo.id,
-        label: periodo.label + (periodo.activo ? ' · Activo' : '')
-      };
-    }), {
+    var opciones = [{value:'__TODOS_ACTIVOS__',label:'Todos los períodos activos'}]
+      .concat(lista.map(function (periodo) {
+        return {value:periodo.id,label:periodo.label + ' · Activo'};
+      }));
+    ui.llenarSelect('#faltantesPeriodoSelect', opciones, {
       placeholder: false,
       selected: estado.periodoSeleccionado
     });
@@ -60,10 +60,13 @@
 
   function cargarDatos() {
     var periodo = estado.periodoSeleccionado || ui.value('#faltantesPeriodoSelect');
+    var filtro = periodo === '__TODOS_ACTIVOS__' ?
+      estado.periodos.filter(function(p){return p.activo;}).map(function(p){return p.id;}) :
+      periodo;
 
     ui.showStatus('#faltantesMensaje', config.textos.cargando, 'info');
 
-    return repository.obtenerFaltantesRevision(periodo)
+    return repository.obtenerFaltantesRevision(filtro)
       .then(function (resultado) {
         resultado = resultado || {
           coordinacion: { total: 0, carreras: [] },
@@ -85,7 +88,10 @@
           }
         }));
 
-        ui.showStatus('#faltantesMensaje', 'Faltantes actualizados correctamente.', 'success');
+        ui.showStatus('#faltantesMensaje',
+          estado.periodos.some(function(p){return p.activo;}) ?
+          'Faltantes actualizados correctamente.' :
+          'No hay períodos académicos activos para revisar.', 'success');
         return resultado;
       })
       .catch(function (error) {
