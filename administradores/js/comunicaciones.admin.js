@@ -55,20 +55,32 @@
     var saludo='Estimado/a '+nombre(item)+':';
     var carrera=texto(item.carrera||item.nombreCarrera||'');
     var periodo=texto(item.periodoLabel||item.periodoId||'');
-    var intro=sinTitulo(item)?
-      'Al revisar su expediente de titulación, verificamos que todavía no registra el envío de sus propuestas de títulos.':
-      'Le escribimos desde la Unidad de Titulación y Eficiencia Terminal para solicitarle que consulte el estado actual de sus propuestas de títulos.';
+    var falta=sinTitulo(item);
+    var global=texto(item.titulo&&(item.titulo.estadoProceso||item.titulo.estado)||item.estado).toUpperCase();
+    var aprobado=global==='APROBADO_FINAL'||global==='APROBADO'||item.titulo&&item.titulo.procesoCerrado===true;
+    var devuelto=!falta&&(global==='DEVUELTO'||texto(item.estado).toUpperCase()==='DEVUELTO');
+    var intro=falta ?
+      'Al revisar su expediente de titulación, verificamos que todavía no registra el envío de sus propuestas de títulos.' :
+      devuelto ? 'Su expediente de titulación registra una devolución que requiere su atención.' :
+      aprobado ? 'Su expediente registra un título aprobado. Le compartimos esta comunicación informativa sobre su proceso.' :
+      'Su expediente de titulación registra propuestas enviadas y actualmente está en proceso de revisión.';
+    var indicacion=falta ?
+      'Le solicitamos ingresar al sistema institucional y remitir las tres propuestas de títulos para iniciar su revisión.' :
+      devuelto ? 'Ingrese al sistema institucional, revise las observaciones, corrija las propuestas y reenvíelas cuando esté habilitado.' :
+      aprobado ? 'No necesita volver a enviar propuestas. Puede consultar el título aprobado desde la plataforma.' :
+      'No es necesario enviar nuevamente las propuestas mientras estén en revisión. Consulte su estado y las observaciones en la plataforma.';
     var partes=[saludo,'',intro,'',
       'Carrera: '+(carrera||'Por confirmar'),'Período académico: '+(periodo||'Por confirmar'),'',
-      'Le solicitamos ingresar al sistema institucional y remitir las tres propuestas de títulos para iniciar su revisión.',
-      'Enlace de estudiantes: '+TITULOS_URL,'',
-      'Para formular los títulos, tenga en cuenta la Guía institucional para la formulación y aprobación de títulos de titulación:',
-      '• Una sola acción principal y un objeto de estudio claramente identificado.',
-      '• Delimitar la población y el contexto cuando corresponda.',
-      '• Indicar las fechas de inicio y fin si el estudio depende del tiempo.',
-      '• Evitar títulos que anticipen resultados o impliquen dos trabajos independientes.',''];
-    partes.push(whatsapp?'Solicite la guía en PDF a la Unidad si todavía no la tiene.':
-      'Si no dispone de la guía institucional en PDF, puede solicitarla a la Unidad de Titulación.');
+      indicacion,'Enlace de estudiantes: '+TITULOS_URL,''];
+    if(falta||devuelto){
+      partes.push('Para formular los títulos, tenga en cuenta la Guía institucional para la formulación y aprobación de títulos de titulación:',
+        '• Una sola acción principal y un objeto de estudio claramente identificado.',
+        '• Delimitar la población y el contexto cuando corresponda.',
+        '• Indicar las fechas de inicio y fin si el estudio depende del tiempo.',
+        '• Evitar títulos que anticipen resultados o impliquen dos trabajos independientes.','');
+      partes.push(whatsapp?'Solicite la guía en PDF a la Unidad si todavía no la tiene.':
+        'Si no dispone de la guía institucional en PDF, puede solicitarla a la Unidad de Titulación.');
+    }
     partes.push('','Atentamente,','Unidad de Titulación y Eficiencia Terminal','ITSQMET');
     return partes.join('\n');
   }
@@ -222,6 +234,7 @@
   function abrirMasivo(){
     if(procesando)return;
     mostrar();mensaje('Preparando el listado sin realizar nuevas lecturas si los datos siguen en memoria.','info');
+    scriptGis().catch(function(){/* conexión opcional, no bloquea la revisión de la lista */});
     return repo.listarPeriodos().then(function(lista){
       var select=ui.qs('#comPeriodo');if(!select)return;
       select.textContent='';
