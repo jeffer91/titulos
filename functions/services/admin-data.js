@@ -5,12 +5,16 @@ const STUDENT=[
  'id','cedula','numeroIdentificacion','identificacion','nombres','nombre','nombreCompleto',
  'nombreCarreraActual','codigoCarreraActual','nombreCarrera','codigoCarrera','carrera',
  'periodoId','ultimoPeriodoId','periodoNombre','periodoLabel','periodo','sede',
- 'estado','estadoMatricula','eliminado'
+ 'estado','estadoMatricula','eliminado',
+ 'correoPersonal','correoInstitucional','emailPersonal','emailInstitucional','correo','email',
+ 'correoElectronico','telefono','celular','telefonoCelular','numeroCelular','whatsapp'
 ];
 const MATRICULA=[
  'id','cedula','numeroIdentificacion','nombres','nombreCarrera','codigoCarrera','carrera',
  'periodoId','periodoNombre','periodoLabel','sede','estadoMatricula','estado','jornada',
- 'modalidadTitulacion','modalidad','retirado','eliminado'
+ 'modalidadTitulacion','modalidad','retirado','eliminado',
+ 'correoPersonal','correoInstitucional','emailPersonal','emailInstitucional','correo','email',
+ 'correoElectronico','telefono','celular','telefonoCelular','numeroCelular','whatsapp'
 ];
 const ENVIO=[
  'id','cedula','numeroIdentificacion','nombres','nombre','nombreCompleto','carrera','nombreCarrera',
@@ -25,6 +29,8 @@ const ENVIO=[
  'investigacionRevisada','fechaEnvio','fechaValidacionCoordinador','fechaResolucion',
  'fechaResolucionInvestigacion','investigacionRevisadaEn','actualizadoEnLocal','creadoEn',
  'numeroEnvios','intentosUsados','numeroReenvios','devueltoPor','observacionDevolucion',
+ 'correoPersonal','correoInstitucional','emailPersonal','emailInstitucional','correo','email',
+ 'telefono','celular','telefonoCelular','numeroCelular','whatsapp',
  'requiereRevision','requiereAccionDe','permitirReenvio','puedeReenviar','telegram','telegramUser','historialProceso'
 ];
 const text=value=>String(value===undefined||value===null?'':value).trim();
