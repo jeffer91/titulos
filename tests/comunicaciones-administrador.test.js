@@ -38,6 +38,19 @@ test('correo personalizado incluye estudiante, carrera, periodo y enlace institu
  assert.match(t,/Una sola acción principal/);
  assert.doesNotMatch(t,/Se adjunta/);
 });
+test('los botones individuales distinguen aprobados, devueltos y pendientes de revisión',()=>{
+ const x=modulo();
+ const base={nombres:'ESTUDIANTE',carrera:'CONTABILIDAD',periodoLabel:'Mayo 2026 a Noviembre 2026'};
+ const aprobado=x.plantilla({...base,titulo:{estadoProceso:'APROBADO_FINAL',procesoCerrado:true}},false);
+ assert.match(aprobado,/No necesita volver a enviar/);
+ assert.doesNotMatch(aprobado,/remitir las tres propuestas/);
+ const devuelto=x.plantilla({...base,titulo:{estadoProceso:'DEVUELTO',titulosEnviados:[{tituloFinal:'Ejemplo'}]},
+  titulosEnviados:[{tituloFinal:'Ejemplo'}]},true);
+ assert.match(devuelto,/revise las observaciones/);
+ const pendiente=x.plantilla({...base,titulo:{estadoProceso:'PENDIENTE_INVESTIGADOR'},
+  titulosEnviados:[{tituloFinal:'Ejemplo'}]},false);
+ assert.match(pendiente,/No es necesario enviar nuevamente/);
+});
 test('solo se avisa a quien no envió propuestas, no a aprobados ni registros legados con título',()=>{
  const x=modulo();
  assert.equal(x.sinTitulo({titulo:null,titulosEnviados:[]}),true);
