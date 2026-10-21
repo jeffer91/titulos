@@ -6,6 +6,7 @@
   <title>Panel de Titulación | ITSQMET</title>
   <link rel="stylesheet" href="css/administrador.css?v=20261020-aprobacion-admin" />
   <link rel="stylesheet" href="css/visibility-fixes.css?v=20261008-admin4" />
+  <link rel="stylesheet" href="css/estadisticas.css?v=20261021-estadisticas-1" />
   <style>
     .admin-auth-pending .admin-shell{display:none!important}
     .admin-secure-only{display:none!important}
@@ -28,6 +29,7 @@
         <button class="admin-tab is-active" type="button" data-admin-tab="inicio">
           <span class="admin-tab__icon">⌂</span><span>Inicio</span>
         </button>
+        <button class="admin-tab" type="button" data-admin-tab="estadisticas"><span class="admin-tab__icon">▥</span><span>Estadísticas</span></button>
         <button class="admin-tab" type="button" data-admin-tab="faltantes">
           <span class="admin-tab__icon">!</span><span>Faltantes</span>
           <span class="admin-tab__badge" id="faltantesSidebarBadge">0</span>
@@ -64,7 +66,11 @@
             <h1>Panel de Titulación</h1>
             <p id="adminPeriodoActual">Gestión de títulos académicos</p>
           </div>
-          <div class="admin-status" id="adminEstadoGeneral">Iniciando</div>
+          <div class="admin-header-actions">
+              <span id="adminUltimaCarga" class="admin-cache-status" aria-live="polite">Sin datos cargados</span>
+              <button class="btn btn--secondary btn--small" type="button" id="btnActualizarDatosAdmin">Actualizar datos</button>
+              <div class="admin-status" id="adminEstadoGeneral">Iniciando</div>
+            </div>
         </div>
       </header>
 
@@ -123,6 +129,62 @@
           </section>
 
           <div class="status-message" id="inicioMensaje" role="status" aria-live="polite"></div>
+        </section>
+
+        
+        <section class="admin-panel is-hidden" id="panelEstadisticas" data-admin-panel="estadisticas" aria-labelledby="tituloEstadisticas">
+          <div class="panel-title-row">
+            <div><p class="section-kicker">Estadísticas</p><h2 id="tituloEstadisticas">Aprobación de títulos</h2>
+              <p class="muted">Indicadores calculados sobre datos compartidos, sin nuevas lecturas al filtrar.</p>
+            </div>
+            <div class="toolbar">
+              <button type="button" class="btn btn--ghost" id="btnLimpiarEstadisticas">Limpiar filtros</button>
+              <button type="button" class="btn btn--secondary" id="btnExportarEstadisticas">Exportar CSV</button>
+            </div>
+          </div>
+          <div class="card stats-filtros">
+            <div class="stats-filter-grid">
+              <div class="field"><label for="statsFiltroPeriodo">Período académico</label>
+                <select id="statsFiltroPeriodo"><option value="__TODOS_ACTIVOS__">Todos los períodos activos</option></select></div>
+              <div class="field"><label for="statsFiltroCarrera">Carrera</label>
+                <select id="statsFiltroCarrera"><option value="">Todas las carreras</option></select></div>
+              <div class="field"><label for="statsFiltroSede">Sede</label>
+                <select id="statsFiltroSede"><option value="">Todas las sedes</option></select></div>
+              <div class="field"><label for="statsFiltroModalidad">Modalidad</label>
+                <select id="statsFiltroModalidad"><option value="">Todas las modalidades</option></select></div>
+            </div>
+            <small class="muted" id="statsCobertura">Configuración de períodos pendiente de cargar.</small>
+          </div>
+          <div class="stats-kpis">
+            <article class="summary-card"><span>Total de estudiantes</span><strong id="statsTotal">—</strong><small>Universo seleccionado</small></article>
+            <article class="summary-card summary-card--success"><span>Aprobados finales</span><strong id="statsAprobados">—</strong><small>Título aprobado</small></article>
+            <article class="summary-card summary-card--warning"><span>Faltan aprobar</span><strong id="statsFaltan">—</strong><small>Incluye sin enviar y devueltos</small></article>
+            <article class="summary-card"><span>Porcentaje aprobado</span><strong id="statsPorcentaje">—</strong><small>Sobre el total filtrado</small></article>
+          </div>
+          <section class="card stats-etapas-card">
+            <div class="card__header"><div><p class="section-kicker">Etapas</p><h3>¿Dónde están los estudiantes que faltan?</h3></div></div>
+            <div class="stats-etapas">
+              <div><small>Sin enviar</small><strong id="statsSinEnviar">—</strong></div>
+              <div><small>Coordinación</small><strong id="statsCoordinacion">—</strong></div>
+              <div><small>Investigación</small><strong id="statsInvestigacion">—</strong></div>
+              <div><small>Devueltos</small><strong id="statsDevueltos">—</strong></div>
+              <div><small>Por conciliar</small><strong id="statsOtros">—</strong></div>
+            </div>
+          </section>
+          <div class="dashboard-grid stats-detail-grid">
+            <section class="card">
+              <div class="card__header"><div><p class="section-kicker">Avance</p><h3>Aprobación por carrera</h3></div></div>
+              <div id="statsGraficaCarreras" class="stats-bars"><p class="muted">Sin datos cargados.</p></div>
+            </section>
+            <section class="card">
+              <div class="card__header"><div><p class="section-kicker">Detalle</p><h3>Resultados por carrera</h3></div></div>
+              <div class="table-wrap"><table class="data-table data-table--compact">
+                <thead><tr><th>Carrera</th><th class="text-right">Total</th><th class="text-right">Aprobados</th><th class="text-right">Faltan</th><th class="text-right">%</th></tr></thead>
+                <tbody id="statsTablaCarreras"><tr><td colspan="5" class="empty-cell">Sin datos cargados.</td></tr></tbody>
+              </table></div>
+            </section>
+          </div>
+          <div class="status-message" id="statsMensaje" role="status" aria-live="polite"></div>
         </section>
 
         <section class="admin-panel is-hidden" id="panelFaltantes" data-admin-panel="faltantes" aria-labelledby="tituloFaltantes">
@@ -1047,9 +1109,10 @@
   <script src="js/admin.ui.js?v=20261020-audit-1"></script>
 
   <script src="js/admin.workflow.js?v=20261020-aprobacion-admin4"></script>
-  <script src="js/administrador.repository.js?v=20261021-ronda1"></script>
+  <script src="js/administrador.repository.js?v=20261021-cache-stats1"></script>
   <script src="js/inicio.admin.js?v=20261008-periodos-b1"></script>
   <script src="js/faltantes.admin.js?v=20261021-ronda1"></script>
+  <script src="js/estadisticas.admin.js?v=20261021-estadisticas-1"></script>
   <script src="js/reportes.revisiones.admin.js?v=20261008-admin4"></script>
   <script src="js/periodos.admin.js"></script>
   <script src="js/coordinadores.admin.js?v=20261013-colas-carreras"></script>
@@ -1058,6 +1121,6 @@
   <script src="js/estudiantes.admin.js?v=20261020-aprobacion-admin2"></script>
   <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>
-  <script src="js/administrador.app.js?v=20261019-directo"></script>
+  <script src="js/administrador.app.js?v=20261021-cache-stats1"></script>
 </body>
 </html>
