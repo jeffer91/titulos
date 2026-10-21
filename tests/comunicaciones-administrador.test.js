@@ -85,6 +85,7 @@ test('solo se avisa a quien no envió propuestas, no a aprobados ni registros le
  assert.equal(x.sinTitulo({titulo:{estadoProceso:'BORRADOR_REINICIADO'},titulosEnviados:[]}),true);
  assert.equal(x.sinTitulo({titulo:{estadoProceso:'APROBADO_FINAL'},titulosEnviados:[]}),false);
  assert.equal(x.sinTitulo({titulo:{titulo1:'Propuesta previa'},titulosEnviados:[]}),false);
+ assert.equal(x.sinTitulo({titulo:null,titulosEnviados:[],raw:{modalidadTitulacion:'EXAMEN COMPLEXIVO'}}),false);
  assert.equal(x.sinTitulo({titulo:{estadoProceso:'PENDIENTE_COORDINADOR'},titulosEnviados:[{tituloFinal:'Propuesta'}]}),false);
 });
 test('el envío Gmail construye un mensaje MIME con PDF real adjunto y encabezados individuales',()=>{
