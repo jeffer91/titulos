@@ -1,23 +1,26 @@
-/* Acciones de comunicación para el administrador. */
+/* Comunicaciones por Outlook: filas y preparacion de tandas. */
 .admin-com-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px;white-space:nowrap}
 .com-mini-btn{min-width:32px;width:32px;min-height:32px;padding:4px!important;font-weight:750!important;border:1px solid #cad8e8!important}
 .admin-com-actions .btn--primary{min-width:70px}
-.modal__panel--comunicaciones{width:min(1120px,calc(100vw - 48px));max-width:1120px;max-height:calc(100vh - 7vh);overflow:auto}
-.com-fields{display:grid;grid-template-columns:240px minmax(0,1fr);gap:16px;margin:16px 0}
-.com-fields input[type=file]{max-width:100%;padding:8px}
-.com-gmail-config{display:flex;flex-wrap:wrap;align-items:end;gap:12px;padding:14px;background:#f5f8fd;border:1px solid #dbe6f1;border-radius:10px}
-.com-gmail-config .field{flex:1;min-width:250px}
-.com-gmail-config small{display:block;max-width:700px;line-height:1.4}
-.com-gmail-config button{align-self:center}
-.com-overview{display:flex;flex-wrap:wrap;gap:12px;padding:13px 0;font-size:13px}
-.com-overview>span{border:1px solid #dce6ef;padding:8px 12px;border-radius:9px}
-.com-table-wrap{max-height:330px;overflow:auto;border:1px solid #dce6ef;border-radius:10px}
+.modal__panel--comunicaciones{width:min(1050px,calc(100vw - 36px));max-width:1050px;max-height:calc(100vh - 7vh);overflow-y:auto}
+.com-overview{display:flex;gap:10px;flex-wrap:wrap;padding:14px 0}
+.com-overview>span{display:flex;flex-direction:column;gap:5px;padding:10px 13px;min-width:138px;border:1px solid #dce6ef;border-radius:9px;font-size:12px;color:#40536d}
+.com-overview strong{font-size:21px;color:#123456}
+.com-lote{display:flex;align-items:end;flex-wrap:wrap;gap:12px;padding:16px;border:1px solid #b4c9e1;border-radius:11px;background:#f1f6fd;margin-bottom:16px}
+.com-lote .field{flex:1;min-width:210px}
+.com-lote input{width:100%;max-width:125px}
+.com-lote small{display:block;max-width:450px;line-height:1.45}
+.com-lote button{white-space:normal;min-height:39px}
+.com-csv-import{margin:14px 0}
+.com-csv-import small{display:block}
+.com-aviso{border-left:4px solid #e0a52f;background:#fffbef;padding:12px 14px;border-radius:6px;font-size:13px;line-height:1.55;margin:14px 0}
+.com-table-wrap{max-height:325px;overflow:auto;border:1px solid #dce6ef;border-radius:10px}
 .com-table-wrap td{font-size:12px;vertical-align:middle;overflow-wrap:anywhere}
-.com-table-wrap td:nth-child(4){max-width:240px}
-.com-table-wrap td:first-child,.com-table-wrap th:first-child{width:54px;text-align:center}
-.com-footnote{font-size:12px;margin:10px 0 0;line-height:1.5}
-@media(max-width:780px){.com-fields{grid-template-columns:1fr}.modal__panel--comunicaciones{width:calc(100vw - 24px)}.admin-com-actions{flex-wrap:wrap}}
-
-.com-preview{margin:12px 0;padding:12px;border:1px solid #dce6ef;border-radius:8px;background:#f8fafc}
+.com-table-wrap td:nth-child(3){max-width:220px}
+.com-table-wrap td:nth-child(5){white-space:nowrap}
+.com-open-link{display:inline-block;text-align:center}
+.com-preview{margin:13px 0;padding:12px;border:1px solid #dce6ef;border-radius:8px;background:#f8fafc}
 .com-preview summary{cursor:pointer;font-weight:700;color:#163957}
-.com-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.5;max-height:210px;overflow:auto}
+.com-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.5;max-height:240px;overflow:auto}
+.com-footnote{font-size:12px;margin:12px 0;line-height:1.5}
+@media(max-width:700px){.modal__panel--comunicaciones{width:calc(100vw - 16px)}.com-lote{flex-direction:column;align-items:stretch}.com-lote input{max-width:none}.admin-com-actions{flex-wrap:wrap}}
