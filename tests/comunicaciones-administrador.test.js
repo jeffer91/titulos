@@ -56,7 +56,7 @@ test('el envío Gmail construye un mensaje MIME con PDF real adjunto y encabezad
  assert.match(buf,/To: prueba@example\.com/);
  assert.match(buf,/Content-Disposition: attachment; filename="Guia_institucional_titulos\.pdf"/);
  assert.match(buf,/Content-Type: application\/pdf/);
- assert.match(buf,/%PDF-1\.4/);
+ assert(buf.includes(pdf),'El adjunto PDF debe conservar los mismos bytes en base64');
 });
 test('panel incorpora W/C, carga el PDF original y requiere confirmación antes de enviar',()=>{
  const html=fs.readFileSync(path.join(root,'administradores/administrador.html'),'utf8');
