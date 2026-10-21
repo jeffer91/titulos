@@ -29,16 +29,20 @@
       });
       celulares.forEach(function(k){var v=texto(c[k]);if(v&&!telefonos.includes(v))telefonos.push(v);});
     });
-    return {emails:emails,telefono:telefonos[0]||''};
+    var telefonoValido=telefonos.find(function(v){return Boolean(telefonoEcuador(v));});
+    return {emails:emails,telefono:telefonoValido||telefonos[0]||''};
   }
   function telefonoEcuador(raw){
-    var v=texto(raw).replace(/[^\d+]/g,'');
+    var rawValue=texto(raw),internacional=/^(\+|00)/.test(rawValue);
+    var v=rawValue.replace(/[^\d+]/g,'');
     if(v.startsWith('+'))v=v.substring(1);
     if(/^09\d{8}$/.test(v))return '593'+v.substring(1);
     if(/^9\d{8}$/.test(v))return '593'+v;
     if(/^5939\d{8}$/.test(v))return v;
     if(/^00\d{11,15}$/.test(v))return v.substring(2);
-    if(/^\d{10,15}$/.test(v) && !/^0/.test(v))return v;
+    // Los números nacionales ambiguos de 10 dígitos pueden ser cédulas;
+    // aceptamos otros países solo si se indicó un prefijo internacional.
+    if(internacional && /^\d{9,15}$/.test(v) && !/^0/.test(v))return v;
     return '';
   }
   function nombre(item){return texto(item&&item.nombres||item&&item.nombre||'estudiante');}
