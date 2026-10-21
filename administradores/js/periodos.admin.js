@@ -18,7 +18,10 @@
     var btnActualizar = ui.qs('#btnActualizarPeriodos');
 
     if (btnActualizar) {
-      btnActualizar.addEventListener('click', cargar);
+      btnActualizar.addEventListener('click', function(){
+        if(repository.invalidarDatosCompartidos)repository.invalidarDatosCompartidos();
+        cargar();
+      });
     }
   }
 
