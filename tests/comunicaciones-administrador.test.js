@@ -18,6 +18,8 @@ test('WhatsApp normaliza números de Ecuador y rechaza teléfonos dudosos',()=>{
  assert.equal(x.telefonoEcuador('+593 984 082 332'),'593984082332');
  assert.equal(x.telefonoEcuador('9876'),'');
  assert.equal(x.telefonoEcuador('022345678'),'');
+ assert.equal(x.telefonoEcuador('1726155474'),'');
+ assert.equal(x.telefonoEcuador('+573001234567'),'573001234567');
 });
 test('W abre un enlace de WhatsApp Web con mensaje individual, sin protocolo de escritorio',()=>{
  let opened='';
@@ -54,6 +56,8 @@ test('extrae correos personales e institucionales sin duplicados ni destinos fal
   raw:{correoPersonal:'personal@example.org',telefono:'0984082332'}});
  assert.deepEqual(Array.from(r.emails),['test@dominio.com','personal@example.org']);
  assert.equal(r.telefono,'0991112222');
+ const alternativo=x.contactos({telefono:'022345678',raw:{celular:'0984082332'}});
+ assert.equal(alternativo.telefono,'0984082332');
 });
 test('correo personalizado incluye estudiante, carrera, periodo y enlace institucional',()=>{
  const x=modulo();
