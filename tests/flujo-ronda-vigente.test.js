@@ -84,7 +84,7 @@ test('Coordinación reinicia Investigación cuando valida una nueva ronda sin pe
   agregarDocumento:async()=>true
  };
  const win={
-  TA_COORDINADORES_CONFIG:{collections:{config:'configuracion',titulos:'envios',logs:'workflow_events'}},
+  TA_COORDINADORES_CONFIG:{collections:{config:'configuracion',titulos:'envios',logs:'workflow_events'},documents:{appConfig:'general'}},
   TACoordinadorFirebaseService:serv
  };
  vm.runInNewContext(read('coordinadores/js/coordinador.repository.js'),{window:win,console,Promise,Date,Number,String,Object,Array,Set,RegExp});
