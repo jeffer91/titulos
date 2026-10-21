@@ -472,6 +472,9 @@
   window.TAAdminEstudiantes = Object.freeze({
     iniciar: iniciar,
     cargar: cargar,
-    aplicarFiltros: aplicarFiltros
+    aplicarFiltros: aplicarFiltros,
+    // Sólo devuelve la lista visible; se reutilizan los datos de sesión,
+    // respetando período, carrera, estado y búsqueda del administrador.
+    obtenerFiltrados: function(){ return estado.filtrados.slice(); }
   });
 })();
