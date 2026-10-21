@@ -19,6 +19,34 @@ test('WhatsApp normaliza números de Ecuador y rechaza teléfonos dudosos',()=>{
  assert.equal(x.telefonoEcuador('9876'),'');
  assert.equal(x.telefonoEcuador('022345678'),'');
 });
+test('W abre un enlace de WhatsApp Web con mensaje individual, sin protocolo de escritorio',()=>{
+ let opened='';
+ const document={
+  body:{appendChild(){},removeChild(){}},
+  createElement(){return {click(){opened=this.href;},remove(){}};}
+ };
+ const window={TAAdministradorRepository:{},TAAdminUI:{},location:{}};
+ vm.runInNewContext(codigo,{window,document,console,Set,Map,TextEncoder,Uint8Array,Date,Promise,btoa,unescape,encodeURIComponent});
+ const ok=window.TAAdminComunicaciones.abrirWhatsapp({
+  nombres:'ESTUDIANTE DE PRUEBA',cedula:'1700000001',celular:'0991112222',carrera:'CONTABILIDAD',
+  periodoLabel:'Mayo 2026 a Noviembre 2026'
+ });
+ assert.equal(ok,true);
+ assert.match(opened,/^https:\/\/wa\.me\/593991112222\?text=/);
+ assert.match(decodeURIComponent(opened),/ESTUDIANTE DE PRUEBA/);
+ assert(!opened.includes('whatsapp://'));
+});
+test('Gmail exige un archivo PDF real y destina cada envío a un solo correo',()=>{
+ const x=modulo();
+ const source=codigo;
+ assert.match(source,/new TextDecoder\('ascii'\)/);
+ assert.match(source,/signature!=='%PDF-'/);
+ const email=x.generarMime({nombres:'EJEMPLO',correoPersonal:'personal@example.com',
+  correoInstitucional:'institucional@example.com'},btoa('%PDF-1.4'),'guia.pdf');
+ const mime=Buffer.from(email.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8');
+ assert.match(mime,/To: personal@example\.com/);
+ assert.doesNotMatch(mime,/To: personal@example\.com, institucional@example\.com/);
+});
 test('extrae correos personales e institucionales sin duplicados ni destinos falsos',()=>{
  const x=modulo();
  const r=x.contactos({cedula:'1700000001',correoPersonal:'TEST@DOMINIO.COM',
