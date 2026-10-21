@@ -8,6 +8,7 @@
 
   var modulos = {
     inicio: window.TAAdminInicio,
+    estadisticas: window.TAAdminEstadisticas,
     faltantes: window.TAAdminFaltantes,
     periodos: window.TAAdminPeriodos,
     coordinadores: window.TAAdminCoordinadores,
@@ -104,10 +105,14 @@
     }
 
     conectarEventosGlobales();
+    var btnDatos = ui.qs('#btnActualizarDatosAdmin');
+    if (btnDatos) btnDatos.addEventListener('click', actualizarDatosCompartidos);
   }
 
   function conectarEventosGlobales() {
     window.addEventListener('admin:periodos-actualizados', function () {
+      if (repository.invalidarDatosCompartidos) repository.invalidarDatosCompartidos();
+      estado.modulosCargados.estadisticas = false;
       estado.modulosCargados.inicio = false;
       estado.modulosCargados.faltantes = false;
       estado.modulosCargados.estudiantes = false;
@@ -117,6 +122,9 @@
 
       if (estado.tabActual === 'inicio') {
         cargarModulo('inicio', true);
+      }
+      if (estado.tabActual === 'estadisticas') {
+        cargarModulo('estadisticas', true);
       }
 
       if (estado.tabActual === 'faltantes') {
@@ -141,7 +149,8 @@
     });
 
     window.addEventListener('admin:titulos-actualizados', function () {
-      ['inicio','faltantes','estudiantes','reportes'].forEach(function (nombre) {
+      if (repository.invalidarDatosCompartidos) repository.invalidarDatosCompartidos();
+      ['inicio','faltantes','estudiantes','reportes','estadisticas'].forEach(function (nombre) {
         estado.modulosCargados[nombre] = false;
       });
     });
@@ -223,6 +232,26 @@
       });
   }
 
+  function actualizarDatosCompartidos() {
+    var btn = ui.qs('#btnActualizarDatosAdmin');
+    if (!estado.firebaseListo || (btn && btn.disabled)) return Promise.resolve(false);
+    if (btn) { btn.disabled=true;btn.textContent='Actualizando…'; }
+    if (repository.invalidarDatosCompartidos) repository.invalidarDatosCompartidos();
+    Object.keys(modulos).forEach(function(nombre){estado.modulosCargados[nombre]=false;});
+    ui.setText('#adminUltimaCarga','Consultando Firebase...');
+    return Promise.resolve(cargarModulo(estado.tabActual,true)).finally(function(){
+      if (btn) {btn.disabled=false;btn.textContent='Actualizar datos';}
+      mostrarUltimaCarga();
+    });
+  }
+
+  function mostrarUltimaCarga() {
+    var fecha = repository.fechaUltimaLectura && repository.fechaUltimaLectura();
+    if(!fecha) {ui.setText('#adminUltimaCarga','Datos pendientes de cargar');return;}
+    ui.setText('#adminUltimaCarga','Datos cargados: '+
+      new Date(fecha).toLocaleString('es-EC',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}));
+  }
+
   function activarTab(nombreTab, cargarDatos) {
     if (!nombreTab || !modulos[nombreTab]) {
       nombreTab = 'inicio';
@@ -243,7 +272,7 @@
   function cargarModulo(nombreTab, forzar) {
     var seguro = window.TAAdministradorSeguro;
     if (seguro && seguro.activo && seguro.activo() &&
-        ['inicio','faltantes','estudiantes','coordinadores','investigadores','reportes','periodos','ajustes'].indexOf(nombreTab) === -1) {
+        ['inicio','faltantes','estadisticas','estudiantes','coordinadores','investigadores','reportes','periodos','ajustes'].indexOf(nombreTab) === -1) {
       mostrarMensajeModulo(nombreTab, {
         titulo:'Operación pendiente de migración',
         mensaje:'Esta sección todavía no tiene endpoints autorizados del backend.',
@@ -275,6 +304,7 @@
       })
       .then(function () {
         estado.modulosCargados[nombreTab] = true;
+        mostrarUltimaCarga();
         return true;
       })
       .catch(function (error) {
@@ -301,6 +331,7 @@
   function mostrarMensajeModulo(nombreTab, mensaje, tipo) {
     var mapa = {
       inicio: '#inicioMensaje',
+      estadisticas: '#statsMensaje',
       faltantes: '#faltantesMensaje',
       periodos: '#periodosMensaje',
       coordinadores: '#coordinadoresMensaje',
