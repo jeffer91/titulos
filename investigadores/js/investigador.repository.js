@@ -271,7 +271,12 @@
     var cerrado=function(v){return /^(APROBADO_FINAL|DEVUELTO(?:_.*)?|ARCHIVADO(?:_.*)?|BORRADOR_REINICIADO|SIN_ENVIO|SIN_ENVIAR)$/.test(v);};
     if(cerrado(estado)||cerrado(proceso)||coord==='DEVUELTO')return false;
     if(/^(PENDIENTE_COORDINADOR|COORDINACION_PENDIENTE)$/.test(proceso))return false;
-    if(t.investigacionRevisada===true||/^(APROBADO(?:_CON_OBSERVACION)?|DEVUELTO)$/.test(inv))return false;
+    var nuevaRonda=/^(PENDIENTE_INVESTIGADOR|INVESTIGACION_PENDIENTE)$/.test(proceso) &&
+      inv==='PENDIENTE' &&
+      (/^(VALIDADO|APROBADO|APROBADO_CON_OBSERVACION)$/.test(coord) ||
+       t.validadoCoordinador===true || t.validadoCoordinacion===true);
+    if(!nuevaRonda &&
+       (t.investigacionRevisada===true||/^(APROBADO(?:_CON_OBSERVACION)?|DEVUELTO)$/.test(inv)))return false;
     return construirPropuestas(t).length>0;
   }
 
