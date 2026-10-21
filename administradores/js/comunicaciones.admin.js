@@ -54,9 +54,16 @@
     var t=item.titulo;
     var g=texto(t&&(t.estadoProceso||t.estado)).toUpperCase();
     if(g==='ARCHIVADO'||g==='BORRADOR_REINICIADO')return true;
-    if(g==='APROBADO_FINAL'||t&&t.procesoCerrado===true)return false;
-    if(t && [t.titulo1,t.titulo2,t.titulo3].some(function(v){return texto(v).length>0;}))return false;
-    return !t||!Array.isArray(item.titulosEnviados)||item.titulosEnviados.length===0;
+    if(!t)return true;
+    // Evitar falsos positivos: los expedientes en revisión o con propuestas
+    // legadas no deben recibir correos de "todavía no envió".
+    if(t.procesoCerrado===true)return false;
+    if(/APROBADO|ENVIADO|PENDIENTE|VALIDADO|INVESTIGACION|COORDINACION|DEVUELTO/.test(g))return false;
+    if([t.titulo1,t.titulo2,t.titulo3,t.tituloPreferidoTexto,t.tituloCoordinador,t.tituloFinal]
+      .some(function(v){return texto(v).length>0;}))return false;
+    var propuestas=[item.titulosEnviados,t.titulosEnviados,t.propuestasDetalle];
+    if(propuestas.some(function(a){return Array.isArray(a)&&a.length>0;}))return false;
+    return g==='SIN_ENVIAR'||g==='SIN ENVIAR'||g==='BORRADOR';
   }
   function plantilla(item,whatsapp){
     var saludo='Estimado/a '+nombre(item)+':';
