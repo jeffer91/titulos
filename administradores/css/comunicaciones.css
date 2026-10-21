@@ -17,3 +17,7 @@
 .com-table-wrap td:first-child,.com-table-wrap th:first-child{width:54px;text-align:center}
 .com-footnote{font-size:12px;margin:10px 0 0;line-height:1.5}
 @media(max-width:780px){.com-fields{grid-template-columns:1fr}.modal__panel--comunicaciones{width:calc(100vw - 24px)}.admin-com-actions{flex-wrap:wrap}}
+
+.com-preview{margin:12px 0;padding:12px;border:1px solid #dce6ef;border-radius:8px;background:#f8fafc}
+.com-preview summary{cursor:pointer;font-weight:700;color:#163957}
+.com-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.5;max-height:210px;overflow:auto}
