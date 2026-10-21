@@ -198,7 +198,16 @@ async function revisar(db,perfil,actor,body) {
     titulosEnviados:actualizados,propuestasDetalle:actualizados,
     titulo1:tituloNum(actualizados,1),titulo2:tituloNum(actualizados,2),titulo3:tituloNum(actualizados,3),
     requiereAccionDe:'INVESTIGACION',requiereRevision:false,
-    permitirReenvio:false,puedeReenviar:false,devueltoPor:'',estadoInvestigador:'PENDIENTE'
+    permitirReenvio:false,puedeReenviar:false,devueltoPor:'',
+    // El historial de la ronda anterior queda archivado; la nueva decisión comienza limpia.
+    estadoInvestigador:'PENDIENTE',revisionInvestigador:null,
+    investigacionRevisada:false,investigacionRevisadaEn:null,
+    resultadoInvestigacion:null,observacionInvestigacion:'',
+    fechaResolucionInvestigacion:null,fechaColaInvestigacion:ahora,
+    tituloInvestigador:null,tituloInvestigadorNumero:null,
+    tituloFinalInvestigacion:null,tituloFinal:null,
+    tituloOriginalInvestigacion:'',tituloCorregidoInvestigacion:'',
+    procesoCerrado:false,aprobadoPorAdministracion:false
   });
   else Object.assign(payload,{
     estado:'DEVUELTO',estadoProceso:'DEVUELTO',estadoCoordinador:'DEVUELTO',
