@@ -1081,6 +1081,12 @@
           <small id="comPdfInfo">Selecciona el PDF de siete páginas de la guía institucional que proporcionaste.</small>
         </div>
       </div>
+      <div class="field com-csv-import">
+        <label for="comCsvContactos">Importar contactos complementarios (opcional, CSV)</label>
+        <input id="comCsvContactos" type="file" accept=".csv,text/csv" />
+        <small>Si algún estudiante no tiene correo en la base, puedes usar un CSV con columnas
+          <code>cedula;correo;correoInstitucional;celular</code>. Los contactos se utilizan solo en esta sesión.</small>
+      </div>
       <div class="com-gmail-config">
         <div class="field">
           <label for="comGoogleClientId">Client ID de Google OAuth (tipo Web)</label>
@@ -1174,7 +1180,7 @@
   <script src="js/investigadores.admin.js?v=20261015-conciliar-pines-v3"></script>
   <script src="js/admin.actions.service.js?v=20261019-sin-accesos4"></script>
   <script src="js/estudiantes.admin.js?v=20261021-comunicaciones1"></script>
-  <script src="js/comunicaciones.admin.js?v=20261021-comunicaciones1"></script>
+  <script src="js/comunicaciones.admin.js?v=20261021-comunicaciones2"></script>
   <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>
   <script src="js/administrador.app.js?v=20261021-comunicaciones1"></script>
