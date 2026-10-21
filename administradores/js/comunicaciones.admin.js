@@ -92,13 +92,12 @@
       if(!phone){if(nuevo)alert('El número ingresado no es válido.');return false;}
     }
     var msg=encodeURIComponent(plantilla(item,true));
-    // Chrome/Windows puede preguntar si se abre la aplicación instalada.
+    // Enlace web oficial: funciona con WhatsApp Web o permite abrir la app.
+    // No dependemos de un protocolo whatsapp:// registrado en Windows.
     var anchor=document.createElement('a');
-    anchor.href='whatsapp://send?phone='+phone+'&text='+msg;
+    anchor.href='https://wa.me/'+phone+'?text='+msg;
     anchor.target='_blank';anchor.rel='noopener noreferrer';
     document.body.appendChild(anchor);anchor.click();anchor.remove();
-    var fallback=ui.qs('#comWhatsFallback');
-    if(fallback){fallback.href='https://wa.me/'+phone+'?text='+msg;fallback.hidden=false;}
     return true;
   }
   function abrirCorreo(item){
@@ -108,6 +107,9 @@
       if(!correoValido(nuevo)){if(nuevo)alert('El correo ingresado no es válido.');return false;}
       emails=[nuevo];
     }
+    // No remitir copias innecesarias a dos cuentas de una misma persona.
+    // El otro correo sigue disponible en la vista de contactos.
+    emails=emails.slice(0,1);
     var mailto='mailto:'+emails.map(encodeURIComponent).join(',')+
       '?subject='+encodeURIComponent(ASUNTO)+'&body='+encodeURIComponent(plantilla(item,false));
     // mailto: abre un borrador editable: el navegador NO adjunta archivos automáticamente.
@@ -167,6 +169,10 @@
           celular:tel>=0?texto(cols[tel]):''};
         if(!c.correoPersonal&&!c.correoInstitucional&&!c.celular)return;
         contactosImportados.set(cedula,c);count++;
+      });
+      // Mantener las selecciones anteriores; incluir nuevos correos válidos.
+      candidatos.forEach(function(c,i){
+        if(contactos(c).emails.length&&!enviadosSesion.has(texto(c.cedula))&&!seleccionados.includes(i))seleccionados.push(i);
       });
       render();
       mensaje('Se importaron contactos temporales de '+count+' estudiante(s). No se guardan en Firebase ni en el navegador.','success');
@@ -311,7 +317,8 @@
   function b64url(s){return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
   function normalizarLineas64(s){return s.match(/.{1,76}/g).join('\r\n');}
   function mime(item,pdf,filename){
-    var emails=contactos(item).emails;
+    var emails=contactos(item).emails.slice(0,1);
+    if(!emails.length)throw new Error('Destinatario sin correo válido.');
     var nombreArchivo=filename.replace(/[^\w.()-]/g,'_')||'Guia_titulos_ITSQMET.pdf';
     var boundary='=_itsqmet_'+Date.now()+'_'+Math.floor(Math.random()*999999);
     var body=plantilla(item,false).replace('Si no dispone de la guía institucional en PDF, puede solicitarla a la Unidad de Titulación.','Se adjunta la Guía institucional para la formulación y aprobación de títulos de titulación (versión 1.0, octubre de 2026).');
@@ -340,7 +347,7 @@
       return c&&contactos(c).emails.length&&!enviadosSesion.has(texto(c.cedula));
     });
     if(!items.length){mensaje('Selecciona al menos un estudiante con correo válido.','warning');return;}
-    if(!file||file.type!==TIPO||file.size>8*1024*1024){
+    if(!file||!(/\.pdf$/i.test(file.name))||file.size<=0||file.size>8*1024*1024){
       mensaje('Selecciona la guía institucional original en formato PDF (máximo 8 MB).','error');return;}
     if(!token||Date.now()>tokenHasta-45000){mensaje('Conecta Gmail o renueva la autorización antes de enviar.','error');return;}
     var detalle=items.length+' correo(s) personalizado(s), cada uno con el PDF adjunto. No se incluirán estudiantes que ya tengan títulos enviados.';
@@ -350,7 +357,17 @@
   async function enviarTodos(items,file){
     procesando=true;cancelar=false;
     var btn=ui.qs('#comBtnEnviar');if(btn)btn.disabled=true;
-    var buf=await file.arrayBuffer();var pdf=b64bytes(buf),hechos=0,errores=0;
+    var pdf='',hechos=0,errores=0;
+    try {
+      var buf=await file.arrayBuffer();
+      var signature=new TextDecoder('ascii').decode(buf.slice(0,5));
+      if(signature!=='%PDF-')throw new Error('El archivo seleccionado no es un PDF válido.');
+      pdf=b64bytes(buf);
+    }catch(error){
+      mensaje('No se puede enviar: '+error.message,'error');
+      procesando=false;if(btn)btn.disabled=false;
+      return;
+    }
     for(var i=0;i<items.length;i++){
       if(cancelar)break;
       var item=items[i],clave=texto(item.cedula);
@@ -376,8 +393,8 @@
       if(!cancelar)await new Promise(function(resolve){setTimeout(resolve,550);});
     }
     procesando=false;if(btn)btn.disabled=false;render();
-    mensaje('Enviados: '+hechos+'. Errores: '+errores+(cancelar?'. Tanda detenida.':' . Tanda finalizada.')+
-      ' Los enviados en esta sesión no se volverán a seleccionar.','success');
+    mensaje('Enviados: '+hechos+'. Errores: '+errores+(cancelar?'. Tanda detenida.':'. Tanda finalizada.')+
+      ' Los enviados en esta sesión no se volverán a seleccionar.',''+(errores?'warning':'success'));
     // Nunca conservar el token fuera de memoria ni el contenido de PDF en almacenamiento.
   }
   function iniciar(){
