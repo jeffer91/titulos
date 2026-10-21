@@ -20,7 +20,10 @@
     var periodoSelect = ui.qs('#inicioPeriodoSelect');
 
     if (btnActualizar) {
-      btnActualizar.addEventListener('click', cargar);
+      btnActualizar.addEventListener('click', function(){
+        if(repository.invalidarDatosCompartidos)repository.invalidarDatosCompartidos();
+        cargar();
+      });
     }
 
     if (periodoSelect) {
