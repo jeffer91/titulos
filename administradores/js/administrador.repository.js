@@ -74,6 +74,28 @@
     firebaseListo: false
   };
 
+  // Un único conjunto de lecturas por sesión. Las peticiones concurrentes
+  // comparten la misma Promise; los errores nunca quedan fijados en la caché.
+  var datosCompartidos = Object.create(null);
+  var ultimaLectura = 0;
+  function unaLectura(clave, consultar) {
+    if (datosCompartidos[clave]) return datosCompartidos[clave];
+    var solicitud = Promise.resolve().then(consultar).then(function (resultado) {
+      ultimaLectura = Date.now();
+      return resultado;
+    }).catch(function (error) {
+      if (datosCompartidos[clave] === solicitud) delete datosCompartidos[clave];
+      throw error;
+    });
+    datosCompartidos[clave] = solicitud;
+    return solicitud;
+  }
+  function invalidarDatosCompartidos() {
+    datosCompartidos = Object.create(null);
+    ultimaLectura = 0;
+  }
+  function fechaUltimaLectura() { return ultimaLectura; }
+
   function iniciarFirebase() {
     if(modoSeguro())return seguro.sesion().then(function(){estado.firebaseListo=true;return true;});
     if (estado.firebaseListo) return Promise.resolve(true);
@@ -100,48 +122,46 @@
   }
 
   function cargarAppConfig() {
-    if(modoSeguro())return seguro.config().then(prepararConfigPeriodos);
-    return leerDocumento(config.collections.config, config.documents.appConfig)
-      .then(function (data) {
-        return prepararConfigPeriodos(data);
-      });
+    return unaLectura('appConfig', function () {
+      if(modoSeguro())return seguro.config().then(prepararConfigPeriodos);
+      return leerDocumento(config.collections.config, config.documents.appConfig)
+        .then(function (data) { return prepararConfigPeriodos(data); });
+    });
   }
 
   function guardarAppConfig(data) {
-    if(modoSeguro())return seguro.guardarConfig(data);
+    if(modoSeguro())return seguro.guardarConfig(data).then(function(resultado){invalidarDatosCompartidos();return resultado;});
     var payload = Object.assign({}, data || {}, {
       actualizadoEn: ahoraIso()
     });
 
-    return guardarDocumento(config.collections.config, config.documents.appConfig, payload, true);
+    return guardarDocumento(config.collections.config, config.documents.appConfig, payload, true)
+      .then(function(resultado){invalidarDatosCompartidos();return resultado;});
   }
 
   function listarEstudiantes() {
-    if(modoSeguro())return seguro.estudiantes().then(function(docs){return deduplicarEstudiantesBasico((docs||[]).map(normalizarEstudiante));});
-    return listarColeccion(config.collections.estudiantes).then(function (docs) {
-      return deduplicarEstudiantesBasico(docs.map(normalizarEstudiante));
+    return unaLectura('estudiantes', function () {
+      if(modoSeguro())return seguro.estudiantes().then(function(docs){return deduplicarEstudiantesBasico((docs||[]).map(normalizarEstudiante));});
+      return listarColeccion(config.collections.estudiantes).then(function (docs) {
+        return deduplicarEstudiantesBasico(docs.map(normalizarEstudiante));
+      });
     });
   }
 
   function listarTitulos() {
-    if(modoSeguro())return seguro.envios().then(function(docs){return (docs||[]).map(normalizarTitulo);});
-    return listarColeccion(config.collections.titulos).then(function (docs) {
-      return docs.map(normalizarTitulo);
+    return unaLectura('titulos', function () {
+      if(modoSeguro())return seguro.envios().then(function(docs){return (docs||[]).map(normalizarTitulo);});
+      return listarColeccion(config.collections.titulos).then(function (docs) {
+        return docs.map(normalizarTitulo);
+      });
     });
   }
 
   function listarRevisionesInvestigacion() {
-    if(modoSeguro())return seguro.envios().then(function(docs){
-      var service=window.TARevisionReportService;
-      if(!service||typeof service.normalizarLista!=='function')throw new Error('El motor de reportes no está disponible.');
-      return service.normalizarLista(docs);
-    });
     var reportService = window.TARevisionReportService;
-    if (!reportService || typeof reportService.normalizarLista !== 'function') {
+    if (!reportService || typeof reportService.normalizarLista !== 'function')
       return Promise.reject(new Error('No se cargó el motor de reportes de revisiones.'));
-    }
-
-    return listarColeccion(config.collections.titulos).then(function (docs) {
+    return listarTitulos().then(function (docs) {
       return reportService.normalizarLista(docs || []);
     });
   }
@@ -173,6 +193,9 @@
   }
 
   function listarPeriodos() {
+    return unaLectura('periodos', consultarPeriodos);
+  }
+  function consultarPeriodos() {
     if(modoSeguro())return seguro.llamar('periodos').then(function(items){
       var mapa={};
       (items||[]).forEach(function(item){agregarPeriodoMapa(mapa,item.id,item.label,item.origen||'periodos');});
@@ -240,10 +263,11 @@
   function cambiarEstadoPeriodo(periodoId,activo) {
     var id=normalizarPeriodoIdCanonico(periodoId);
     if(!id)return Promise.reject(new Error('El período debe tener un ID completo: AAAA-MM__AAAA-MM.'));
-    if(modoSeguro())return seguro.cambiarEstadoPeriodo(id,Boolean(activo));
+    if(modoSeguro())return seguro.cambiarEstadoPeriodo(id,Boolean(activo)).then(function(resultado){invalidarDatosCompartidos();return resultado;});
     if(!firebaseService || !firebaseService.cambiarPeriodoActivoAtomico)
       return Promise.reject(new Error('No se cargó el servicio transaccional de períodos.'));
-    return firebaseService.cambiarPeriodoActivoAtomico(id,Boolean(activo));
+    return firebaseService.cambiarPeriodoActivoAtomico(id,Boolean(activo))
+      .then(function(resultado){invalidarDatosCompartidos();return resultado;});
   }
 
   function obtenerCarreras() {
@@ -402,7 +426,7 @@
   }
 
   function archivarIntento(tituloId, motivo) {
-    if(modoSeguro()) return seguro.archivar(tituloId,motivo);
+    if(modoSeguro()) return seguro.archivar(tituloId,motivo).then(function(r){invalidarDatosCompartidos();return r;});
     if(!tituloId) return Promise.reject(new Error('No se pudo identificar el intento.'));
     if(!firebaseService || typeof firebaseService.getDb!=='function')
       return Promise.reject(new Error('No está disponible la transacción para archivar.'));
@@ -430,11 +454,11 @@
           actualizadoEn:ahora,actualizadoEnLocal:ahora
         },{merge:true});
       });
-    });
+    }).then(function(r){invalidarDatosCompartidos();return r;});
   }
 
   function intervenirTitulo(payload) {
-    if(modoSeguro()) return window.TAAdminAccionesSeguras.decidir(payload);
+    if(modoSeguro()) return window.TAAdminAccionesSeguras.decidir(payload).then(function(r){invalidarDatosCompartidos();return r;});
     return iniciarFirebase().then(function(){
       var db=firebaseService.getDb();
       var ref=db.collection(config.collections.titulos).doc(payload.tituloId);
@@ -451,7 +475,7 @@
           return {id:payload.tituloId,estado:cambios.estado||antes.estado};
         });
       });
-    }).catch(function(error){
+    }).then(function(r){invalidarDatosCompartidos();return r;}).catch(function(error){
       if(error.code==='permission-denied')throw new Error('Firebase rechazó el cambio por sus permisos. No se guardó ninguna modificación.');
       throw error;
     });
@@ -890,6 +914,8 @@
       periodoIdOriginal: limpiarTexto(periodoOriginal),
       periodoLabel: periodoLabel || 'Sin período',
       estadoMatricula: limpiarTexto(valor(source, ['estadomatricula', 'estado'])) || 'ACTIVO',
+      sede: limpiarTexto(valor(source, ['sede', 'nombresede', 'campus'])) || '',
+      modalidadEstudio: limpiarTexto(valor(source, ['modalidadestudio', 'modalidad', 'modalidadeducativa'])) || '',
       sinCarrera: normalizarTexto(carreraVista) === 'SIN CARRERA',
       raw: data
     };
@@ -1363,6 +1389,8 @@
   window.TAAdministradorRepository = Object.freeze({
     iniciarFirebase: iniciarFirebase,
     cargarAppConfig: cargarAppConfig,
+    invalidarDatosCompartidos: invalidarDatosCompartidos,
+    fechaUltimaLectura: fechaUltimaLectura,
     guardarAppConfig: guardarAppConfig,
     listarEstudiantes: listarEstudiantes,
     listarTitulos: listarTitulos,
