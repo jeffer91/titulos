@@ -744,14 +744,18 @@
   }
 
   function obtenerFaltantesRevision(periodoId) {
-    var periodoFiltro = normalizarPeriodoIdCanonico(periodoId);
+    var periodoFiltro = Array.isArray(periodoId) ? '' : normalizarPeriodoIdCanonico(periodoId);
+    var periodosFiltro = Array.isArray(periodoId) ?
+      new Set(periodoId.map(normalizarPeriodoIdCanonico).filter(Boolean)) : null;
 
     return listarTitulos().then(function (titulos) {
       var coordinacion = {};
       var investigacion = {};
 
       (titulos || []).forEach(function (titulo) {
-        if (periodoFiltro && normalizarPeriodoIdCanonico(titulo.periodoId) !== periodoFiltro) return;
+        var periodoActual = normalizarPeriodoIdCanonico(titulo.periodoId);
+        if (periodosFiltro && !periodosFiltro.has(periodoActual)) return;
+        if (periodoFiltro && periodoActual !== periodoFiltro) return;
 
         var etapa = obtenerEtapaRevision(titulo);
         if (!etapa) return;
