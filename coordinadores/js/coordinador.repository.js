@@ -280,7 +280,24 @@
         permitirReenvio: false,
         puedeReenviar: false,
         devueltoPor: '',
-        estadoInvestigador: 'PENDIENTE'
+        // Nueva ronda: una devolución/revisión anterior nunca bloquea Investigación.
+        // El registro previo permanece en versiones_envio, historialProceso y workflow_events.
+        estadoInvestigador: 'PENDIENTE',
+        revisionInvestigador: null,
+        investigacionRevisada: false,
+        investigacionRevisadaEn: null,
+        resultadoInvestigacion: null,
+        observacionInvestigacion: '',
+        fechaResolucionInvestigacion: null,
+        tituloInvestigador: null,
+        tituloInvestigadorNumero: null,
+        tituloFinalInvestigacion: null,
+        tituloFinal: null,
+        tituloOriginalInvestigacion: '',
+        tituloCorregidoInvestigacion: '',
+        procesoCerrado: false,
+        aprobadoPorAdministracion: false,
+        fechaColaInvestigacion: ahora
       });
     } else {
       Object.assign(payload, {
