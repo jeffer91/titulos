@@ -1,0 +1,28 @@
+
+/* Dashboard estadístico aislado: no altera los demás paneles. */
+.admin-header-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.admin-cache-status{font-size:12px;color:#607086;max-width:230px;text-align:right}
+.stats-filtros{margin-bottom:18px;padding:18px}
+.stats-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:8px}
+.stats-filter-grid select{width:100%;min-width:0}
+.stats-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}
+.stats-kpis .summary-card{min-width:0}
+.stats-etapas-card{margin-bottom:18px}
+.stats-etapas{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.stats-etapas>div{padding:14px;border:1px solid #dbe4ec;border-radius:10px;background:#f8fafc;display:flex;flex-direction:column;gap:5px}
+.stats-etapas small{color:#506278;font-size:12px}
+.stats-etapas strong{color:#173b64;font-size:23px;font-weight:750}
+.stats-detail-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);align-items:start}
+.stats-detail-grid .card{min-width:0}
+.stats-bars{display:flex;flex-direction:column;gap:15px;max-height:520px;overflow:auto;padding:3px}
+.stats-bar-item{display:flex;flex-direction:column;gap:6px}
+.stats-bar-caption{display:flex;justify-content:space-between;gap:12px;font-size:12px;line-height:1.35}
+.stats-bar-caption span{flex:1;min-width:0;overflow-wrap:anywhere;color:#30455a}
+.stats-bar-caption strong{white-space:nowrap;color:#1d4368;font-variant-numeric:tabular-nums}
+.stats-bar-track{height:9px;border-radius:99px;background:#e4ebf1;overflow:hidden}
+.stats-bar-fill{height:100%;border-radius:99px;background:#2477bf;transition:width .22s ease}
+#statsTablaCarreras td:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#statsTablaCarreras td:first-child{min-width:145px}
+@media(max-width:1100px){.stats-filter-grid,.stats-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.stats-etapas{grid-template-columns:repeat(3,minmax(0,1fr))}.stats-detail-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.stats-etapas,.stats-kpis,.stats-filter-grid{grid-template-columns:1fr 1fr}.admin-header-actions{justify-content:flex-start}.admin-cache-status{max-width:none}.stats-detail-grid{grid-template-columns:1fr}}
+@media(max-width:400px){.stats-etapas,.stats-kpis,.stats-filter-grid{grid-template-columns:1fr}}
