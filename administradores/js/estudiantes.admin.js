@@ -39,7 +39,10 @@
 
     if (btnActualizar && !btnActualizar.dataset.estudiantesBound) {
       btnActualizar.dataset.estudiantesBound = 'true';
-      btnActualizar.addEventListener('click', cargar);
+      btnActualizar.addEventListener('click', function(){
+        if(repository.invalidarDatosCompartidos)repository.invalidarDatosCompartidos();
+        cargar();
+      });
     }
 
     if (formFiltros && !formFiltros.dataset.estudiantesBound) {
