@@ -233,7 +233,25 @@
         verMas(item);
       });
 
-      actionCell.appendChild(button);
+      var comunicaciones=window.TAAdminComunicaciones;
+      var grupo=document.createElement('div');
+      grupo.className='admin-com-actions';
+      var btnW=document.createElement('button');
+      btnW.type='button';btnW.className='btn btn--small btn--ghost com-mini-btn';
+      btnW.textContent='W';btnW.title='Abrir WhatsApp del estudiante';
+      btnW.setAttribute('aria-label','Enviar WhatsApp a '+item.nombres);
+      btnW.addEventListener('click',function(){
+        if(comunicaciones)comunicaciones.abrirWhatsapp(item);
+      });
+      var btnC=document.createElement('button');
+      btnC.type='button';btnC.className='btn btn--small btn--ghost com-mini-btn';
+      btnC.textContent='C';btnC.title='Preparar correo personalizado';
+      btnC.setAttribute('aria-label','Enviar correo a '+item.nombres);
+      btnC.addEventListener('click',function(){
+        if(comunicaciones)comunicaciones.abrirCorreo(item);
+      });
+      grupo.appendChild(btnW);grupo.appendChild(btnC);grupo.appendChild(button);
+      actionCell.appendChild(grupo);
       body.appendChild(tr);
     });
   }
