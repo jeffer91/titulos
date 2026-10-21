@@ -1,0 +1,19 @@
+/* Acciones de comunicación para el administrador. */
+.admin-com-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px;white-space:nowrap}
+.com-mini-btn{min-width:32px;width:32px;min-height:32px;padding:4px!important;font-weight:750!important;border:1px solid #cad8e8!important}
+.admin-com-actions .btn--primary{min-width:70px}
+.modal__panel--comunicaciones{width:min(1120px,calc(100vw - 48px));max-width:1120px;max-height:calc(100vh - 7vh);overflow:auto}
+.com-fields{display:grid;grid-template-columns:240px minmax(0,1fr);gap:16px;margin:16px 0}
+.com-fields input[type=file]{max-width:100%;padding:8px}
+.com-gmail-config{display:flex;flex-wrap:wrap;align-items:end;gap:12px;padding:14px;background:#f5f8fd;border:1px solid #dbe6f1;border-radius:10px}
+.com-gmail-config .field{flex:1;min-width:250px}
+.com-gmail-config small{display:block;max-width:700px;line-height:1.4}
+.com-gmail-config button{align-self:center}
+.com-overview{display:flex;flex-wrap:wrap;gap:12px;padding:13px 0;font-size:13px}
+.com-overview>span{border:1px solid #dce6ef;padding:8px 12px;border-radius:9px}
+.com-table-wrap{max-height:330px;overflow:auto;border:1px solid #dce6ef;border-radius:10px}
+.com-table-wrap td{font-size:12px;vertical-align:middle;overflow-wrap:anywhere}
+.com-table-wrap td:nth-child(4){max-width:240px}
+.com-table-wrap td:first-child,.com-table-wrap th:first-child{width:54px;text-align:center}
+.com-footnote{font-size:12px;margin:10px 0 0;line-height:1.5}
+@media(max-width:780px){.com-fields{grid-template-columns:1fr}.modal__panel--comunicaciones{width:calc(100vw - 24px)}.admin-com-actions{flex-wrap:wrap}}
