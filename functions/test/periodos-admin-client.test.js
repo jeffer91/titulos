@@ -81,6 +81,8 @@ test('sin lista explícita permite migrar el principal legado válido, no IDs ab
  const a=await repo.listarPeriodos();
  assert.equal(a.find(p=>p.id===VIEJO).activo,true);
  set({periodoActivoId:'2026-02',periodoActivoDesactivado:true});
+ // El Administrador consulta cambios externos solo tras una actualización explícita.
+ repo.invalidarDatosCompartidos();
  const b=await repo.listarPeriodos();
  assert.equal(b.filter(p=>p.activo).length,0);
 });
