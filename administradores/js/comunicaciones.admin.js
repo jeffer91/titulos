@@ -47,6 +47,8 @@
     var t=item.titulo;
     var g=texto(t&&(t.estadoProceso||t.estado)).toUpperCase();
     if(g==='ARCHIVADO'||g==='BORRADOR_REINICIADO')return true;
+    if(g==='APROBADO_FINAL'||t&&t.procesoCerrado===true)return false;
+    if(t && [t.titulo1,t.titulo2,t.titulo3].some(function(v){return texto(v).length>0;}))return false;
     return !t||!Array.isArray(item.titulosEnviados)||item.titulosEnviados.length===0;
   }
   function plantilla(item,whatsapp){
@@ -66,7 +68,7 @@
       '• Indicar las fechas de inicio y fin si el estudio depende del tiempo.',
       '• Evitar títulos que anticipen resultados o impliquen dos trabajos independientes.',''];
     partes.push(whatsapp?'Solicite la guía en PDF a la Unidad si todavía no la tiene.':
-      'En este recordatorio se solicita adjuntar la guía institucional de títulos, versión 1.0, octubre de 2026.');
+      'Si no dispone de la guía institucional en PDF, puede solicitarla a la Unidad de Titulación.');
     partes.push('','Atentamente,','Unidad de Titulación y Eficiencia Terminal','ITSQMET');
     return partes.join('\n');
   }
@@ -165,7 +167,7 @@
     candidatos.forEach(function(c,i){
       var emails=contactos(c).emails;
       if(!emails.length)totalSinCorreo++;
-      var permitido=emails.length>0&&!enviadosSesion.has(c.cedula+'__'+c.periodoId);
+      var permitido=emails.length>0&&!enviadosSesion.has(texto(c.cedula));
       var tr=document.createElement('tr');
       var td=document.createElement('td'),cb=document.createElement('input');
       cb.type='checkbox';cb.className='com-check';cb.dataset.index=String(i);
@@ -180,7 +182,7 @@
       var d=document.createElement('td');d.textContent=texto(c.carrera||c.nombreCarrera);tr.appendChild(d);
       var e=document.createElement('td');e.textContent=emails.join(' / ')||'SIN CORREO';tr.appendChild(e);
       var status=document.createElement('td');
-      status.textContent=enviadosSesion.has(c.cedula+'__'+c.periodoId)?'Enviado en esta sesión':
+      status.textContent=enviadosSesion.has(texto(c.cedula))?'Enviado en esta sesión':
         (permitido?'Pendiente':'Sin correo');tr.appendChild(status);
       tbody.appendChild(tr);
       if(cb.checked)totalElegidos++;
@@ -190,7 +192,7 @@
   }
   function actualizarResumen(){
     var cuantos=seleccionados.filter(function(i){
-      var c=candidatos[i];return c&&contactos(c).emails.length&&!enviadosSesion.has(c.cedula+'__'+c.periodoId);
+      var c=candidatos[i];return c&&contactos(c).emails.length&&!enviadosSesion.has(texto(c.cedula));
     }).length;
     ui.setText('#comSeleccionados',String(cuantos));
     ui.setText('#comTotal',String(candidatos.length));
@@ -203,15 +205,16 @@
       candidatos=rows.filter(function(item){
         return sinTitulo(item)&& (p==='__ACTIVOS__'?activos.has(String(item.periodoId)):String(item.periodoId)===p);
       });
-      // deduplicación de matrícula y periodo; no se enviarán dos veces por cédula.
+      // Un correo por cédula: si hay dos matrículas activas, se toma el período más reciente.
+      candidatos.sort(function(a,b){return texto(b.periodoId).localeCompare(texto(a.periodoId));});
       var set=new Set();candidatos=candidatos.filter(function(c){
-        var clave=texto(c.cedula)+'__'+texto(c.periodoId);
-        if(!c.cedula||set.has(clave))return false;
+        var clave=texto(c.cedula);
+        if(!clave||set.has(clave))return false;
         set.add(clave);return true;
       });
       candidatos.sort(function(a,b){return nombre(a).localeCompare(nombre(b),'es');});
       seleccionados=candidatos.map(function(c,i){
-        return contactos(c).emails.length&&!enviadosSesion.has(c.cedula+'__'+c.periodoId)?i:-1;
+        return contactos(c).emails.length&&!enviadosSesion.has(texto(c.cedula))?i:-1;
       }).filter(function(i){return i>=0;});
       render();
     });
@@ -284,7 +287,7 @@
     var emails=contactos(item).emails;
     var nombreArchivo=filename.replace(/[^\w.()-]/g,'_')||'Guia_titulos_ITSQMET.pdf';
     var boundary='=_itsqmet_'+Date.now()+'_'+Math.floor(Math.random()*999999);
-    var body=plantilla(item,false).replace('En este recordatorio se solicita adjuntar la guía institucional de títulos, versión 1.0, octubre de 2026.','Se adjunta la Guía institucional para la formulación y aprobación de títulos de titulación (versión 1.0, octubre de 2026).');
+    var body=plantilla(item,false).replace('Si no dispone de la guía institucional en PDF, puede solicitarla a la Unidad de Titulación.','Se adjunta la Guía institucional para la formulación y aprobación de títulos de titulación (versión 1.0, octubre de 2026).');
     var parts=[
       'To: '+emails.join(', '),
       'Subject: =?UTF-8?B?'+b64utf8(ASUNTO)+'?=',
@@ -307,7 +310,7 @@
     if(procesando)return;
     var file=archivoGuia;
     var items=seleccionados.map(function(i){return candidatos[i];}).filter(function(c){
-      return c&&contactos(c).emails.length&&!enviadosSesion.has(c.cedula+'__'+c.periodoId);
+      return c&&contactos(c).emails.length&&!enviadosSesion.has(texto(c.cedula));
     });
     if(!items.length){mensaje('Selecciona al menos un estudiante con correo válido.','warning');return;}
     if(!file||file.type!==TIPO||file.size>8*1024*1024){
@@ -323,7 +326,7 @@
     var buf=await file.arrayBuffer();var pdf=b64bytes(buf),hechos=0,errores=0;
     for(var i=0;i<items.length;i++){
       if(cancelar)break;
-      var item=items[i],clave=texto(item.cedula)+'__'+texto(item.periodoId);
+      var item=items[i],clave=texto(item.cedula);
       try{
         if(Date.now()>tokenHasta-45000)throw new Error('La autorización de Gmail caducó.');
         mensaje('Enviando '+(i+1)+' de '+items.length+' a '+nombre(item)+'…','info');
