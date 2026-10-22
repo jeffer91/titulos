@@ -7,14 +7,18 @@ const STUDENT=[
  'periodoId','ultimoPeriodoId','periodoNombre','periodoLabel','periodo','sede',
  'estado','estadoMatricula','eliminado',
  'correoPersonal','correoInstitucional','emailPersonal','emailInstitucional','correo','email',
- 'correoElectronico','telefono','celular','telefonoCelular','numeroCelular','whatsapp'
+ 'correoElectronico','correoEstudiantil','emailEstudiantil','correoAcademico','emailAcademico',
+ 'correoElectronicoInstitucional','correoITSQMET',
+ 'telefono','celular','telefonoCelular','numeroCelular','whatsapp'
 ];
 const MATRICULA=[
  'id','cedula','numeroIdentificacion','nombres','nombreCarrera','codigoCarrera','carrera',
  'periodoId','periodoNombre','periodoLabel','sede','estadoMatricula','estado','jornada',
  'modalidadTitulacion','modalidad','retirado','eliminado',
  'correoPersonal','correoInstitucional','emailPersonal','emailInstitucional','correo','email',
- 'correoElectronico','telefono','celular','telefonoCelular','numeroCelular','whatsapp'
+ 'correoElectronico','correoEstudiantil','emailEstudiantil','correoAcademico','emailAcademico',
+ 'correoElectronicoInstitucional','correoITSQMET',
+ 'telefono','celular','telefonoCelular','numeroCelular','whatsapp'
 ];
 const ENVIO=[
  'id','cedula','numeroIdentificacion','nombres','nombre','nombreCompleto','carrera','nombreCarrera',
@@ -68,6 +72,10 @@ async function estudiantes(academica){
   return {...e,...m,cedula:id,nombres:e.nombres||e.nombreCompleto||m.nombres||'',
    nombreCarrera:m.nombreCarrera||m.carrera||e.nombreCarreraActual||e.nombreCarrera||'',
    codigoCarrera:m.codigoCarrera||e.codigoCarreraActual||'',sede:m.sede||e.sede||'',
+   correoInstitucional:m.correoInstitucional||m.emailInstitucional||
+     e.correoInstitucional||e.emailInstitucional||'',
+   correoPersonal:m.correoPersonal||m.emailPersonal||
+     e.correoPersonal||e.emailPersonal||'',
    periodoId:m.periodoId||m.periodoIdOriginal||'',id:m.id,_docId:m._docId};
  });
  const conMatricula=new Set(fusionados.map(m=>m.cedula));
