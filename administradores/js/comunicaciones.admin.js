@@ -14,21 +14,60 @@
   function correoValido(s){return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(s);}
   function escape(s){return ui.escapeHtml?ui.escapeHtml(s):texto(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   function contactos(item){
+    // Orden institucional -> personal. Un único borrador puede tener ambas cuentas.
+    // La base académica emplea variantes camelCase, con espacios y con guiones.
+    var imported=contactosImportados.get(texto(item&&item.cedula))||{};
     var campos=[item||{},item&&item.raw||{},item&&item.titulo||{},
-      contactosImportados.get(texto(item&&item.cedula))||{}];
-    var personal=['correoPersonal','emailPersonal','correoElectronico','correo','email','mail','CorreoPersonal','Email','EMAIL','Correo','CORREO'];
-    var institucional=['correoInstitucional','emailInstitucional','correoEstudiantil','mailInstitucional','CorreoInstitucional','EmailInstitucional','correoITSQMET'];
-    var celulares=['celular','telefonoCelular','numeroCelular','telefonoMovil','movil','whatsapp','WhatsApp','CELULAR','Celular','telefono','Telefono','telefonoContacto'];
-    var emails=[],telefonos=[];
+      item&&item.contacto||{},item&&item.raw&&item.raw.contacto||{},imported];
+    var keysInstitucional=new Set([
+      'correoinstitucional','emailinstitucional','mailinstitucional',
+      'correoestudiantil','emaile estudiantil'.replace(/\s/g,''),
+      'correoitsqmet','emailacademico','correoacademico','correocorporativo',
+      'emailcorporativo','correoelectronicoinstitucional','emailestudiante',
+      'correoinstitucionalestudiante','correoinstitucionalalumno'
+    ]);
+    var keysPersonal=new Set([
+      'correopersonal','emailpersonal','correoelectronico','email','correo','mail',
+      'correoalternativo','emailalternativo','correosecundario'
+    ]);
+    var keysTelefono=new Set([
+      'celular','telefonocelular','numerocelular','telefonomovil','movil',
+      'whatsapp','telefono','telefonocontacto','numerotelefono'
+    ]);
+    var institucional=[],personal=[],telefonos=[];
+    function agregar(lista,email){
+      email=texto(email).toLowerCase();
+      if(correoValido(email)&&lista.indexOf(email)<0)lista.push(email);
+    }
     campos.forEach(function(c){
-      personal.concat(institucional).forEach(function(k){
-        var v=texto(c[k]).toLowerCase();
-        if(correoValido(v)&&emails.indexOf(v)<0)emails.push(v);
+      Object.keys(c||{}).forEach(function(k){
+        var key=texto(k).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+          .replace(/[^A-Za-z0-9]/g,'').toLowerCase();
+        var val=c[k];
+        if(keysInstitucional.has(key)){
+          agregar(institucional,val);
+        }else if(keysPersonal.has(key)){
+          var direccion=texto(val).toLowerCase();
+          // Si solo está registrado en un campo genérico, reconocer el dominio institucional.
+          var dominio=direccion.split('@')[1]||'';
+          if(/(^|\.)itsqmet\.edu\.ec$/.test(dominio))agregar(institucional,direccion);
+          else agregar(personal,direccion);
+        }else if(keysTelefono.has(key)&&texto(val)&&telefonos.indexOf(texto(val))<0){
+          telefonos.push(texto(val));
+        }
       });
-      celulares.forEach(function(k){var v=texto(c[k]);if(v&&!telefonos.includes(v))telefonos.push(v);});
     });
+    var emails=institutionalFirst(institucional,personal);
     var telefonoValido=telefonos.find(function(v){return Boolean(telefonoEcuador(v));});
-    return {emails:emails,telefono:telefonoValido||telefonos[0]||''};
+    return {emails:emails,institucional:institucional,personal:personal,
+      telefono:telefonoValido||telefonos[0]||''};
+  }
+  function institutionalFirst(institucional,personal){
+    var seen=new Set(),ordered=[];
+    institucional.concat(personal).forEach(function(mail){
+      if(!seen.has(mail)){seen.add(mail);ordered.push(mail);}
+    });
+    return ordered;
   }
   function telefonoEcuador(raw){
     var rawValue=texto(raw),internacional=/^(\+|00)/.test(rawValue);
@@ -117,12 +156,13 @@
 
   function enlaceOutlook(item,correo){
     var emails=contactos(item).emails;
-    var destino=texto(correo||emails[0]).toLowerCase();
-    if(!correoValido(destino))return '';
+    var destinatarios=correo?[texto(correo).toLowerCase()]:emails;
+    destinatarios=destinatarios.filter(correoValido);
+    if(!destinatarios.length)return '';
     // Outlook on the web admite to, subject y body codificados en la URL.
     // El borrador nunca es enviado desde GitHub Pages.
     return OUTLOOK+
-      '?to='+encodeURIComponent(destino)+
+      '?to='+encodeURIComponent(destinatarios.join(';'))+
       '&subject='+encodeURIComponent(ASUNTO)+
       '&body='+encodeURIComponent(plantilla(item,false)+'\r\n ');
   }
@@ -134,7 +174,8 @@
       correo=texto(escrito).toLowerCase();
       if(!correoValido(correo)){window.alert('Correo inválido.');return false;}
     }
-    var destino=enlaceOutlook(item,correo);
+    // Si hay correos almacenados, incluir ambos: institucional y personal.
+    var destino=enlaceOutlook(item,contactos(item).emails.length?null:correo);
     var nueva=window.open(destino,'_blank');
     if(!nueva){
       // El usuario aún puede abrirlo desde un enlace voluntario.
@@ -227,6 +268,12 @@
     var abiertos=candidatos.filter(function(item){return abiertosSesion.has(llave(item));}).length;
     ui.setText('#comTotal',String(candidatos.length));
     ui.setText('#comConCorreo',String(listos));
+    ui.setText('#comConInstitucional',String(candidatos.filter(function(item){
+      return contactos(item).institucional.length>0;
+    }).length));
+    ui.setText('#comSinInstitucional',String(candidatos.filter(function(item){
+      return !contactos(item).institucional.length;
+    }).length));
     ui.setText('#comSinContacto',String(candidatos.length-listos));
     ui.setText('#comAbiertos',String(abiertos));
     ui.setText('#comPendientes',String(elegibles().length));
@@ -255,25 +302,48 @@
     tbody.textContent='';
     candidatos.forEach(function(item){
       var tr=document.createElement('tr');
-      var emails=contactos(item).emails,cedula=llave(item);
+      var contacto=contactos(item),emails=contacto.emails,cedula=llave(item);
       var created=abiertosSesion.has(cedula);
+      var detalle=contacto.institucional.map(function(e){return 'Institucional: '+e;})
+        .concat(contacto.personal.filter(function(e){
+          return contacto.institucional.indexOf(e)<0;
+        }).map(function(e){return 'Personal: '+e;}));
       var columnas=[nombre(item)+' · '+cedula,
         texto(item.carrera||item.nombreCarrera||''),
-        emails[0]||'SIN CORREO',
-        created?'Pestaña solicitada':emails.length?'Pendiente de abrir':'Sin correo'];
+        detalle.join(' | ')||'SIN CORREO',
+        created?'Pestaña solicitada':!contacto.institucional.length?
+          (emails.length?'Sin institucional (usa personal)':'Sin correo'):
+          'Institucional incluido'];
       columnas.forEach(function(val){
         var td=document.createElement('td');td.textContent=val;tr.appendChild(td);
       });
       var action=document.createElement('td');
       if(emails.length)action.appendChild(linkOutlook(item));
-      else action.textContent='Agrega correo en el CSV';
+      if(!contacto.institucional.length){
+        var nuevo=document.createElement('button');
+        nuevo.type='button';nuevo.className='btn btn--small btn--ghost';
+        nuevo.textContent='Añadir institucional';
+        nuevo.addEventListener('click',function(){
+          var respuesta=window.prompt('Introduce el correo institucional de '+nombre(item)+':');
+          if(respuesta===null)return;
+          var mail=texto(respuesta).toLowerCase();
+          if(!correoValido(mail)){
+            window.alert('Correo institucional no válido.');return;
+          }
+          var key=llave(item);
+          var previo=contactosImportados.get(key)||{};
+          contactosImportados.set(key,Object.assign({},previo,{correoInstitucional:mail}));
+          render();
+        });
+        action.appendChild(nuevo);
+      }
       tr.appendChild(action);tbody.appendChild(tr);
     });
     resumen();
     var primero=elegibles()[0]||candidatos[0];
     var vista=ui.qs('#comVistaPrevia');
     if(vista && primero){
-      vista.textContent='Para: '+(contactos(primero).emails[0]||'Correo no disponible')+
+      vista.textContent='Para: '+(contactos(primero).emails.join('; ')||'Correo no disponible')+
         '\nAsunto: '+ASUNTO+'\n\n'+plantilla(primero,false);
     }else if(vista)vista.textContent='No hay recordatorios pendientes en la selección.';
   }
