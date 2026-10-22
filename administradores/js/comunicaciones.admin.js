@@ -21,7 +21,7 @@
       item&&item.contacto||{},item&&item.raw&&item.raw.contacto||{},imported];
     var keysInstitucional=new Set([
       'correoinstitucional','emailinstitucional','mailinstitucional',
-      'correoestudiantil','emaile estudiantil'.replace(/\s/g,''),
+      'correoestudiantil','emailestudiantil',
       'correoitsqmet','emailacademico','correoacademico','correocorporativo',
       'emailcorporativo','correoelectronicoinstitucional','emailestudiante',
       'correoinstitucionalestudiante','correoinstitucionalalumno'
