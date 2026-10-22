@@ -578,7 +578,13 @@
           nombres: est.nombres || mat.nombres || '',
           nombreCarrera: mat.nombreCarrera || est.nombreCarreraActual || '',
           codigoCarrera: mat.codigoCarrera || est.codigoCarreraActual || '',
-          sede: mat.sede || est.sede || ''
+          sede: mat.sede || est.sede || '',
+          // Las matrículas pueden traer campos de correo vacíos.
+          // Nunca reemplazar un correo institucional del registro Estudiante con ''.
+          correoInstitucional: mat.correoInstitucional || mat.emailInstitucional ||
+            est.correoInstitucional || est.emailInstitucional || '',
+          correoPersonal: mat.correoPersonal || mat.emailPersonal ||
+            est.correoPersonal || est.emailPersonal || ''
         });
       });
 
