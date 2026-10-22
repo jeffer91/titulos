@@ -64,6 +64,43 @@ test('deeplink de Outlook codifica nombre, carrera, periodo, destinatario y asun
  assert.match(u.searchParams.get('body'),/tres propuestas de títulos/);
  assert.equal(app.enlaceOutlook(item('1700000002',{correoPersonal:''})),'');
 });
+test('Outlook coloca institucional primero y personal despues en un mismo borrador',()=>{
+ const {app}=montar();
+ const estudiante=item('1700000001',{
+  correoPersonal:'personal@example.com',
+  correoInstitucional:'alumno@itsqmet.edu.ec'
+ });
+ const c=app.contactos(estudiante);
+ assert.deepEqual(Array.from(c.institucional),['alumno@itsqmet.edu.ec']);
+ assert.deepEqual(Array.from(c.emails),['alumno@itsqmet.edu.ec','personal@example.com']);
+ const to=new URL(app.enlaceOutlook(estudiante)).searchParams.get('to');
+ assert.equal(to,'alumno@itsqmet.edu.ec;personal@example.com');
+});
+test('se reconoce correo institucional desde fuentes academicas con claves alternativas',()=>{
+ const {app}=montar();
+ const estudiante=item('1700000002',{
+  correoPersonal:'persona@example.com',
+  raw:{'Correo Institucional':'docente@itsqmet.edu.ec'}
+ });
+ assert.equal(new URL(app.enlaceOutlook(estudiante)).searchParams.get('to'),
+  'docente@itsqmet.edu.ec;persona@example.com');
+ const generico=item('1700000003',{
+  correoPersonal:'',
+  raw:{email:'alumna@estudiantes.itsqmet.edu.ec'}
+ });
+ assert.equal(app.contactos(generico).institucional[0],'alumna@estudiantes.itsqmet.edu.ec');
+});
+test('sin correo institucional se señala falta pero puede usar personal sin inventar dirección',()=>{
+ const {app}=montar();
+ const soloPersonal=item('1700000004',{correoPersonal:'personal@example.com'});
+ assert.equal(app.contactos(soloPersonal).institucional.length,0);
+ assert.equal(new URL(app.enlaceOutlook(soloPersonal)).searchParams.get('to'),'personal@example.com');
+ const mismo=item('1700000005',{
+  correoPersonal:'estudiante@itsqmet.edu.ec',
+  correoInstitucional:'estudiante@itsqmet.edu.ec'
+ });
+ assert.equal(app.contactos(mismo).emails.length,1);
+});
 test('sin titulo excluye inscritos en complexivo, aprobados, devueltos y títulos legados',()=>{
  const {app}=montar();
  assert.equal(app.sinTitulo(item('1700000001')),true);
