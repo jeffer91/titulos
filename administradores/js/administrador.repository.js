@@ -919,8 +919,14 @@
       periodoLabel: periodoLabel || 'Sin período',
       estadoMatricula: limpiarTexto(valor(source, ['estadomatricula', 'estado'])) || 'ACTIVO',
       sede: limpiarTexto(valor(source, ['sede', 'nombresede', 'campus'])) || '',
-      correoPersonal: limpiarTexto(valor(source, ['correopersonal', 'emailpersonal', 'correoelectronico', 'email', 'correo', 'mail'])) || '',
-      correoInstitucional: limpiarTexto(valor(source, ['correoinstitucional','emailinstitucional', 'correoestudiantil', 'mailinstitucional'])) || '',
+      correoPersonal: limpiarTexto(valor(source, [
+        'correopersonal','emailpersonal','correoelectronico','email','correo','mail'
+      ])) || '',
+      correoInstitucional: limpiarTexto(valor(source, [
+        'correoinstitucional','emailinstitucional','correoestudiantil',
+        'emailestudiantil','mailinstitucional','correoitsqmet','correoacademico',
+        'emailacademico','correoelectronicoinstitucional','emailcorporativo'
+      ])) || '',
       celular: limpiarTexto(valor(source, ['celular','telefonocelular','numerocelular','movil','nromovil','whatsapp'])) || '',
       telefono: limpiarTexto(valor(source, ['telefono','telefonocontacto','telefonoprincipal','numerotelefono'])) || '',
       modalidadEstudio: limpiarTexto(valor(source, ['modalidadestudio', 'modalidad', 'modalidadeducativa'])) || '',
