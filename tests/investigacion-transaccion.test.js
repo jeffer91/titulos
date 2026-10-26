@@ -97,3 +97,35 @@ test('cambio de versión académica bloquea guardados obsoletos aun con mismo es
  assert.equal(e.events(),0);
  assert.equal(e.rows.envios.e1.estadoProceso,'PENDIENTE_INVESTIGADOR');
 });
+
+
+test('aprobar con observación guarda el título, observación e historial de forma atómica',async()=>{
+ const e=escenario(),abierta=e.view();
+ const observacion='Se aprueba el título con observaciones académicas de redacción.';
+ await e.repo.revisarTitulo(abierta,'APROBAR_OBSERVACION',observacion,e.investigador,2,'Segunda propuesta');
+ const guardado=e.rows.envios.e1;
+ assert.equal(guardado.estado,'APROBADO_FINAL');
+ assert.equal(guardado.estadoProceso,'APROBADO_FINAL');
+ assert.equal(guardado.estadoInvestigador,'APROBADO_CON_OBSERVACION');
+ assert.equal(guardado.resultadoInvestigacion,'APROBADO_CON_OBSERVACION');
+ assert.equal(guardado.observacionInvestigacion,observacion);
+ assert.equal(guardado.revisionInvestigador.observacion,observacion);
+ assert.equal(guardado.tituloInvestigadorNumero,2);
+ assert.equal(guardado.tituloFinal,'Segunda propuesta');
+ assert.equal(e.events(),1);
+ assert.equal(Object.values(e.rows.workflow_events)[0].revision.observacion,observacion);
+ await assert.rejects(()=>e.repo.revisarTitulo(abierta,'APROBAR_OBSERVACION',observacion,e.investigador,2,'Segunda propuesta'),
+  /resuelto|pendiente/i);
+ assert.equal(e.events(),1);
+});
+
+test('aprobar con observación no guarda si falta comentario y no se invalida por metadatos',async()=>{
+ const e=escenario(),abierta=e.view();
+ await assert.rejects(()=>e.repo.revisarTitulo(abierta,'APROBAR_OBSERVACION','',e.investigador,2,'Segunda propuesta'),
+  /observación/i);
+ assert.equal(e.events(),0);
+ e.rows.envios.e1.actualizadoEnLocal='2026-10-26T12:45:00-05:00';
+ await e.repo.revisarTitulo(abierta,'APROBAR_OBSERVACION','Revisar delimitación temporal',e.investigador,2,'Segunda propuesta');
+ assert.equal(e.rows.envios.e1.estadoProceso,'APROBADO_FINAL');
+ assert.equal(e.events(),1);
+});
