@@ -786,6 +786,12 @@
     actions.appendChild(botonDecision('Aprobar con observación', 'APROBAR_OBSERVACION', 'btn--secondary', titulo, obs, seleccionActual));
     actions.appendChild(botonDecision('Devolver', 'DEVOLVER', 'btn--danger', titulo, obs, seleccionActual));
 
+    var informacion=document.createElement('p');
+    informacion.id='revisionAccionMensaje';
+    informacion.className='review-action-feedback';
+    informacion.setAttribute('role','status');
+    informacion.setAttribute('aria-live','polite');
+    decision.appendChild(informacion);
     decision.appendChild(actions);
     article.appendChild(decision);
 
@@ -806,45 +812,47 @@
       var corregido=String(decision.texto||'').replace(/\s+/g,' ').trim();
       var cambia=accion!=='DEVOLVER' && corregido!==original;
       if(accion!=='DEVOLVER'){
-        if(!propuesta){mensaje('revisionMensaje','Debes elegir un título antes de aprobar.','error');return;}
-        if(!corregido){mensaje('revisionMensaje','No puedes aprobar un título vacío.','error');return;}
+        if(!propuesta){mostrarResultadoDecision('Debes elegir un título antes de aprobar.','error');return;}
+        if(!corregido){mostrarResultadoDecision('No puedes aprobar un título vacío.','error');return;}
         if(cambia && (corregido.length<20||corregido.length>260)){
-          mensaje('revisionMensaje','El título corregido debe tener entre 20 y 260 caracteres.','error');return;
+          mostrarResultadoDecision('El título corregido debe tener entre 20 y 260 caracteres.','error');return;
         }
         if(cambia && obs.value.trim().length<8){
-          mensaje('revisionMensaje','Explica por qué corriges el título (mínimo 8 caracteres).','error');return;
+          mostrarResultadoDecision('Explica por qué corriges el título (mínimo 8 caracteres).','error');
+          obs.focus();return;
         }
       }
       if((accion==='DEVOLVER'||accion==='APROBAR_OBSERVACION')&&!obs.value.trim()){
-        mensaje('revisionMensaje','Esta decisión necesita una observación.','error');return;
+        mostrarResultadoDecision('Esta decisión necesita una observación.','error');obs.focus();return;
       }
       if(accion!=='DEVOLVER' && !window.confirm('¿Aprobar definitivamente el Título '+numero+' de '+titulo.nombres+
           (cambia?' con la redacción corregida':'')+'? La decisión quedará registrada.'))return;
       setLoading(button, true, 'Guardando...');
       bloquearDecisiones(true);
+      mostrarResultadoDecision('Guardando decisión académica en Firebase…','info');
 
       repository.revisarTitulo(titulo, accion, obs.value, investigador,numero,accion==='DEVOLVER'?'':corregido)
         .then(function () {
-          mensaje('revisionMensaje', 'Revisión guardada. Cargando el siguiente expediente...', 'success');
-          return cargarTitulos(true).then(function(){return cargarRevisiones();});
+          mostrarResultadoDecision('Decisión registrada correctamente. Actualizando la cola…','success');
+          return cargarTitulos(true).then(function(){return cargarRevisiones();}).then(function(){
+            mensaje('revisionMensaje','Aprobación guardada correctamente.','success');
+          });
         })
         .catch(function (error) {
           if (!esConflictoRevision(error)) {
-            mensaje('revisionMensaje', errorMensaje(error, 'No se pudo guardar la revisión.'), 'error');
+            mostrarResultadoDecision(mensajeGuardadoFallido(error),'error');
             bloquearDecisiones(false);
             return;
           }
           // El botón de aprobación NO se reintenta. Se sustituye la ficha obsoleta
           // por la cola actual y la investigadora debe confirmar una nueva decisión.
-          mensaje('revisionMensaje', 'El expediente se actualizó en otro módulo. Recuperando su versión vigente…', 'warning');
+          mostrarResultadoDecision('La versión académica cambió. Actualizando la cola sin registrar aprobación…','warning');
           return cargarTitulos(true, true).then(function () {
             mensaje('revisionMensaje',
-              'La cola está actualizada. Revisa de nuevo el expediente y selecciona el título antes de decidir. No se guardó la aprobación anterior.',
+              'El expediente cambió y no se guardó tu aprobación. Selecciona el título y confirma la nueva versión.',
               'warning');
           }).catch(function () {
-            mensaje('revisionMensaje',
-              'No se guardó la revisión porque el expediente cambió. No se pudo actualizar la cola; pulsa Actualizar antes de volver a decidir.',
-              'error');
+            mostrarResultadoDecision('No se guardó porque cambió la versión y falló la actualización. Usa Actualizar.','error');
           }).finally(function () {
             bloquearDecisiones(false);
           });
@@ -855,6 +863,29 @@
     });
 
     return button;
+  }
+
+  function mostrarResultadoDecision(texto,tipo){
+    mensaje('revisionMensaje',texto,tipo);
+    var cuadro=el('revisionAccionMensaje');
+    if(!cuadro)return;
+    cuadro.textContent=texto||'';
+    cuadro.className='review-action-feedback'+(tipo?' review-action-feedback--'+tipo:'');
+    if(tipo==='error'||tipo==='warning'){
+      if(typeof cuadro.scrollIntoView==='function')cuadro.scrollIntoView({block:'nearest'});
+    }
+  }
+
+  function mensajeGuardadoFallido(error){
+    var original=error&&error.original||{};
+    var codigo=String(error&&(error.firebaseCode||error.codigo)||original.code||'').toLowerCase();
+    if(codigo.indexOf('permission-denied')>=0){
+      return 'No se guardó la aprobación: Firebase rechazó los permisos de escritura. Administración debe verificar permisos de envios y workflow_events. Código: PERMISSION_DENIED.';
+    }
+    if(codigo.indexOf('unavailable')>=0||codigo.indexOf('deadline-exceeded')>=0){
+      return 'No se confirmó el guardado por un problema de conexión. Antes de repetir, actualiza la cola y comprueba si el expediente sigue pendiente.';
+    }
+    return 'No se guardó la aprobación. '+errorMensaje(error,'Comprueba la autorización y el estado del expediente.');
   }
 
   function esConflictoRevision(error) {

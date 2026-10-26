@@ -950,3 +950,18 @@ textarea { resize: vertical; }
 @media (prefers-reduced-motion: no-preference) {
   .proposals--review .proposal { transition: border-color .16s ease, background-color .16s ease; }
 }
+
+/* Estado del guardado junto a los botones, siempre visible al revisor. */
+.review-action-feedback {
+  margin: 8px 0;
+  padding: 0;
+  color: #475467;
+  font-size: .8rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.review-action-feedback:empty { display:none; }
+.review-action-feedback--info { color:#184b86; }
+.review-action-feedback--success { border-left:4px solid #147a3f; background:#ecfdf3; color:#14532d; padding:9px 11px; border-radius:7px; }
+.review-action-feedback--warning { border-left:4px solid #c27b0b; background:#fffaeb; color:#7c4d00; padding:9px 11px; border-radius:7px; }
+.review-action-feedback--error { border-left:4px solid #b42318; background:#fff1f0; color:#9f2119; padding:9px 11px; border-radius:7px; }

@@ -129,3 +129,30 @@ test('aprobar con observación no guarda si falta comentario y no se invalida po
  assert.equal(e.rows.envios.e1.estadoProceso,'APROBADO_FINAL');
  assert.equal(e.events(),1);
 });
+
+
+test('cambios en metadatos de propuestas no bloquean una decisión idéntica',async()=>{
+ const e=escenario(),abierta=e.view();
+ e.rows.envios.e1.titulosEnviados[1].editorInterno='Coordinación';
+ e.rows.envios.e1.revisionCoordinador={estado:'VALIDADO',tituloSeleccionadoNumero:1};
+ abierta.raw.revisionCoordinador={estado:'VALIDADO',tituloSeleccionadoNumero:1};
+ await e.repo.revisarTitulo(abierta,'APROBAR_OBSERVACION','Observación académica informativa',
+  e.investigador,2,'Segunda propuesta');
+ assert.equal(e.rows.envios.e1.estadoProceso,'APROBADO_FINAL');
+ assert.equal(e.events(),1);
+});
+test('cambio real del texto de una propuesta bloquea la aprobación sin escribir',async()=>{
+ const e=escenario(),abierta=e.view();
+ e.rows.envios.e1.titulosEnviados[1].tituloFinal='Propuesta modificada por Coordinación';
+ await assert.rejects(()=>e.repo.revisarTitulo(abierta,'APROBAR_OBSERVACION',
+  'Observación académica informativa',e.investigador,2,'Segunda propuesta'),
+  /cambió|cambi[oó]|propuestas|Actualiza/i);
+ assert.equal(e.events(),0);
+});
+test('rechazo de permisos no puede mostrarse como aprobación guardada',async()=>{
+ const e=escenario(),abierta=e.view();
+ e.rows.configuracion.general.periodosActivos=[];
+ await assert.rejects(()=>e.repo.revisarTitulo(abierta,'APROBAR_OBSERVACION',
+  'Se delimita la redacción académica',e.investigador,2,'Segunda propuesta'),/desactivado/i);
+ assert.equal(e.events(),0);
+});

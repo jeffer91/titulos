@@ -310,18 +310,59 @@
     var db=getDb(), ref=db.collection(collectionName).doc(String(id));
     var registro=db.collection('workflow_events').doc();
     var perfilRef=db.collection('investigadores').doc(String(investigador&&investigador.id||''));
-    var campos=['estado','estadoProceso','estadoCoordinador','estadoInvestigador','procesoCerrado',
-      'investigacionRevisada','revisionCoordinador','revisionInvestigador',
-      'tituloCoordinador','tituloCoordinadorNumero','tituloAdminSeleccionadoNumero',
-      'tituloAdminSeleccionadoTexto','habilitadoInvestigacionPorAdmin','titulosEnviados',
-      'propuestasDetalle','propuestas','titulo1','titulo2','titulo3','numeroEnvios',
-      'versionActual','versionActualId','requiereAccionDe','validadoCoordinador',
-      'validadoCoordinacion','aprobadoPorAdministracion','tituloFinal',
-      'revisionAdministrativa','fechaValidacionCoordinador',
-      'fechaEnvio','ultimaAccionAdministrativa'];
-    // Una actualización de metadatos no invalida una decisión académica.
-    // La versión, los estados y las propuestas sí deben coincidir exactamente.
-    function huella(d){return JSON.stringify(campos.map(function(c){return d&&d[c]===undefined?null:d&&d[c];}));}
+    // Comparar únicamente decisiones y propuestas académicas; los objetos Firestore
+    // pueden contener metadatos y marcas técnicas no determinantes para la aprobación.
+    function sello(v){
+      if(!v)return 0;
+      if(typeof v.toMillis==='function')return v.toMillis();
+      if(typeof v.seconds==='number')return v.seconds*1000+Math.floor((v.nanoseconds||0)/1000000);
+      if(typeof v._seconds==='number')return v._seconds*1000;
+      if(typeof v==='number')return v>100000000000?v:v*1000;
+      var t=Date.parse(String(v));return Number.isFinite(t)?t:0;
+    }
+    function texto(v){return String(v===undefined||v===null?'':v).replace(/\s+/g,' ').trim();}
+    function revision(r){
+      r=r||{};
+      return [texto(r.estado),texto(r.accion),texto(r.coordinadorId||r.investigadorId),
+        Number(r.tituloSeleccionadoNumero||0),
+        texto(r.tituloSeleccionadoTextoOriginal),texto(r.tituloSeleccionadoTexto),
+        texto(r.observacion),sello(r.fechaLocal||r.fechaRevision)];
+    }
+    function propuestas(lista){
+      if(!Array.isArray(lista))return [];
+      return lista.map(function(p,i){
+        p=p||{};if(typeof p==='string')return [i+1,texto(p)];
+        return [Number(p.numero||i+1),texto(p.tituloFinal),texto(p.titulo),
+          texto(p.tituloOriginalCoordinacion),texto(p.tituloCorregidoCoordinacion),
+          texto(p.tituloOriginalInvestigacion),texto(p.tituloCorregidoInvestigacion)];
+      }).sort(function(a,b){return a[0]-b[0];});
+    }
+    function huellaAcademica(doc){
+      var d=doc||{};
+      return {
+        identidad:[texto(d.cedula||d.numeroIdentificacion),texto(d.periodoCanonicoId||d.periodoId)],
+        version:[texto(d.versionActualId),Number(d.versionActual||0),
+          Number(d.numeroEnvios||0),Number(d.numeroReenvios||0),sello(d.fechaEnvio)],
+        estados:[texto(d.estado),texto(d.estadoProceso),texto(d.estadoCoordinador),
+          texto(d.estadoInvestigador),d.procesoCerrado===true,
+          d.investigacionRevisada===true,texto(d.requiereAccionDe),
+          d.validadoCoordinador===true,d.validadoCoordinacion===true],
+        coordinacion:[texto(d.tituloCoordinador),Number(d.tituloCoordinadorNumero||0),
+          texto(d.tituloCoordinadorAntes),texto(d.tituloCoordinadorCorregido),
+          sello(d.fechaValidacionCoordinador),revision(d.revisionCoordinador)],
+        investigacion:[revision(d.revisionInvestigador),texto(d.tituloFinal)],
+        administracion:[d.habilitadoInvestigacionPorAdmin===true,
+          d.aprobadoPorAdministracion===true,Number(d.tituloAdminSeleccionadoNumero||0),
+          texto(d.tituloAdminSeleccionadoTexto),texto(d.ultimaAccionAdministrativa),
+          revision(d.revisionAdministrativa)],
+        propuestas:[propuestas(d.titulosEnviados),propuestas(d.propuestasDetalle),
+          propuestas(d.propuestas),texto(d.titulo1),texto(d.titulo2),texto(d.titulo3)]
+      };
+    }
+    function diferenciaAcademica(a,b){
+      var x=huellaAcademica(a),y=huellaAcademica(b);
+      return Object.keys(x).filter(function(k){return JSON.stringify(x[k])!==JSON.stringify(y[k]);});
+    }
     function periodo(id){
       if(id&&typeof id==='object')id=id.id||id.periodoId||'';
       var m=/^(\d{4})[-_](0?[1-9]|1[0-2])(?:__|[-_\s]+)(\d{4})[-_](0?[1-9]|1[0-2])$/.exec(String(id||'').trim());
@@ -351,9 +392,11 @@
           ['APROBADO_FINAL','DEVUELTO','ARCHIVADO','BORRADOR_REINICIADO','PENDIENTE_COORDINADOR'].includes(proceso)||
           ['APROBADO','APROBADO_CON_OBSERVACION','DEVUELTO'].includes(inv))
           throw new Error('Este expediente ya fue resuelto o dejó de estar pendiente. Actualiza la cola.');
-        if(huella(actual)!==huella(previo)){
-          var conflicto=new Error('El expediente cambió desde que lo abriste. Actualiza la cola antes de decidir.');
+        var diferencias=diferenciaAcademica(actual,previo);
+        if(diferencias.length){
+          var conflicto=new Error('El expediente cambió en: '+diferencias.join(', ')+'. Actualiza y revisa antes de decidir.');
           conflicto.codigo='EXPEDIENTE_DESACTUALIZADO';
+          conflicto.camposModificados=diferencias;
           throw conflicto;
         }
         var c=config.data()||{};
