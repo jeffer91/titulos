@@ -37,11 +37,9 @@ assert(
   'Administrador debe cargar su backend desde su propia carpeta.'
 );
 
-assert.strictEqual(
-  html.includes('../shared/'),
-  false,
-  'Administrador no debe importar recursos desde shared.'
-);
+const importsCompartidos = html.match(/\.\.\/shared\/[^"'<>\s]+/g) || [];
+assert(importsCompartidos.length === 1 && importsCompartidos[0].startsWith('../shared/js/expediente-vigente.js?'),
+  'Administrador solo puede importar el selector puro de expediente vigente.');
 
 assert.strictEqual(
   legacyCoord.includes('../shared/') || legacyReports.includes('../shared/'),

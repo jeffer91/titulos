@@ -26,6 +26,10 @@ const jsCode = fs.readdirSync(jsDir)
   .map((name) => fs.readFileSync(path.join(jsDir, name), 'utf8'))
   .join('\n');
 
+const importsCompartidos = html.match(/\.\.\/shared\/[^"'<>\s]+/g) || [];
+assert(importsCompartidos.length === 1 && importsCompartidos[0].startsWith('../shared/js/expediente-vigente.js?'),
+  'El módulo solo puede importar la utilidad sin backend de expediente vigente.');
+
 assert(
   html.includes('js/firebase.config.js') &&
   html.includes('js/firebase.service.js') &&
@@ -37,8 +41,8 @@ assert(
 [
   '../administradores/',
   '../investigadores/',
-  '../estudiantes/',
-  '../shared/'
+  '../estudiantes/'
+  // Solo se permite el selector puro de expediente vigente, nunca un backend ajeno.
 ].forEach((ruta) => {
   assert.strictEqual(
     html.includes(ruta) || jsCode.includes(ruta),
