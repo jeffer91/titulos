@@ -77,7 +77,8 @@
   function listarTitulosHabilitados(investigador) {
     if(modoSeguro())return seguro.cola().then(function(result){
       if(result.truncado)console.warn('[Investigadores][LIMIT] Cola truncada por límite del backend.');
-      return (result.titulos||[]).map(normalizarTitulo);
+      var docs=(result.titulos||[]).map(normalizarTitulo);
+      return window.TAExpedienteVigente ? window.TAExpedienteVigente.unicos(docs) : docs;
     });
     // Consulta todas las carreras en los períodos activos, sin reabrir períodos desactivados.
     if (!investigador || investigador.activo === false || !investigador.pinActivo)
@@ -85,8 +86,9 @@
     return periodosHabilitados().then(function(activos){
       return firebaseService.listarDocumentos(config.collections.titulos, { server: true })
       .then(function (docs) {
-        return (docs || []).map(normalizarTitulo)
-          .filter(function(t){return estaPendienteInvestigacion(t)&&periodoHabilitado(t,activos);})
+        var vigentes=(docs || []).map(normalizarTitulo);
+        if(window.TAExpedienteVigente)vigentes=window.TAExpedienteVigente.unicos(vigentes);
+        return vigentes.filter(function(t){return estaPendienteInvestigacion(t)&&periodoHabilitado(t,activos);})
           .sort(function (a, b) {
             var fechaA = Number(a.fechaColaMs || Number.MAX_SAFE_INTEGER);
             var fechaB = Number(b.fechaColaMs || Number.MAX_SAFE_INTEGER);

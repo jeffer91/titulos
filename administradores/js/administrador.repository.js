@@ -150,9 +150,10 @@
 
   function listarTitulos() {
     return unaLectura('titulos', function () {
-      if(modoSeguro())return seguro.envios().then(function(docs){return (docs||[]).map(normalizarTitulo);});
+      if(modoSeguro())return seguro.envios().then(function(docs){var l=(docs||[]).map(normalizarTitulo);return window.TAExpedienteVigente?window.TAExpedienteVigente.unicos(l):l;});
       return listarColeccion(config.collections.titulos).then(function (docs) {
-        return docs.map(normalizarTitulo);
+        var l=docs.map(normalizarTitulo);
+        return window.TAExpedienteVigente?window.TAExpedienteVigente.unicos(l):l;
       });
     });
   }
@@ -855,6 +856,7 @@
   }
 
   function compararTitulo(a, b) {
+    if(window.TAExpedienteVigente)return window.TAExpedienteVigente.comparar(a,b);
     var scoreA = scoreTitulo(a);
     var scoreB = scoreTitulo(b);
 

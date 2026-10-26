@@ -131,7 +131,8 @@
   function listarTitulosParaCoordinador(coordinador) {
     if(modoSeguro())return seguro.listar().then(function(resultado){
       if(resultado.truncado)console.warn('[Coordinadores] Hay más resultados; se requiere paginación de servidor.');
-      return (resultado.titulos||[]).map(normalizarTitulo);
+      var docs=(resultado.titulos||[]).map(normalizarTitulo);
+      return window.TAExpedienteVigente ? window.TAExpedienteVigente.unicos(docs) : docs;
     });
     if (!coordinador || !(coordinador.carreras || []).concat(coordinador.carrerasIds || []).length) return Promise.resolve([]);
     // Leer PRIMERO los períodos activos; una consulta fallida nunca muestra todos.
@@ -139,7 +140,9 @@
       if (!activos.size) return [];
       return firebaseService.listarDocumentos(config.collections.titulos, { all: true })
         .then(function (docs) {
-          return (docs || []).map(normalizarTitulo).filter(function (titulo) {
+          var vigentes=(docs || []).map(normalizarTitulo);
+          if(window.TAExpedienteVigente)vigentes=window.TAExpedienteVigente.unicos(vigentes);
+          return vigentes.filter(function (titulo) {
             return perteneceACoordinador(titulo, coordinador) &&
               tituloDePeriodoActivo(titulo, activos);
           }).sort(function (a, b) { return fechaMs(b.fechaEnvio) - fechaMs(a.fechaEnvio); });

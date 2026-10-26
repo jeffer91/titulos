@@ -230,7 +230,8 @@
         });
 
         compatibles.sort(function (a, b) {
-          return fechaPrioridadEnvio(b) - fechaPrioridadEnvio(a);
+          var vigente = window.TAExpedienteVigente;
+          return vigente ? vigente.comparar(b, a) : fechaPrioridadEnvio(b) - fechaPrioridadEnvio(a);
         });
 
         var elegido = compatibles[0] || null;
@@ -595,6 +596,8 @@
             coordinadorRevisado: false,
             revisadoPor: '',
             revisadoPorNombre: '',
+            coordinador: '',
+            ultimoCoordinador: '',
             revisadoEnLocal: null,
             revision: null,
             revisionCoordinador: null,
@@ -614,6 +617,11 @@
             estadoInvestigador: '',
             observacionInvestigacion: '',
             tituloFinalInvestigacion: null,
+            tituloInvestigador: null,
+            tituloInvestigadorNumero: null,
+            tituloOriginalInvestigacion: '',
+            tituloCorregidoInvestigacion: '',
+            fechaColaInvestigacion: null,
             fechaResolucionInvestigacion: null,
             fechaResolucion: null,
             tituloFinal: null,

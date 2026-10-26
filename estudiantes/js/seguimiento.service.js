@@ -338,6 +338,7 @@
       '</section>',
 
       '<div class="seguimiento-actions">',
+        '<button type="button" class="btn btn--ghost" id="btnSeguimientoActualizar">Actualizar estado</button>',
         '<button type="button" class="btn btn--ghost" id="btnSeguimientoNuevaConsulta">Consultar otra cédula</button>',
       '</div>'
     ].join('');
@@ -609,7 +610,8 @@
       ? (revision.coordinadorNombre || revision.coordinadorEmail || envio.ultimoCoordinador || envio.coordinador || '')
       : (revision.investigadorNombre || revision.investigadorEmail || '');
     // No adjudicar una revisión pendiente al investigador que devolvió una versión anterior.
-    if (!esRevisionInicial && (estadoPaso.tipo === 'pending' || estadoPaso.tipo === 'muted')) {
+    if ((estadoPaso.tipo === 'pending' || estadoPaso.tipo === 'muted') &&
+        (!esRevisionInicial || !['DEVUELTO', 'VALIDADO', 'APROBADO'].includes(String(revision.estado || '').toUpperCase()))) {
       responsable = '';
       fecha = null;
     }
@@ -919,7 +921,32 @@
 
   function conectarAcciones(panel, envio) {
     var nueva = panel.querySelector('#btnSeguimientoNuevaConsulta');
+    var actualizar = panel.querySelector('#btnSeguimientoActualizar');
     var corregir = panel.querySelector('#btnSeguimientoCorregir');
+    if (actualizar) actualizar.addEventListener('click', function () {
+      var datos = ultimoResultado || {};
+      var estudiante = datos.estudiante || {};
+      var cedula = estudiante.cedula || envio.cedula || envio.numeroIdentificacion;
+      var periodo = estudiante.periodoId || envio.periodoId || envio.periodoCanonicoId;
+      if (!cedula || !periodo || !repositoryOriginal.consultarEnvio) return;
+      actualizar.disabled = true;
+      actualizar.textContent = 'Actualizando…';
+      repositoryOriginal.consultarEnvio(periodo, cedula, estudiante).then(function (nuevo) {
+        if (!nuevo) throw new Error('No se encontró el expediente vigente.');
+        var resultado = Object.assign({}, datos, { estudiante: estudiante, envioExistente: nuevo });
+        return cargarSeguimiento(nuevo, estudiante).then(function (historial) {
+          resultado.seguimiento = historial;
+          mostrarSeguimiento(resultado);
+        }).catch(function () {
+          resultado.seguimiento = {historialProceso:nuevo.historialProceso || []};
+          mostrarSeguimiento(resultado);
+        });
+      }).catch(function (error) {
+        actualizar.disabled = false;
+        actualizar.textContent = 'Reintentar actualización';
+        actualizar.title = error && error.message || 'No se pudo consultar el estado.';
+      });
+    });
 
     if (nueva) {
       nueva.addEventListener('click', function () {
