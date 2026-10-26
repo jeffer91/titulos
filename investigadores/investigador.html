@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Investigadores | Revisión de títulos</title>
-  <link rel="stylesheet" href="css/investigador.css?v=20261026-guardado3" />
+  <link rel="stylesheet" href="css/investigador.css?v=20261026-aprobado4" />
   <link rel="stylesheet" href="css/visibility-fixes.css?v=4.8.0" />
   <style>
     #investigadorLoginSeguro[hidden],#investigadorLoginSeguroForm[hidden]{display:none!important}
@@ -217,6 +217,43 @@
     </section>
   </main>
 
+  <!-- Confirmación de resolución final: visible solo después de guardar en Firebase. -->
+  <div class="approval-overlay is-hidden" id="tituloAprobadoModal" role="dialog" aria-modal="true"
+       aria-labelledby="aprobacionModalTitulo" aria-describedby="aprobacionModalDetalle">
+    <section class="approval-dialog">
+      <div class="approval-dialog__hero">
+        <div class="approval-dialog__seal" aria-hidden="true">✓</div>
+        <span class="approval-dialog__eyebrow">RESOLUCIÓN ACADÉMICA REGISTRADA</span>
+        <h2 id="aprobacionModalTitulo">¡Título aprobado!</h2>
+        <p id="aprobacionModalDetalle">La aprobación definitiva se guardó correctamente en el sistema de titulación.</p>
+      </div>
+      <div class="approval-dialog__body">
+        <div class="approval-dialog__badges">
+          <span class="approval-dialog__status" id="aprobacionResultado">Aprobado</span>
+          <span class="approval-dialog__number" id="aprobacionNumero">Título 1</span>
+        </div>
+        <div class="approval-dialog__field">
+          <span class="approval-dialog__label">Estudiante</span>
+          <strong id="aprobacionEstudiante"></strong>
+        </div>
+        <div class="approval-dialog__field">
+          <span class="approval-dialog__label">Título aprobado definitivamente</span>
+          <p class="approval-dialog__title" id="aprobacionTituloFinal"></p>
+        </div>
+        <div class="approval-dialog__note" id="aprobacionObservacionBloque" hidden>
+          <span class="approval-dialog__label">Observación de Investigación</span>
+          <p id="aprobacionObservacion"></p>
+        </div>
+        <p class="message" id="aprobacionContinuarMensaje" role="status" aria-live="polite"></p>
+        <div class="approval-dialog__actions">
+          <button class="btn btn--success" type="button" id="btnAprobacionSiguiente">Continuar con el siguiente expediente</button>
+          <button class="btn btn--ghost" type="button" id="btnAprobacionRevisiones">Ver mis revisiones</button>
+        </div>
+        <p class="approval-dialog__footnote">Esta confirmación solo aparece cuando se ha registrado la aprobación. La resolución queda en tu historial.</p>
+      </div>
+    </section>
+  </div>
+
   <script src="js/firebase.config.js?v=4.8.0"></script>
   <script src="js/secure.config.js?v=4.8.1"></script>
   <script src="js/secure.service.js?v=4.8.1"></script>
@@ -228,6 +265,6 @@
   <script src="js/pdf-revisiones.service.js?v=4.8.0"></script>
   <script src="../shared/js/expediente-vigente.js?v=20261026-sync2"></script>
   <script src="js/investigador.repository.js?v=20261026-sync2"></script>
-  <script src="js/investigador.app.js?v=20261026-guardado3"></script>
+  <script src="js/investigador.app.js?v=20261026-aprobado4"></script>
 </body>
 </html>

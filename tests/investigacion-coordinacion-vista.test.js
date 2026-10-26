@@ -120,3 +120,20 @@ test('un conflicto recarga la cola sin reintentar automáticamente una aprobaci�
  assert.match(app,/cargarTitulos\(true, true\)/);
  assert.match(app,/no se guardó tu aprobación|no se guardó la aprobación anterior/i);
 });
+
+test('el modal de aprobación solo se abre después de resolver el guardado; muestra título y observación',()=>{
+ const html=fs.readFileSync(path.join(root,'investigadores/investigador.html'),'utf8');
+ assert.match(html,/id="tituloAprobadoModal" role="dialog" aria-modal="true"/);
+ for(const id of ['aprobacionTituloFinal','aprobacionObservacionBloque','btnAprobacionSiguiente','btnAprobacionRevisiones']){
+  assert(html.includes('id="'+id+'"'),'Falta elemento de confirmación '+id);
+ }
+ const inicio=app.indexOf('  function botonDecision('),fin=app.indexOf('  function mostrarPopupTituloAprobado(',inicio);
+ assert(inicio>=0 && fin>inicio);
+ const accion=app.slice(inicio,fin);
+ assert(accion.indexOf('.then(function (guardado)')>=0);
+ assert(accion.indexOf('mostrarPopupTituloAprobado(')>accion.indexOf('.then(function (guardado)'));
+ assert.match(accion,/if \(accion === 'DEVOLVER'\)/);
+ assert.match(app,/setText\('aprobacionTituloFinal',datos\.titulo/);
+ assert.match(css,/\.approval-overlay\s*\{/);
+ assert.match(app,/cargarTitulos\(true,true\)/);
+});

@@ -11,6 +11,7 @@
   var revisiones = [];
   var revisionesFiltradas = [];
   var carreraActual = '';
+  var ultimoFocoAprobacion = null;
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
@@ -78,6 +79,9 @@
     on('filtroRevisionCarrera', 'change', aplicarFiltrosRevisiones);
     on('filtroRevisionResultado', 'change', aplicarFiltrosRevisiones);
     on('btnSalir', 'click', salir);
+    on('btnAprobacionSiguiente', 'click', function () { continuarDespuesDeAprobar('siguiente'); });
+    on('btnAprobacionRevisiones', 'click', function () { continuarDespuesDeAprobar('revisiones'); });
+    document.addEventListener('keydown', controlarTecladoAprobacion);
   }
 
   function identificar(event) {
@@ -832,11 +836,29 @@
       mostrarResultadoDecision('Guardando decisión académica en Firebase…','info');
 
       repository.revisarTitulo(titulo, accion, obs.value, investigador,numero,accion==='DEVOLVER'?'':corregido)
-        .then(function () {
-          mostrarResultadoDecision('Decisión registrada correctamente. Actualizando la cola…','success');
-          return cargarTitulos(true).then(function(){return cargarRevisiones();}).then(function(){
-            mensaje('revisionMensaje','Aprobación guardada correctamente.','success');
-          });
+        .then(function (guardado) {
+          // Una respuesta satisfactoria de revisarTitulo acredita el guardado.
+          // No mezclar errores posteriores de recarga con errores del guardado.
+          if (accion === 'DEVOLVER') {
+            mostrarResultadoDecision('Devolución guardada correctamente. Actualizando la cola…','success');
+            return cargarTitulos(true, true).then(function(){return cargarRevisiones();})
+              .catch(function(){
+                mensaje('revisionMensaje','La devolución quedó guardada, pero falló la actualización de la cola. Pulsa Actualizar.','warning');
+              });
+          }
+          var documento=guardado&&guardado.raw||guardado||{};
+          var aprobado=limpiar(documento.tituloFinalInvestigacion||documento.tituloFinal||corregido);
+          var resultado=cambia?'Aprobado con corrección':
+            accion==='APROBAR_OBSERVACION'?'Aprobado con observación':'Aprobado';
+          try {
+            mostrarPopupTituloAprobado({
+              nombre:titulo.nombres,numero:numero,titulo:aprobado,
+              resultado:resultado,observacion:obs.value.trim()
+            });
+          } catch(errorVisual) {
+            // Nunca transformar un fallo del pop-up en un falso error de Firebase.
+            mostrarResultadoDecision('Título aprobado y guardado. Actualiza la cola para continuar.','success');
+          }
         })
         .catch(function (error) {
           if (!esConflictoRevision(error)) {
@@ -863,6 +885,72 @@
     });
 
     return button;
+  }
+
+  function mostrarPopupTituloAprobado(datos) {
+    var modal=el('tituloAprobadoModal');
+    if(!modal)throw new Error('No se encontró la confirmación visual.');
+    ultimoFocoAprobacion=document.activeElement;
+    setText('aprobacionEstudiante',datos.nombre||'Estudiante');
+    setText('aprobacionTituloFinal',datos.titulo||'');
+    setText('aprobacionNumero','Título '+String(datos.numero||''));
+    setText('aprobacionResultado',datos.resultado||'Aprobado');
+    setText('aprobacionObservacion',datos.observacion||'');
+    var nota=el('aprobacionObservacionBloque');
+    if(nota)nota.hidden=!datos.observacion;
+    mensaje('aprobacionContinuarMensaje','','');
+    modal.classList.remove('is-hidden');
+    var continuar=el('btnAprobacionSiguiente');
+    if(continuar)continuar.focus();
+  }
+
+  function continuarDespuesDeAprobar(destino) {
+    var button=el(destino==='revisiones'?'btnAprobacionRevisiones':'btnAprobacionSiguiente');
+    if(!button||button.disabled)return;
+    var ambos=[el('btnAprobacionSiguiente'),el('btnAprobacionRevisiones')].filter(Boolean);
+    ambos.forEach(function(b){b.disabled=true;});
+    mensaje('aprobacionContinuarMensaje','Actualizando el siguiente expediente…','info');
+    // Solo navegamos cuando la cola se ha leído correctamente del servidor.
+    cargarTitulos(true,true)
+      .then(function(){return cargarRevisiones();})
+      .then(function(){
+        ocultarPopupTituloAprobado();
+        if(destino==='revisiones')mostrarVistaRevisados();
+        else mostrarVistaPendientes();
+      })
+      .catch(function(){
+        mensaje('aprobacionContinuarMensaje',
+          'El título sí quedó aprobado, pero no se pudo actualizar la cola. Comprueba tu conexión y pulsa Continuar nuevamente.',
+          'error');
+      })
+      .finally(function(){ambos.forEach(function(b){b.disabled=false;});});
+  }
+
+  function ocultarPopupTituloAprobado(){
+    var modal=el('tituloAprobadoModal');
+    if(modal)modal.classList.add('is-hidden');
+    var volver=ultimoFocoAprobacion;
+    ultimoFocoAprobacion=null;
+    if(volver&&volver.isConnected&&!volver.disabled)volver.focus();
+    else if(el('btnVistaPendientes'))el('btnVistaPendientes').focus();
+  }
+
+  function controlarTecladoAprobacion(event) {
+    var modal=el('tituloAprobadoModal');
+    if(!modal||modal.classList.contains('is-hidden'))return;
+    if(event.key==='Escape'){
+      // La ficha ya está guardada: forzar una actualización antes de salir del modal.
+      event.preventDefault();
+      if(el('btnAprobacionSiguiente'))el('btnAprobacionSiguiente').focus();
+    }
+    if(event.key!=='Tab')return;
+    var botones=[el('btnAprobacionSiguiente'),el('btnAprobacionRevisiones')]
+      .filter(function(b){return b&&!b.disabled;});
+    if(!botones.length){event.preventDefault();return;}
+    var primero=botones[0],ultimo=botones[botones.length-1];
+    if(event.shiftKey&&document.activeElement===primero){event.preventDefault();ultimo.focus();}
+    else if(!event.shiftKey&&document.activeElement===ultimo){event.preventDefault();primero.focus();}
+    else if(botones.indexOf(document.activeElement)<0){event.preventDefault();primero.focus();}
   }
 
   function mostrarResultadoDecision(texto,tipo){
