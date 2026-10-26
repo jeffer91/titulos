@@ -133,6 +133,7 @@ test('aprobar con observación no guarda si falta comentario y no se invalida po
 
 test('cambios en metadatos de propuestas no bloquean una decisión idéntica',async()=>{
  const e=escenario(),abierta=e.view();
+ e.rows.envios.e1.titulosEnviados=e.rows.envios.e1.titulosEnviados.map(p=>({...p}));
  e.rows.envios.e1.titulosEnviados[1].editorInterno='Coordinación';
  e.rows.envios.e1.revisionCoordinador={estado:'VALIDADO',tituloSeleccionadoNumero:1};
  abierta.raw.revisionCoordinador={estado:'VALIDADO',tituloSeleccionadoNumero:1};
@@ -143,6 +144,7 @@ test('cambios en metadatos de propuestas no bloquean una decisión idéntica',as
 });
 test('cambio real del texto de una propuesta bloquea la aprobación sin escribir',async()=>{
  const e=escenario(),abierta=e.view();
+ e.rows.envios.e1.titulosEnviados=e.rows.envios.e1.titulosEnviados.map(p=>({...p}));
  e.rows.envios.e1.titulosEnviados[1].tituloFinal='Propuesta modificada por Coordinación';
  await assert.rejects(()=>e.repo.revisarTitulo(abierta,'APROBAR_OBSERVACION',
   'Observación académica informativa',e.investigador,2,'Segunda propuesta'),
