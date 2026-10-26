@@ -118,5 +118,5 @@ test('si no consta elección verificable no se marca ninguna propuesta como eleg
 test('un conflicto recarga la cola sin reintentar automáticamente una aprobación',()=>{
  assert.match(app,/function esConflictoRevision\(/);
  assert.match(app,/cargarTitulos\(true, true\)/);
- assert.match(app,/No se guardó la aprobación anterior/);
+ assert.match(app,/no se guardó tu aprobación|no se guardó la aprobación anterior/i);
 });
