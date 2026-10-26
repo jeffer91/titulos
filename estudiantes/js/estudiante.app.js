@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var BUILD = '20261026-sync2';
+  var BUILD = '20261026-2';
 
   document.addEventListener('DOMContentLoaded', iniciar);
 

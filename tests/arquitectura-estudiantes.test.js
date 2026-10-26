@@ -73,6 +73,10 @@ eliminados.forEach((rel) => {
 });
 
 assert(html.includes('js/diagnostico.runtime.js'), 'Estudiantes debe cargar diagnóstico runtime.');
+// Se permite únicamente el selector puro de expediente vigente, sin importar backends ajenos.
+const importsCompartidos = html.match(/\.\.\/shared\/[^"'<>\s]+/g) || [];
+assert(importsCompartidos.length === 1 && importsCompartidos[0].startsWith('../shared/js/expediente-vigente.js?'),
+  'Estudiantes solo puede cargar la utilidad compartida de expediente vigente.');
 assert.strictEqual(
   /addEventListener\(\s*['"]keydown['"]/.test(runtimeDiag),
   false,
@@ -102,8 +106,7 @@ assert.strictEqual(
 [
   '../administradores/',
   '../investigadores/',
-  '../coordinadores/',
-  '../shared/'
+  '../coordinadores/'
 ].forEach((ruta) => {
   assert.strictEqual(
     html.includes(ruta) || estudiantesJsCode.includes(ruta),
