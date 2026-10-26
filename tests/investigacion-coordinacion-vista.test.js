@@ -106,7 +106,7 @@ test('selección de Coordinación usa etiqueta visible y marco azul distinto del
  const cards=bloque(render(d),'proposals proposals--review');
  assert.match(cards.children[1].className,/is-selected-by-coord/);
  assert.doesNotMatch(cards.children[0].className,/is-selected-by-coord/);
- assert.match(cards.children[1].innerHTML,/Elegido por Coordinación · Título 2/);
+ assert.match(cards.children[1].innerHTML,/Seleccionado por Coordinación · Título 2/);
  assert.match(css,/\.proposal\.is-selected-by-coord:not\(\.is-selected-by-investigation\)/);
  assert.match(css,/border: 3px solid #174da6/);
  assert.match(css,/\.proposal\.is-selected-by-coord\.is-selected-by-investigation/);

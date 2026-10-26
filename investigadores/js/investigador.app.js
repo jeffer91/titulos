@@ -685,7 +685,7 @@
       item.innerHTML =
         '<div class="proposal__head">' +
           '<strong>Título ' + escapeHtml(numero || '') + '</strong>' +
-          (seleccionado ? '<span class="coord-choice-flag">' + (titulo.habilitadoInvestigacionPorAdmin ? '✓ Seleccionado por Administración' : '✓ Elegido por Coordinación · Título ' + numero) + '</span>' : '') +
+          (seleccionado ? '<span class="coord-choice-flag">' + (titulo.habilitadoInvestigacionPorAdmin ? '✓ Seleccionado por Administración' : '✓ Seleccionado por Coordinación · Título ' + numero) + '</span>' : '') +
           (corregido ? '<span class="proposal__corrected">Corregido</span>' : '') +
         '</div>' +
         '<p>' + escapeHtml(p.tituloFinal || p.titulo || 'Sin título') + '</p>' +
