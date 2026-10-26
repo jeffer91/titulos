@@ -440,7 +440,7 @@
     }
   }
 
-  function cargarTitulos(mantenerCarrera) {
+  function cargarTitulos(mantenerCarrera, propagarError) {
     if (!investigador) return Promise.resolve();
 
     var button = el('btnActualizarTitulos');
@@ -471,6 +471,7 @@
         renderResumen();
         renderCarreras(error);
         mensaje('revisionMensaje', errorMensaje(error, 'No se pudieron cargar los títulos.'), 'error');
+        if (propagarError) throw error;
       })
       .finally(function () {
         setLoading(button, false);
@@ -684,7 +685,7 @@
       item.innerHTML =
         '<div class="proposal__head">' +
           '<strong>Título ' + escapeHtml(numero || '') + '</strong>' +
-          (seleccionado ? '<span>' + (titulo.habilitadoInvestigacionPorAdmin ? 'Seleccionado por Administración' : 'Seleccionado por Coordinación') + '</span>' : '') +
+          (seleccionado ? '<span class="coord-choice-flag">' + (titulo.habilitadoInvestigacionPorAdmin ? '✓ Seleccionado por Administración' : '✓ Elegido por Coordinación · Título ' + numero) + '</span>' : '') +
           (corregido ? '<span class="proposal__corrected">Corregido</span>' : '') +
         '</div>' +
         '<p>' + escapeHtml(p.tituloFinal || p.titulo || 'Sin título') + '</p>' +
@@ -828,8 +829,25 @@
           return cargarTitulos(true).then(function(){return cargarRevisiones();});
         })
         .catch(function (error) {
-          mensaje('revisionMensaje', errorMensaje(error, 'No se pudo guardar la revisión.'), 'error');
-          bloquearDecisiones(false);
+          if (!esConflictoRevision(error)) {
+            mensaje('revisionMensaje', errorMensaje(error, 'No se pudo guardar la revisión.'), 'error');
+            bloquearDecisiones(false);
+            return;
+          }
+          // El botón de aprobación NO se reintenta. Se sustituye la ficha obsoleta
+          // por la cola actual y la investigadora debe confirmar una nueva decisión.
+          mensaje('revisionMensaje', 'El expediente se actualizó en otro módulo. Recuperando su versión vigente…', 'warning');
+          return cargarTitulos(true, true).then(function () {
+            mensaje('revisionMensaje',
+              'La cola está actualizada. Revisa de nuevo el expediente y selecciona el título antes de decidir. No se guardó la aprobación anterior.',
+              'warning');
+          }).catch(function () {
+            mensaje('revisionMensaje',
+              'No se guardó la revisión porque el expediente cambió. No se pudo actualizar la cola; pulsa Actualizar antes de volver a decidir.',
+              'error');
+          }).finally(function () {
+            bloquearDecisiones(false);
+          });
         })
         .finally(function () {
           setLoading(button, false);
@@ -837,6 +855,15 @@
     });
 
     return button;
+  }
+
+  function esConflictoRevision(error) {
+    var original = error && error.original || {};
+    var codigo = String(error && (error.codigo || error.code) || original.codigo || original.code || '');
+    var texto = String(error && error.message || '');
+    return codigo === 'EXPEDIENTE_DESACTUALIZADO' ||
+      codigo === 'REVISION_NO_DISPONIBLE' ||
+      /expediente cambi[oó]|expediente desactualizado|dej[oó] de estar pendiente|ya fue resuelto/i.test(texto);
   }
 
   function bloquearDecisiones(estado) {

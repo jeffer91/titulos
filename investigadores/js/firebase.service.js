@@ -315,7 +315,12 @@
       'tituloCoordinador','tituloCoordinadorNumero','tituloAdminSeleccionadoNumero',
       'tituloAdminSeleccionadoTexto','habilitadoInvestigacionPorAdmin','titulosEnviados',
       'propuestasDetalle','propuestas','titulo1','titulo2','titulo3','numeroEnvios',
-      'fechaEnvio','actualizadoEnLocal','ultimaAccionAdministrativa'];
+      'versionActual','versionActualId','requiereAccionDe','validadoCoordinador',
+      'validadoCoordinacion','aprobadoPorAdministracion','tituloFinal',
+      'revisionAdministrativa','fechaValidacionCoordinador',
+      'fechaEnvio','ultimaAccionAdministrativa'];
+    // Una actualización de metadatos no invalida una decisión académica.
+    // La versión, los estados y las propuestas sí deben coincidir exactamente.
     function huella(d){return JSON.stringify(campos.map(function(c){return d&&d[c]===undefined?null:d&&d[c];}));}
     function periodo(id){
       if(id&&typeof id==='object')id=id.id||id.periodoId||'';
@@ -346,8 +351,11 @@
           ['APROBADO_FINAL','DEVUELTO','ARCHIVADO','BORRADOR_REINICIADO','PENDIENTE_COORDINADOR'].includes(proceso)||
           ['APROBADO','APROBADO_CON_OBSERVACION','DEVUELTO'].includes(inv))
           throw new Error('Este expediente ya fue resuelto o dejó de estar pendiente. Actualiza la cola.');
-        if(huella(actual)!==huella(previo))
-          throw new Error('El expediente cambió desde que lo abriste. Actualiza la cola antes de decidir.');
+        if(huella(actual)!==huella(previo)){
+          var conflicto=new Error('El expediente cambió desde que lo abriste. Actualiza la cola antes de decidir.');
+          conflicto.codigo='EXPEDIENTE_DESACTUALIZADO';
+          throw conflicto;
+        }
         var c=config.data()||{};
         var ids=Array.isArray(c.periodosActivos)?c.periodosActivos:
           c.periodoActivoDesactivado===true?[]:

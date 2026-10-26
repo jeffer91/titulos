@@ -7,6 +7,7 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const app=fs.readFileSync(path.join(root,'investigadores/js/investigador.app.js'),'utf8');
 const repository=fs.readFileSync(path.join(root,'investigadores/js/investigador.repository.js'),'utf8');
+const css=fs.readFileSync(path.join(root,'investigadores/css/investigador.css'),'utf8');
 
 function propuesta(numero,texto){return {numero,tituloFinal:texto};}
 function caso(extra={}){
@@ -97,4 +98,25 @@ test('normaliza revisiones históricas de Coordinación sin confundir revisiones
  assert.equal(arr[0].tituloCoordinador,'Título dos corregido');
  assert.equal(arr[0].tituloCoordinadorAntes,'Título dos');
  assert.match(bloque(render(arr[0]),'coord-selection-summary').innerHTML,/Elegido por Coordinación · Título 2/);
+});
+
+
+test('selección de Coordinación usa etiqueta visible y marco azul distinto del verde de Investigación',()=>{
+ const d=caso({tituloCoordinadorNumero:2,tituloCoordinador:'Título dos'});
+ const cards=bloque(render(d),'proposals proposals--review');
+ assert.match(cards.children[1].className,/is-selected-by-coord/);
+ assert.doesNotMatch(cards.children[0].className,/is-selected-by-coord/);
+ assert.match(cards.children[1].innerHTML,/Elegido por Coordinación · Título 2/);
+ assert.match(css,/\.proposal\.is-selected-by-coord:not\(\.is-selected-by-investigation\)/);
+ assert.match(css,/border: 3px solid #174da6/);
+ assert.match(css,/\.proposal\.is-selected-by-coord\.is-selected-by-investigation/);
+});
+test('si no consta elección verificable no se marca ninguna propuesta como elegida por Coordinación',()=>{
+ const cards=bloque(render(caso()),'proposals proposals--review');
+ cards.children.forEach(c=>assert.doesNotMatch(c.className,/is-selected-by-coord/));
+});
+test('un conflicto recarga la cola sin reintentar automáticamente una aprobación',()=>{
+ assert.match(app,/function esConflictoRevision\(/);
+ assert.match(app,/cargarTitulos\(true, true\)/);
+ assert.match(app,/No se guardó la aprobación anterior/);
 });

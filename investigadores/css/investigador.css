@@ -910,3 +910,43 @@ textarea { resize: vertical; }
 .proposals--review .proposal.is-selected-by-coord.is-selected-by-investigation{
   outline:2px solid #245fa8;outline-offset:2px;border-left:5px solid #14865d
 }
+
+
+/* Elección académica de Coordinación: marco azul, no confundir con el verde de Investigación. */
+.proposals--review .proposal.is-selected-by-coord:not(.is-selected-by-investigation) {
+  border: 3px solid #174da6;
+  border-radius: 13px;
+  background: linear-gradient(180deg,#e7f0ff 0%,#f5f9ff 100%);
+  box-shadow: 0 0 0 2px rgba(23,77,166,.13),0 5px 16px rgba(23,77,166,.12);
+  padding: 9px 10px;
+}
+.proposals--review .proposal.is-selected-by-coord.is-corrected-by-coord:not(.is-selected-by-investigation) {
+  border-color: #174da6;
+  background: linear-gradient(180deg,#e7f0ff 0%,#fffbeb 100%);
+  box-shadow: 0 0 0 2px rgba(23,77,166,.13),0 5px 16px rgba(23,77,166,.12);
+}
+.proposals--review .proposal.is-selected-by-coord .proposal__head .coord-choice-flag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 7px;
+  padding: 5px 8px;
+  background: #174da6;
+  color: #fff;
+  font-weight: 900;
+  font-size: .7rem;
+  letter-spacing: .01em;
+}
+.proposals--review .proposal.is-selected-by-coord.is-selected-by-investigation {
+  border: 2px solid #13845e;
+  outline: 3px solid #174da6;
+  outline-offset: 2px;
+  background: #f1faf6;
+  box-shadow: inset 3px 0 0 #13845e;
+}
+.proposals--review .proposal.is-selected-by-coord .proposal__choose {
+  border-top: 1px solid rgba(23,77,166,.17);
+  padding-top: 9px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .proposals--review .proposal { transition: border-color .16s ease, background-color .16s ease; }
+}

@@ -78,3 +78,22 @@ test('el historial y el expediente se escriben juntos',async()=>{
  const event=Object.values(e.rows.workflow_events)[0];
  assert.equal(event.revision.tituloSeleccionadoTextoOriginal,'Segunda propuesta');
 });
+
+
+// Un simple cambio de metadata no invalida una selección académica intacta.
+test('metadatos auxiliares no provocan falsos conflictos de revisión',async()=>{
+ const e=escenario(),abierta=e.view();
+ e.rows.envios.e1.actualizadoEnLocal='2026-10-26T12:00:00-05:00';
+ await e.repo.revisarTitulo(abierta,'APROBAR','',e.investigador,2,'Segunda propuesta');
+ assert.equal(e.rows.envios.e1.estadoProceso,'APROBADO_FINAL');
+ assert.equal(e.events(),1);
+});
+test('cambio de versión académica bloquea guardados obsoletos aun con mismo estado',async()=>{
+ const e=escenario(),abierta=e.view();
+ e.rows.envios.e1.versionActual=2;
+ e.rows.envios.e1.versionActualId='e1__v002';
+ await assert.rejects(()=>e.repo.revisarTitulo(abierta,'APROBAR','',e.investigador,2,'Segunda propuesta'),
+  /cambi[oó]|Actualiza/i);
+ assert.equal(e.events(),0);
+ assert.equal(e.rows.envios.e1.estadoProceso,'PENDIENTE_INVESTIGADOR');
+});
