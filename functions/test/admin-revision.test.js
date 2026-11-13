@@ -77,6 +77,17 @@ test('corregir y aprobar conserva texto anterior y preferencia original',async()
  assert.equal(e.tituloPreferidoTexto,'Título primero sin modificar');
  assert.equal(e.revisionAdministrativa.accion,'CORREGIR_APROBAR');
 });
+test('API administrativa acepta y conserva títulos extensos sin límite de 260 caracteres',async()=>{
+ const titulo=('Aplicación de metodologías activas para el desarrollo del lenguaje oral en instituciones educativas. ').repeat(12).trim();
+ assert.ok(titulo.length>1000);
+ const db=dbMemoria();
+ const respuesta=await revisar(db,ADMIN,payload('CORREGIR_APROBAR',{tituloCorregido:titulo}));
+ const envio=db.tables.envios.get('e1');
+ assert.equal(respuesta.tituloFinal,titulo);
+ assert.equal(envio.tituloFinal,titulo);
+ assert.equal(envio.titulosEnviados[1].tituloFinal,titulo);
+ assert.equal(envio.revisionAdministrativa.tituloResultante,titulo);
+});
 test('enviar a Coordinación reinicia únicamente la ronda activa y guarda su historial',async()=>{
  const db=dbMemoria({envios:{e1:{...dbMemoria().tables.envios.get('e1'),
    estado:'DEVUELTO',estadoProceso:'DEVUELTO',estadoCoordinador:'DEVUELTO',

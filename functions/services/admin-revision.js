@@ -43,7 +43,6 @@ async function revisar(db,actor,body){
  if(!id||id.length>180||id.includes('/'))fallo(422,'ENVIO_ID_INVALIDO');
  if(!ACCIONES.has(accion))fallo(422,'ACCION_INVALIDA');
  if(motivo.length<8||motivo.length>1000)fallo(422,'MOTIVO_REQUERIDO');
- if(corregido.length>260)fallo(422,'TITULO_MUY_LARGO');
  if(![1,2,3].includes(numero))fallo(422,'PROPUESTA_INVALIDA');
  if(accion==='CORREGIR_APROBAR'&&corregido.length<20)fallo(422,'TITULO_CORREGIDO_INVALIDO');
  if(accion!=='CORREGIR_APROBAR'&&corregido)fallo(422,'CORRECCION_NO_PERMITIDA');

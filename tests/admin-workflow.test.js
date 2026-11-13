@@ -29,13 +29,22 @@ test('Administración aprueba también sin editar y sin doble aprobación',()=>{
 });
 test('Administración exige texto válido y reapertura para modificar uno aprobado',()=>{
  const corregido='Título administrativo completo corregido y definitivo';
- assert.throws(()=>run(initial(),'CORREGIR_APROBAR',1,{tituloCorregido:'corto'}),/20 y 260/);
+ assert.throws(()=>run(initial(),'CORREGIR_APROBAR',1,{tituloCorregido:'corto'}),/al menos 20 caracteres/);
  assert.throws(()=>run(initial(),'CORREGIR_APROBAR',1,{tituloCorregido:'Propuesta de prueba 1'}),/distinto/);
  let d=run(initial(),'CORREGIR_APROBAR',1,{tituloCorregido:corregido});
  assert.throws(()=>run(d,'CORREGIR_APROBAR',1,{tituloCorregido:'Otro título académico completo y corregido'}),/reapertura/);
  d=run(d,'CORREGIR_APROBAR',1,{tituloCorregido:'Otro título académico completo y corregido',reabrirAprobado:true});
  assert.equal(d.tituloFinal,'Otro título académico completo y corregido');
  assert.equal(d.historialProceso.length,2);assert.equal(d.historialProceso[1].tituloOriginal,corregido);
+});
+
+test('Administración guarda títulos extensos sin límite artificial de caracteres',()=>{
+ const titulo=('Aplicación de metodologías activas y evaluación integral del desarrollo del lenguaje oral en estudiantes de Preparatoria. ').repeat(12).trim();
+ assert.ok(titulo.length>1000);
+ const d=run(initial(),'CORREGIR_APROBAR',1,{tituloCorregido:titulo});
+ assert.equal(d.tituloFinal,titulo);
+ assert.equal(d.titulosEnviados[0].tituloFinal,titulo);
+ assert.equal(d.revisionAdministrativa.tituloResultante,titulo);
 });
 
 test('la aprobación directa limpia observaciones obsoletas pero mantiene su historial',()=>{

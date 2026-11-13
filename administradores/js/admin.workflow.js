@@ -11,7 +11,7 @@ function preparar(d,b,fecha){
  if(text(d.estado)!==text(b.estadoEsperado)||text(d.estadoProceso)!==text(b.procesoEsperado)||p.tituloFinal!==text(b.tituloOriginalEsperado)||(b.actualizacionEsperada!=null&&text(d.actualizadoEnLocal)!==b.actualizacionEsperada))throw Error('El expediente cambió. Actualiza la ficha.');
  const corregido=text(b.tituloCorregido).replace(/\s+/g,' ');
  if(b.accion==='CORREGIR_APROBAR'){
-  if(corregido.length<20||corregido.length>260)throw Error('El título definitivo debe tener entre 20 y 260 caracteres.');
+  if(corregido.length<20)throw Error('El título definitivo debe tener al menos 20 caracteres.');
   if(corregido.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()===p.tituloFinal.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase())throw Error('El título corregido debe ser distinto al original.');
  }else if(corregido)throw Error('La edición solo se permite al aprobar definitivamente desde Administración.');
  const cerrado=d.procesoCerrado===true||d.estado==='APROBADO_FINAL'||d.estadoProceso==='APROBADO_FINAL';

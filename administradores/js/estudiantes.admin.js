@@ -290,7 +290,7 @@
       (!propuestas.length?'<p>No hay propuestas activas para gestionar.</p>':
       '<div class="admin-actions__form"><label for="adminAccionPropuesta">Título sobre el que actuarás</label><select id="adminAccionPropuesta"></select><p id="adminTituloActivo" class="admin-active-title"></p>'+
       '<div class="admin-actions__editor"><strong>Editar y aprobar definitivamente como Administrador</strong>'+
-      '<label for="adminTituloCorregido">Título definitivo (puedes reemplazarlo por completo)</label><textarea id="adminTituloCorregido" rows="3" maxlength="260"></textarea>'+
+      '<label for="adminTituloCorregido">Título definitivo (puedes reemplazarlo por completo)</label><textarea id="adminTituloCorregido" rows="3"></textarea>'+
       '<label for="adminAccionMotivo">Motivo u observación</label><textarea id="adminAccionMotivo" rows="2" maxlength="1000" placeholder="Justifica la intervención (mínimo 8 caracteres)"></textarea>'+
       '<button type="button" id="adminAprobarFinal" class="btn btn--primary admin-actions__final-button">Guardar y aprobar definitivamente</button>'+
       '<small>La aprobación del Administrador cierra el expediente sin requerir Coordinación ni Investigación. Si no cambias el texto, aprueba la propuesta original.</small></div>'+
