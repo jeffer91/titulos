@@ -900,7 +900,10 @@
   function normalizarEstudiante(data) {
     var source = normalizarObjeto(data || {});
     var cedula = normalizarCedula(valor(source, ['cedula', 'numeroidentificacion', 'id']) || data.id);
-    var carreraOriginal = limpiarTexto(valor(source, ['nombrecarrera', 'carrera']));
+    // La base académica puede almacenar la carrera vigente con distintos nombres.
+    var carreraOriginal = limpiarTexto(valor(source, [
+      'nombrecarrera', 'nombrecarreraactual', 'carrera', 'carreranombre'
+    ]));
     var carreraVista = normalizarCarreraVista(carreraOriginal);
     var periodoOriginal = valor(source, ['periodoid', 'ultimoperiodoid', 'periodo']);
     var periodoId = normalizarPeriodoIdCanonico(periodoOriginal);
