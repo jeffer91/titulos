@@ -564,6 +564,7 @@
         </div>
         <div class="toolbar">
           <button class="btn btn--secondary" type="button" id="btnCorreoMasivo">Enviar recordatorios por correo</button>
+          <button class="btn btn--secondary" type="button" id="btnDescargarExcelEstudiantes" disabled title="Exporta todos los estudiantes con los filtros aplicados">Descargar Excel</button>
           <button class="btn btn--primary" type="button" id="btnActualizarEstudiantes">Actualizar estudiantes</button>
         </div>
       </div>
@@ -618,6 +619,7 @@
       </section>
 
       <section class="card">
+        <p class="muted" id="estudiantesConteo" aria-live="polite">El Excel incluirá todos los estudiantes filtrados.</p>
         <div class="table-wrap">
           <table class="data-table">
             <thead>
@@ -1185,7 +1187,8 @@
   <script src="js/coordinadores.admin.js?v=20261013-colas-carreras"></script>
   <script src="js/investigadores.admin.js?v=20261015-conciliar-pines-v3"></script>
   <script src="js/admin.actions.service.js?v=20261019-sin-accesos4"></script>
-  <script src="js/estudiantes.admin.js?v=20261113-titulos-libres1"></script>
+  <script src="js/estudiantes.excel.service.js?v=20261118-excel1"></script>
+  <script src="js/estudiantes.admin.js?v=20261118-excel1"></script>
   <script src="js/comunicaciones.admin.js?v=20261022-outlook-institucional2"></script>
   <script src="js/ajustes.admin.js?v=20261008-admin5"></script>
   <script src="js/respaldo.admin.js"></script>
