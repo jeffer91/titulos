@@ -78,6 +78,22 @@ test('genera XLSX con las tres hojas y conserva las cédulas y estados', () => {
   assert.match(archive['xl/worksheets/sheet1.xml'], /<autoFilter/);
 });
 
+test('recupera la carrera de matrícula, ficha académica o título sin inventarla', () => {
+  const api = initService();
+  const casos = [
+    { cedula: '01', nombres: 'Uno', carrera: 'Sin carrera', raw: { nombreCarreraActual: 'EDUCACIÓN BÁSICA' } },
+    { cedula: '02', nombres: 'Dos', carrera: '', titulo: { carreraNombre: 'PROCESAMIENTO EN ALIMENTOS' } },
+    { cedula: '03', nombres: 'Tres', carrera: 'GESTIÓN DEL TALENTO HUMANO' },
+    { cedula: '04', nombres: 'Cuatro', carrera: 'Sin carrera' }
+  ].map(s => ({ ...s, estado: 'SIN_ENVIAR', titulosEnviados: [] }));
+  const [alumnos, propuestas] = api.construirHojas(casos, {});
+  assert.equal(alumnos.filas[0][2], 'EDUCACIÓN BÁSICA');
+  assert.equal(alumnos.filas[1][2], 'PROCESAMIENTO EN ALIMENTOS');
+  assert.equal(alumnos.filas[2][2], 'GESTIÓN DEL TALENTO HUMANO');
+  assert.equal(alumnos.filas[3][2], 'Sin carrera registrada');
+  assert.equal(propuestas.filas.length, 0);
+});
+
 test('no inventa aprobaciones y evita exportaciones vacías', () => {
   const api = initService();
   assert.throws(() => api.exportar([]), /No hay estudiantes/);
