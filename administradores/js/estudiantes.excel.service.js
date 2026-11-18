@@ -29,6 +29,21 @@
   function tituloPropuesto(item) {
     return str(item && (item.tituloFinal || item.titulo || item.texto));
   }
+  function carreraEstudiante(e) {
+    var d = e.titulo || {};
+    var raw = e.raw || {};
+    // Si existe una carrera real, no mostrar el marcador 'Sin carrera'.
+    var candidatos = [
+      e.carrera, e.nombreCarrera, e.NombreCarrera, e.carreraOriginal,
+      raw.nombreCarrera, raw.nombreCarreraActual, raw.carrera, raw.carreraNombre,
+      d.carrera, d.nombreCarrera, d.carreraNombre
+    ];
+    for (var n = 0; n < candidatos.length; n++) {
+      var c = str(candidatos[n]).trim();
+      if (c && c.toUpperCase() !== 'SIN CARRERA') return c;
+    }
+    return 'Sin carrera registrada';
+  }
   function tituloDefinitivo(alumno) {
     if (str(alumno.estado).toUpperCase() !== 'APROBADO') return '';
     var d = alumno.titulo || {};
@@ -49,7 +64,7 @@
       var a = Number(d.tituloAdminSeleccionadoNumero || 0);
       var final = tituloDefinitivo(e), periodo = str(e.periodoLabel || e.periodoId);
       estudiantes.push([
-        str(e.cedula), str(e.nombres), str(e.carrera || e.nombreCarrera), periodo,
+        str(e.cedula), str(e.nombres), carreraEstudiante(e), periodo,
         str(e.periodoId), etiqueta(estado), str(e.estadoMatricula),
         str(d.estadoProceso || d.estado),
         str(d.estadoCoordinador || (d.revisionCoordinador && d.revisionCoordinador.estado)),
@@ -63,7 +78,7 @@
       ts.forEach(function (t, idx) {
         var numero = Number(t.numero || idx + 1);
         propuestas.push([
-          str(e.cedula), str(e.nombres), str(e.carrera || e.nombreCarrera), periodo,
+          str(e.cedula), str(e.nombres), carreraEstudiante(e), periodo,
           etiqueta(estado), numero, tituloPropuesto(t),
           p === numero ? 'Sí' : 'No', c === numero ? 'Sí' : 'No',
           i === numero ? 'Sí' : 'No',
