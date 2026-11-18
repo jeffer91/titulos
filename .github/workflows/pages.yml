@@ -51,6 +51,7 @@ jobs:
           node --test tests/estudiante-reenvio.test.js
           node tests/administrador-faltantes.test.js
           node --test tests/administrador-cache-estadisticas.test.js
+          node --test tests/administrador-excel.test.js
           node --test tests/comunicaciones-administrador.test.js
           node tests/reportes-revisiones.test.js
 
