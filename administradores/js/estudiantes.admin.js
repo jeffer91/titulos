@@ -10,6 +10,7 @@
     periodos: [],
     estudiantes: [],
     filtrados: [],
+    cargado: false,
     detalleActual: null
   };
 
@@ -27,6 +28,7 @@
     var btnActualizar = ui.qs('#btnActualizarEstudiantes');
     var formFiltros = ui.qs('#formFiltrosEstudiantes');
     var btnLimpiar = ui.qs('#btnLimpiarFiltrosEstudiantes');
+    var btnExcel = ui.qs('#btnDescargarExcelEstudiantes');
     var btnAplicar = formFiltros ? formFiltros.querySelector('button[type="submit"]') : null;
 
     var camposFiltros = [
@@ -61,6 +63,11 @@
       });
     }
 
+    if (btnExcel && !btnExcel.dataset.estudiantesBound) {
+      btnExcel.dataset.estudiantesBound = 'true';
+      btnExcel.addEventListener('click', exportarExcel);
+    }
+
     if (btnLimpiar && !btnLimpiar.dataset.estudiantesBound) {
       btnLimpiar.dataset.estudiantesBound = 'true';
       btnLimpiar.addEventListener('click', limpiarFiltros);
@@ -77,6 +84,8 @@
   }
 
   function cargar() {
+    estado.cargado = false;
+    actualizarBotonExcel();
     ui.showStatus('#estudiantesMensaje', config.textos.cargando, 'info');
 
     return repository.listarPeriodos()
@@ -91,11 +100,11 @@
   }
 
   function cargarEstudiantes() {
-    var periodo = ui.value('#estFiltroPeriodo');
-
-    return repository.listarEstudiantesConTitulos(periodo)
+    // Leer una lista completa permite cambiar de período sin perder los registros.
+    return repository.listarEstudiantesConTitulos('')
       .then(function (estudiantes) {
         estado.estudiantes = estudiantes || [];
+        estado.cargado = true;
         llenarFiltroCarreras();
         aplicarFiltros();
         ui.showStatus('#estudiantesMensaje', 'Estudiantes actualizados correctamente.', 'success');
@@ -186,6 +195,39 @@
     });
 
     renderTabla();
+    actualizarBotonExcel();
+    ui.setText('#estudiantesConteo', estado.filtrados.length +
+      ' estudiante(s) con los filtros actuales. El Excel incluirá todos estos registros.');
+  }
+
+  function actualizarBotonExcel() {
+    var boton = ui.qs('#btnDescargarExcelEstudiantes');
+    if (boton) boton.disabled = !estado.cargado || estado.filtrados.length === 0;
+  }
+
+  function exportarExcel() {
+    if (!estado.cargado || !estado.filtrados.length) {
+      ui.showStatus('#estudiantesMensaje', 'No hay estudiantes filtrados para exportar.', 'warning');
+      return;
+    }
+    var servicio = window.TAAdminExcelService;
+    if (!servicio || typeof servicio.exportar !== 'function') {
+      ui.showStatus('#estudiantesMensaje', 'No se cargó el generador de Excel.', 'error');
+      return;
+    }
+    try {
+      var resultado = servicio.exportar(estado.filtrados.slice(), {
+        periodo: ui.value('#estFiltroPeriodo'),
+        busqueda: ui.value('#estFiltroBusqueda'),
+        carrera: ui.value('#estFiltroCarrera'),
+        estado: ui.value('#estFiltroEstado'),
+        telegram: ui.value('#estFiltroTelegram')
+      });
+      ui.showStatus('#estudiantesMensaje', 'Excel descargado: ' + resultado.nombre +
+        ' (' + resultado.estudiantes + ' estudiantes).', 'success');
+    } catch (error) {
+      ui.showStatus('#estudiantesMensaje', obtenerMensaje(error, 'No se pudo generar el Excel.'), 'error');
+    }
   }
 
   function limpiarFiltros() {
