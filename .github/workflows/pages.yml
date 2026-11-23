@@ -31,13 +31,23 @@ jobs:
             -not -path './.git/*' \
             -print0 | xargs -0 -n1 node --check
 
+      - name: Comprobar la pantalla de mantenimiento estudiantil
+        run: |
+          if [ -f estudiantes/MANTENIMIENTO_ACTIVO ]; then
+            node -e 'const fs=require("node:fs"); for(const file of ["estudiantes/estudiante.html","estudiantes/index.html","estudiantes/estudiante-loader.html"]){const html=fs.readFileSync(file,"utf8"); if(!html.includes("Página en construcción") || /<(?:form|input|button|script|a)\b/i.test(html)) throw Error(file+": debe mostrar solamente el aviso sin interacciones");} console.log("Portal estudiantil en mantenimiento: sin formularios, enlaces, botones ni scripts.");'
+          fi
+
       - name: Probar flujos críticos
         run: |
           node --test tests/admin-workflow.test.js
           node tests/consulta-estado.test.js
           node tests/estudiante-envio-rapido.test.js
           node --test tests/estudiante-consulta-recuperacion.test.js
-          node tests/arquitectura-estudiantes.test.js
+          if [ -f estudiantes/MANTENIMIENTO_ACTIVO ]; then
+            echo "Portal estudiantil en mantenimiento: se omite únicamente la prueba de arquitectura de la UI activa."
+          else
+            node tests/arquitectura-estudiantes.test.js
+          fi
           node tests/arquitectura-coordinadores.test.js
           node tests/arquitectura-investigadores.test.js
           node tests/arquitectura-administrador.test.js

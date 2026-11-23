@@ -1,0 +1,9 @@
+# Mantenimiento del portal estudiantil
+
+La presencia de este archivo activa el modo de mantenimiento en el workflow de GitHub Pages. Los puntos de entrada HTML para estudiantes contienen solo un aviso, sin formularios, enlaces, scripts ni acciones.
+
+Se siguen ejecutando las comprobaciones de JavaScript, las pruebas de lógica de negocio de los módulos y las pruebas del backend. Únicamente se omite la prueba de arquitectura de la interfaz estudiantil activa, incompatible con este modo temporal.
+
+Para reabrir el portal, restaurar las páginas HTML originales, eliminar este archivo y validar la prueba de arquitectura.
+
+IMPORTANTE: esto bloquea el uso normal de la interfaz pública. No revoca acceso directo a APIs ni sustituye reglas de autorización en Firebase/Cloud Functions.
